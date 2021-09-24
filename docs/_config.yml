@@ -45,6 +45,10 @@ search_enabled: true
 search:
   button: true
 
+aux_links:
+  "Source Code on GitHub":
+    - "https://github.com/evanacox/honors-forum-project"
+
 # Exclude from processing.
 # The following items will not be processed, by default.
 # Any item listed under the `exclude:` key here will be automatically added to
