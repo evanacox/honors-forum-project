@@ -18,18 +18,33 @@
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
 
-title: Programming Languages & Compilers 101
+title: Compilers 101
 email: evanacox00@gmail.com
 description: >- # this means to ignore newlines until "baseurl:"
-  A website for my high school senior project, containing journal entries,
-  explanations and writing, and technical documentation. 
+  Write an awesome description for your new site here. You can edit this
+  line in _config.yml. It will appear in your document head meta (for
+  Google search results) and in your feed.xml site description.
 baseurl: "/honors-forum-project" # the subpath of your site, e.g. /blog
 url: "https://pages.evanacox.io" # the base hostname & protocol for your site, e.g. http://example.com
 github_username:  evanacox
+remote_theme: pmarsceill/just-the-docs
+
+color_scheme: blue
 
 # Build settings
-theme: minima
-plugins:
+plugins: []
+
+heading_anchors: true
+back_to_top: true
+back_to_top_text: "Back to Top"
+last_edit_timestamp: true # show or hide edit time - page must have `last_modified_date` defined in the frontmatter
+last_edit_time_format: "%b %e %Y at %I:%M %p" # uses ruby's time format: https://ruby-doc.org/stdlib-2.7.0/libdoc/time/rdoc/Time.html
+
+footer_content: "Copyright &copy; 2021, Evan Cox. All rights reserved. Distributed under the <a href=\"https://github.com/evanacox/honors-forum-project/tree/master/LICENSE.txt\">BSD 3-clause license.</a>"
+
+search_enabled: true
+search:
+  button: true
 
 # Exclude from processing.
 # The following items will not be processed, by default.
