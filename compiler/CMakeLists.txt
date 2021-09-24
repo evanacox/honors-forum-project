@@ -1,4 +1,3 @@
-
 ##======---------------------------------------------------------------======##
 #                                                                             #
 # Copyright 2021 Evan Cox <evanacox00@gmail.com>                              #
@@ -8,3 +7,6 @@
 # following link: https://opensource.org/licenses/BSD-3-Clause                #
 #                                                                             #
 ##======---------------------------------------------------------------======##
+
+cmake_minimum_required(VERSION 3.15)
+project(gallium)
