@@ -61,7 +61,7 @@ Two competing solutions to this fundamental problem arose.
 1. Translate something that *humans* understand into something that the *computer* understands
     - Think of it like a translator sitting down and transcribing a document into another language 
 
-2. Make a program that can that both understands something *humans* understand and knows how to *interpret* it for the computer.
+2. Make a program that can both understands something *humans* understand and knows how to *interpret* it for the computer.
     - Think of it like an interpreter listening to what you say and then repeating it in another language for someone else 
 
 We call the former a *compiler* and the latter an *interpreter*. 
