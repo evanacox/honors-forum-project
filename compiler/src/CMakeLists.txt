@@ -8,5 +8,7 @@
 #                                                                             #
 ##======---------------------------------------------------------------======##
 
-add_executable(galliumc ./main.cc ./driver.cc)
-set_target_properties(galliumc PROPERTIES CXX_STANDARD 20 CXX_EXTENSIONS OFF)
+set(GALLIUM_UTILITY_FILES utility/flags.cc )
+
+add_executable(galliumc ./main.cc ./driver.cc ${GALLIUM_UTILITY_FILES})
+configure_target(galliumc)
