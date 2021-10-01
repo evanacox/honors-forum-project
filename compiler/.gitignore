@@ -36,3 +36,6 @@
 .idea/
 cmake-*/
 build/
+
+# ANTLR4 generated code
+./src/**/generated/*

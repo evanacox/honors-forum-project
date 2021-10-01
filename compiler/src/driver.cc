@@ -9,12 +9,13 @@
 //======---------------------------------------------------------------======//
 
 #include "driver.h"
+#include <iostream>
 
 namespace gallium {
   Driver::Driver(int argc, char** argv) : argc_{argc}, argv_{argv} {}
 
   int Driver::start() noexcept {
-    // ...
+    std::cout << "h\n";
 
     return 0;
   }
