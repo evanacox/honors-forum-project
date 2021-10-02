@@ -20,8 +20,7 @@ The following is an extremely high-level view of the phases a compiler has to go
 
 ![Overview of Compiling](../assets/images/compiler-phases-transparent.png)
 
-While that may look like a lot (or it may not, you never know), a compiler at its core is simply
-trying to turn text that humans can understand into different forms that the computer can understand, all of which help the compiler to do different jobs. 
+A compiler at its core is simply trying to turn text that humans can understand into different forms that the computer can understand, all of which help the compiler to do different jobs. 
 
 Just like we have different ways of representing human ideas (words, math notation, images, etc.), the compiler has different ways of representing ideas that help it to better do its job. 
 
@@ -38,34 +37,28 @@ In order for a compiler to understand that code however, it must follow some sor
 Think of it like English, where "walked home Robert" is nonsensical while "Robert walked home" is valid and understandable. 
 
 ### Parsing
-"Parsing" is effectively computer jargon for "reading and making sense of text," in this case the computer is reading in the source code that a human wrote, and trying to figure out what the source code means. Once it figures that out, it turns it into a representation that the compiler can then begin to actually operate on. 
+"Parsing" is effectively computer jargon for "reading and making sense of text," in this case the computer is reading in the source code that a human wrote, and trying to figure out what the source code means. Once it figures that out, it turns it into a representation that the compiler can then begin to actually understand and manipulate. 
 
 Think of this like breaking down an English sentence into subject(s), verbs operating on those subjects, and other parts of a sentence, and figuring out what each part refers to/means.
 
-This representation is typically called an "abstract parse tree," also known as an AST (AST is easier to type). 
+This representation is typically called an "AST." This is actually an abbreviation, and what it means will be explained in a later article. 
 
 ### Analysis
 This step varies wildly depending on the programming language / compiler, but in general this amounts to "making sure the code makes sense." 
 
-Think of it like in English, many sentences are *grammatically* sound, but are nonsensical ("Colorless green ideas sleep furiously," for example). The analysis step filters out those grammatically correct but nonsensical programs. 
-
-Typically, this step does not modify the AST. 
+A decent analogy would be understanding English, many sentences are grammatically correct but nonsensical ("Colorless green ideas sleep furiously," for example). The analysis step filters out those "correct" but nonsensical programs. 
 
 ### Intermediary Representation (IR) 
-Like the name implies, this is a representation that is an intermediary. In this case, it acts as an intermediary step between machine code and the representation that the parser created. 
+IR acts as an "intermediary" step in translating between machine code and the AST.
 
-Machine code is obscenely pedantic and low-level, and the parser's representation is meant to be abstract and (relatively) simple. Translating between these two is possible, but it is fairly error-prone and ends up being difficult to modify later due to complexity. In order to simplify the translation, the IR tries to be somewhere in the middle: more low-level and pedantic than the parser's representation, but not as low-level as machine code. 
+Machine code is obscenely pedantic and low-level, and the AST is meant to be extremely abstract and high-level. Translating between these two is possible but difficult; thus, in order to simplify the translation, the IR tries to be somewhere in the middle: more detailed than the AST, but not quite to the same extent as machine code. 
 
-The parser's representation can then be translated into the IR in a (more) straightforward way, and then the IR can be translated to machine code in a (more) straightforward way. 
+The AST can then be translated into the IR in a (more) straightforward way, and then the IR can be translated to machine code in a (more) straightforward way. 
 
 ### Optimization
-Many IRs have been created over the years that lend themselves to automated optimization, enabling a "smart" compiler to rewrite parts of a program in order to make them simpler and faster for the computer to actually execute. 
+IRs also make it easy for compilers to do automated optimization, enabling a "smart" compiler to rewrite parts of a program in order to make them faster for the computer to actually execute. 
 
-These tricks can be math trickery, removing unnecessary calculations, or much more complex and wider-reaching changes that I can't explain in a sentence. 
-
-This step is where the majority of current compiler research is going, as better optimizers means faster programs, and faster programs means saved time, less money spent on electricity, and happier users. 
-
-> Note: The electricity & time benefits alone could amount to billions of dollars saved in the long run at the scale of companies like Google; there's a reason they pay people $150k/year to make compilers better at optimization)
+These tricks can be math trickery, reducing/removing unnecessary work, or much more complex and wider-reaching optimizations that I can't explain in a sentence. 
 
 ### Machine Code
 Finally, this step is the result of the compiler: a program the computer understands. 
