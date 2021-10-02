@@ -13,18 +13,15 @@ We also explored the idea of a compiler vs. an interpreter.
 
 ## Overall Job
 If you recall, the basic goal of a compiler is to translate 
-what a human can understand to something that a computer can
-understand. 
+what a human can understand to something that a computer can understand. At its core a compiler is simply trying to make sense of text, and it has many different "representations" that it uses to do so. 
 
-The following is an extremely high-level view of the phases a compiler has to go through (note that each of these terms/phases will be explained later):
+Just like we have different ways of representing human ideas (words, math notation, images, etc.), the compiler has different ways of representing ideas that help it to better do its job.
 
-![Overview of Compiling](../assets/images/compiler-phases-transparent.png)
-
-A compiler at its core is simply trying to turn text that humans can understand into different forms that the computer can understand, all of which help the compiler to do different jobs. 
-
-Just like we have different ways of representing human ideas (words, math notation, images, etc.), the compiler has different ways of representing ideas that help it to better do its job. 
+Note that any acronyms used will be explained below. 
 
 ![Human v. Machine Readable](../assets/images/human-v-machine-readable-transparent.png)
+
+Each phase transforms and manipulates the representation of the previous, moving it's internal representation of the program the human wrote closer and closer to machine code. 
 
 ## Phases
 Articles going into much more depth on each of these will be published later, these are the 10,000ft view of the phases and what they do. 
@@ -34,7 +31,7 @@ As mentioned in the previous article, source code is quite literally text in a `
 
 In order for a compiler to understand that code however, it must follow some sort of defined grammatical and semantic rules that the compiler is able to understand.
 
-Think of it like English, where "walked home Robert" is nonsensical while "Robert walked home" is valid and understandable. 
+Think of it like English, where "walked home Joe" is nonsensical while "Joe walked home" is valid and understandable. 
 
 ### Parsing
 "Parsing" is effectively computer jargon for "reading and making sense of text," in this case the computer is reading in the source code that a human wrote, and trying to figure out what the source code means. Once it figures that out, it turns it into a representation that the compiler can then begin to actually understand and manipulate. 
