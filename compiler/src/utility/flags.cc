@@ -10,6 +10,7 @@
 
 #include "./flags.h"
 #include "./log.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include <optional>
 
@@ -24,30 +25,68 @@ ABSL_FLAG(bool, debug, false, "whether or not to include debug information in th
 ABSL_FLAG(std::uint64_t, jobs, 1, "the number of threads that the compiler can create");
 
 namespace {
-  std::optional<galc::OptLevel> optimization_level() noexcept {
-    auto opt_level = absl::GetFlag(FLAGS_opt);
 
-    if (opt_level == "none") {
-      return galc::OptLevel::none;
-    } else if (opt_level == "some") {
-      return galc::OptLevel::some;
-    } else if (opt_level == "small") {
-      return galc::OptLevel::small;
-    } else if (opt_level == "fast") {
-      return galc::OptLevel::fast;
+  std::optional<gal::OptLevel> parse_opt() noexcept {
+    static absl::flat_hash_map<std::string_view, gal::OptLevel> lookup{
+        {"none", gal::OptLevel::none},
+        {"some", gal::OptLevel::some},
+        {"small", gal::OptLevel::small},
+        {"fast", gal::OptLevel::fast},
+    };
+
+    auto opt_level = absl::GetFlag(FLAGS_opt);
+    auto it = lookup.find(std::string_view{opt_level});
+
+    if (it == lookup.end()) {
+      gal::errs() << "invalid value '" << opt_level
+                  << "' for flag 'opt'! valid values: 'none', 'some', 'small', 'fast'";
+
+      return std::nullopt;
     }
 
-    galc::errs() << "invalid value '" << opt_level << "' for flag 'opt'! valid values: 'none', 'some', 'small', 'fast'";
-
-    return std::nullopt;
+    return (*it).second;
   }
 
-  galc::CompilerConfig generate_config() noexcept {
-    return galc::CompilerConfig(1, galc::OptLevel::none, galc::OutputFormat::assembly, false, false);
+  std::optional<gal::OutputFormat> parse_emit() noexcept {
+    static absl::flat_hash_map<std::string_view, gal::OutputFormat> lookup{
+        {"ir", gal::OutputFormat::llvm_ir},
+        {"bc", gal::OutputFormat::llvm_bc},
+        {"asm", gal::OutputFormat::assembly},
+        {"obj", gal::OutputFormat::object_code},
+        {"lib", gal::OutputFormat::static_lib},
+        {"exe", gal::OutputFormat::exe},
+        {"graphviz", gal::OutputFormat::ast_graphviz},
+    };
+
+    auto emit = absl::GetFlag(FLAGS_emit);
+    auto it = lookup.find(std::string_view{emit});
+
+    if (it == lookup.end()) {
+      gal::errs() << "invalid value '" << emit
+                  << "' for flag 'emit'! valid values: 'ir', 'bc', 'asm', 'obj', 'lib', 'exe', 'graphviz'";
+
+      return std::nullopt;
+    }
+
+    return (*it).second;
+  }
+
+  gal::CompilerConfig generate_config() noexcept {
+    auto jobs = absl::GetFlag(FLAGS_jobs);
+    auto verbose = absl::GetFlag(FLAGS_verbose);
+    auto debug = absl::GetFlag(FLAGS_debug);
+    auto emit = parse_emit();
+    auto opt = parse_opt();
+
+    if (emit == std::nullopt || opt == std::nullopt) {
+      std::abort();
+    }
+
+    return gal::CompilerConfig(jobs, *opt, *emit, debug, verbose);
   }
 } // namespace
 
-namespace galc {
+namespace gal {
   CompilerConfig::CompilerConfig(std::uint64_t jobs, OptLevel opt, OutputFormat emit, bool debug, bool verbose) noexcept
       : jobs_{jobs},
         opt_level_{opt},
@@ -60,4 +99,12 @@ namespace galc {
 
     return config;
   }
-} // namespace galc
+
+  std::ostream& operator<<(std::ostream& os, const CompilerConfig& flags) noexcept {
+    os << "flags:"
+       << " emit: " << static_cast<int>(flags.emit()) << ", opt: " << static_cast<int>(flags.opt())
+       << ", jobs: " << flags.jobs() << ", debug: " << flags.debug() << ", verbose: " << flags.verbose();
+
+    return os;
+  }
+} // namespace gal

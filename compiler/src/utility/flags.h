@@ -9,38 +9,39 @@
 //======---------------------------------------------------------------======//
 
 #include <cstdint>
+#include <ostream>
 
-namespace galc {
+namespace gal {
   /// The optimization level of the output, matters
   /// no matter what the output form is
-  enum class OptLevel : unsigned char {
+  enum class OptLevel : signed char {
     /// No optimizations at all, just naive translation
-    none,
+    none = -1,
     /// Basic optimizations without a huge time tradeoff at compile time are enabled
-    some,
+    some = -2,
     /// Optimizations focus on reducing code size instead of generating the fastest code
-    small,
+    small = -3,
     /// All reasonable optimizations are enabled, build time is not a concern
-    fast
+    fast = -4
   };
 
   /// Defines what format the compiler will be outputting as its final product
-  enum class OutputFormat : unsigned char {
+  enum class OutputFormat : signed char {
     /// Human-readable LLVM IR, output to a text file
-    llvm_ir,
+    llvm_ir = -1,
     /// LLVM bitcode in a binary format, not human-readable but
     /// suitable to be plugged into other LLVM tools on the CLI
-    llvm_bc,
+    llvm_bc = -2,
     /// Outputs human-readable assembly code
-    assembly,
+    assembly = -3,
     /// Outputs machine code in the form of a `.o` equivalent
-    object_code,
+    object_code = -4,
     /// Outputs machine code to a static library
-    static_lib,
+    static_lib = -5,
     /// Outputs an executable that can be run
-    exe,
+    exe = -6,
     /// Outputs the AST into a Graphviz-compatible format, i.e a `.dot` file
-    ast_graphviz,
+    ast_graphviz = -7,
   };
 
   /// Holds the configuration options for the
@@ -95,10 +96,17 @@ namespace galc {
     bool verbose_;
   };
 
+  /// Pretty-prints the flag state
+  ///
+  /// \param os The stream to print to
+  /// \param config The configuration
+  /// \return os
+  std::ostream& operator<<(std::ostream& os, const CompilerConfig& config) noexcept;
+
   /// Parses the command line flags for the compiler and returns a config object
   ///
   /// \param argc The number of arguments
   /// \param argv The vector of arguments as C-strings
   /// \return A config object
   [[nodiscard]] const CompilerConfig& flags() noexcept;
-} // namespace galc
+} // namespace gal
