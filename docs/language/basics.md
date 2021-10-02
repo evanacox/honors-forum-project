@@ -12,18 +12,18 @@ running some commands in a terminal that make your code go.
 
 Maybe you've written some Java code like the following:
 
-{% highlight java %}
+~~~ java
 public static int multiply(int x, int y) {
   return x * y;
 }
-{% endhighlight %}
+~~~
 
 Or, maybe you learned Python and wrote something like this:
 
-{% highlight python %}
+~~~ python
 def multiply(x, y):
   return x * y
-{% endhighlight %}
+~~~
 
 Whatever the case is, you were writing a glorified text file,
 and *somehow*, the computer understood what it was and what to do with it.
@@ -35,9 +35,9 @@ Unfortunately, it's not as simple as "the computer understands what `x * y` mean
 because it actually doesn't! What your computer *actually* understands looks more
 akin to this:
 
-{% highlight nasm %}
+~~~ nasm
 137 248 15 175 199 195
-{% endhighlight %}
+~~~
 
 Those numbers correspond to specific *machine instructions*, which are
 the operations that computers can actually perform. These 
