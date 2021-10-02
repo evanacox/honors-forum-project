@@ -18,6 +18,8 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 llvm_map_components_to_libnames(GALLIUM_LLVM_LIBS support core irreader)
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
 
+add_subdirectory(vendor/abseil-cpp)
+
 function(configure_target TARGET)
     set_target_properties(${TARGET} PROPERTIES
             CXX_STANDARD 17
