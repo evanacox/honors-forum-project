@@ -8,7 +8,11 @@
 #                                                                             #
 ##======---------------------------------------------------------------======##
 
-set(GALLIUM_UTILITY_FILES utility/flags.cc )
+set(GALLIUM_UTILITY_FILES utility/flags.cc utility/log.cc utility/ticket_mutex.h utility/ticket_mutex.cc)
 
-add_executable(galliumc ./main.cc ./driver.cc ${GALLIUM_UTILITY_FILES})
-configure_target(galliumc)
+add_executable(gallium ./main.cc ./driver.cc ${GALLIUM_UTILITY_FILES})
+configure_target(gallium)
+target_link_libraries(gallium PRIVATE
+        absl::flags
+        absl::flags_parse
+        absl::strings)

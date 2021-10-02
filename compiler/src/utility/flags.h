@@ -8,16 +8,16 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include <cstddef>
+#include <cstdint>
 
-namespace gallium {
+namespace galc {
   /// The optimization level of the output, matters
   /// no matter what the output form is
   enum class OptLevel : unsigned char {
     /// No optimizations at all, just naive translation
     none,
     /// Basic optimizations without a huge time tradeoff at compile time are enabled
-    optimized,
+    some,
     /// Optimizations focus on reducing code size instead of generating the fastest code
     small,
     /// All reasonable optimizations are enabled, build time is not a concern
@@ -33,8 +33,12 @@ namespace gallium {
     llvm_bc,
     /// Outputs human-readable assembly code
     assembly,
-    /// Outputs machine code, whether that be a `.o` file or an `.exe`
-    machine_code,
+    /// Outputs machine code in the form of a `.o` equivalent
+    object_code,
+    /// Outputs machine code to a static library
+    static_lib,
+    /// Outputs an executable that can be run
+    exe,
     /// Outputs the AST into a Graphviz-compatible format, i.e a `.dot` file
     ast_graphviz,
   };
@@ -44,6 +48,9 @@ namespace gallium {
   /// command line
   class CompilerConfig {
   public:
+    /// Create a CompilerConfig object
+    explicit CompilerConfig(std::uint64_t jobs, OptLevel opt, OutputFormat emit, bool debug, bool verbose) noexcept;
+
     /// Gets the number of threads that the compiler is allowed to
     /// create to parse/compile/whatever
     ///
@@ -55,14 +62,14 @@ namespace gallium {
     /// Gets the optimization level that the compiler should output code at
     ///
     /// \return The requested optimization level
-    [[nodiscard]] constexpr OptLevel opt_level() const noexcept {
+    [[nodiscard]] constexpr OptLevel opt() const noexcept {
       return opt_level_;
     }
 
     /// Gets the format that the user wants the compiler to generate
     ///
     /// \return The output format for the compiler
-    [[nodiscard]] constexpr OutputFormat format() const noexcept {
+    [[nodiscard]] constexpr OutputFormat emit() const noexcept {
       return format_;
     }
 
@@ -81,10 +88,17 @@ namespace gallium {
     }
 
   private:
-    std::size_t jobs_;
+    std::uint64_t jobs_;
     OptLevel opt_level_;
     OutputFormat format_;
     bool debug_;
     bool verbose_;
   };
-} // namespace gallium
+
+  /// Parses the command line flags for the compiler and returns a config object
+  ///
+  /// \param argc The number of arguments
+  /// \param argv The vector of arguments as C-strings
+  /// \return A config object
+  [[nodiscard]] const CompilerConfig& flags() noexcept;
+} // namespace galc

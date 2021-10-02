@@ -9,14 +9,19 @@
 //======---------------------------------------------------------------======//
 
 #include "driver.h"
-#include <iostream>
+#include "./utility/flags.h"
+#include "./utility/log.h"
 
-namespace gallium {
-  Driver::Driver(int argc, char** argv) : argc_{argc}, argv_{argv} {}
+namespace galc {
+  Driver::Driver() noexcept = default;
 
-  int Driver::start() noexcept {
-    std::cout << "h\n";
+  int Driver::start(absl::Span<std::string_view> files) noexcept {
+    auto& flags = galc::flags();
+
+    for (auto file : files) {
+      galc::outs() << "file: " << file << '\n';
+    }
 
     return 0;
   }
-} // namespace gallium
+} // namespace galc

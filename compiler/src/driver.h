@@ -8,7 +8,10 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-namespace gallium {
+#include "absl/types/span.h"
+#include <string_view>
+
+namespace galc {
   ///
   ///
   ///
@@ -17,15 +20,13 @@ namespace gallium {
     ///
     ///
     ///
-    explicit Driver(int argc, char** argv);
+    explicit Driver() noexcept;
 
     ///
     ///
     ///
-    int start() noexcept;
+    int start(absl::Span<std::string_view> files) noexcept;
 
   private:
-    int argc_;
-    char** argv_;
   };
-} // namespace gallium
+} // namespace galc
