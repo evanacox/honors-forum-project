@@ -28,7 +28,7 @@ Just like we have different ways of representing human ideas (words, math notati
 ![Human v. Machine Readable](../assets/images/human-v-machine-readable-transparent.png)
 
 ## Phases
-Articles going into much more depth on each of these will be published later, these are the 10,000ft view of the idea. 
+Articles going into much more depth on each of these will be published later, these are the 10,000ft view of the phases and what they do. 
 
 ### Source Code
 As mentioned in the previous article, source code is quite literally text in a `.txt` file, just with a different file name. 
