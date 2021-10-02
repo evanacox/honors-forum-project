@@ -10,4 +10,4 @@
 
 #include "./parser.h"
 
-namespace gallium {}
+namespace galc {}

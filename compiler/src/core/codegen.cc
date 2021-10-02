@@ -10,4 +10,4 @@
 
 #include "./codegen.h"
 
-namespace gallium {}
+namespace galc {}

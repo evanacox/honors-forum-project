@@ -10,4 +10,4 @@
 
 #include "./lexer.h"
 
-namespace gallium {}
+namespace galc {}
