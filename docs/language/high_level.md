@@ -24,7 +24,7 @@ Note that any acronyms used will be explained below.
 Each phase transforms and manipulates the representation of the previous, moving it's internal representation of the program the human wrote closer and closer to machine code. 
 
 ## Phases
-Articles going into much more depth on each of these will be published later, these are the 10,000ft view of the phases and what they do. 
+Articles going into much more depth on each of these will be published later, these are a very general overview of each phase and what they do. 
 
 ### Source Code
 As mentioned in the previous article, source code is quite literally text in a `.txt` file, just with a different file name. 
@@ -38,7 +38,7 @@ Think of it like English, where "walked home Joe" is nonsensical while "Joe walk
 
 Think of this like breaking down an English sentence into subject(s), verbs operating on those subjects, and other parts of a sentence, and figuring out what each part refers to/means.
 
-This representation is typically called an "AST." This is actually an abbreviation, and what it means will be explained in a later article. 
+This representation is typically called an "AST." This is actually an abbreviation for "abstract syntax tree," you don't need to remember that. What that actually *is* will be explained in a later article. 
 
 ### Analysis
 This step varies wildly depending on the programming language / compiler, but in general this amounts to "making sure the code makes sense." 
