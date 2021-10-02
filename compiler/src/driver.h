@@ -11,7 +11,7 @@
 #include "absl/types/span.h"
 #include <string_view>
 
-namespace galc {
+namespace gal {
   ///
   ///
   ///
@@ -29,4 +29,4 @@ namespace galc {
 
   private:
   };
-} // namespace galc
+} // namespace gal

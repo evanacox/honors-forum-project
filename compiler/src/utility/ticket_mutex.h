@@ -15,7 +15,7 @@
 #include <cstddef>
 #include <mutex>
 
-namespace galc {
+namespace gal {
   class TicketMutex {
     struct State {
       /// The current ticket being served
@@ -64,4 +64,4 @@ namespace galc {
   private:
     State state_;
   };
-} // namespace galc
+} // namespace gal

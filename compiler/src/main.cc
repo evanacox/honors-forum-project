@@ -36,5 +36,7 @@ int main(int argc, char** argv) {
   auto vec = absl::ParseCommandLine(argc, argv);
   auto files = into_positionals({vec.data(), vec.size()});
 
-  return galc::Driver{}.start({files.data(), files.size()});
+  // `files` includes the first positional argument (which is the exe path), need to ignore
+  // also need to ignore the final null string, it will always have a string with just \0 in it
+  return gal::Driver{}.start({files.data() + 1, files.size() - 1});
 }

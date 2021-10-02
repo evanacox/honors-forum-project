@@ -13,10 +13,10 @@
 #include <iostream>
 
 namespace {
-  galc::TicketMutex console_lock;
+  gal::TicketMutex console_lock;
 }
 
-namespace galc {
+namespace gal {
   void internal::lock_console() noexcept {
     console_lock.lock();
   }
@@ -26,14 +26,24 @@ namespace galc {
   }
 
   internal::BufferedFakeOstream outs() noexcept {
-    return internal::BufferedFakeOstream(&std::cout);
+    auto stream = internal::BufferedFakeOstream(&std::cout);
+
+    stream << colors::bold_cyan("info: ");
+
+    // copy elision kicks in, stream.~BufferedFakeOstream() is not called
+    return stream;
   }
 
   internal::UnbufferedFakeOstream errs() noexcept {
-    return internal::BufferedFakeOstream(&std::cerr);
+    auto stream = internal::UnbufferedFakeOstream(&std::cerr);
+
+    stream << colors::bold_red("error: ");
+
+    // copy elision kicks in, stream.~BufferedFakeOstream() is not called
+    return stream;
   }
 
   std::ostream& raw_outs() noexcept {
     return std::cout;
   }
-} // namespace galc
+} // namespace gal

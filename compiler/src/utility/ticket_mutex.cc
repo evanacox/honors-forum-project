@@ -10,7 +10,7 @@
 
 #include "./ticket_mutex.h"
 
-namespace galc {
+namespace gal {
   void TicketMutex::lock() noexcept {
     const auto ticket_number = state_.count.fetch_add(1, std::memory_order_relaxed);
 
@@ -46,4 +46,4 @@ namespace galc {
   TicketMutex::native_handle_type TicketMutex::native_handle() noexcept {
     return &state_;
   }
-} // namespace galc
+} // namespace gal

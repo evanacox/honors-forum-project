@@ -13,7 +13,7 @@
 #include "absl/strings/str_cat.h"
 #include <ostream>
 
-namespace galc {
+namespace gal {
   namespace internal {
     void lock_console() noexcept;
     void unlock_console() noexcept;
@@ -28,7 +28,7 @@ namespace galc {
 
       NewlineOstream(const NewlineOstream&) = delete;
 
-      NewlineOstream(NewlineOstream&&) = delete;
+      NewlineOstream(NewlineOstream&&) noexcept = default;
 
       NewlineOstream& operator=(const NewlineOstream&) = delete;
 
@@ -56,7 +56,7 @@ namespace galc {
 
     using BufferedFakeOstream = internal::NewlineOstream<false>;
 
-    using UnbufferedFakeOstream = internal::NewlineOstream<false>;
+    using UnbufferedFakeOstream = internal::NewlineOstream<true>;
   } // namespace internal
 
   namespace colors {
@@ -151,4 +151,4 @@ namespace galc {
   ///
   /// \return A buffered "ostream"
   std::ostream& raw_outs() noexcept;
-} // namespace galc
+} // namespace gal

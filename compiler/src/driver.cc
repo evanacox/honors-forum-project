@@ -12,16 +12,10 @@
 #include "./utility/flags.h"
 #include "./utility/log.h"
 
-namespace galc {
+namespace gal {
   Driver::Driver() noexcept = default;
 
-  int Driver::start(absl::Span<std::string_view> files) noexcept {
-    auto& flags = galc::flags();
-
-    for (auto file : files) {
-      galc::outs() << "file: " << file << '\n';
-    }
-
+  int Driver::start(absl::Span<std::string_view>) noexcept {
     return 0;
   }
-} // namespace galc
+} // namespace gal

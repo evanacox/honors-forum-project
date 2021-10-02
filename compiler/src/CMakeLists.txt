@@ -12,7 +12,11 @@ set(GALLIUM_UTILITY_FILES utility/flags.cc utility/log.cc utility/ticket_mutex.h
 
 add_executable(gallium ./main.cc ./driver.cc ${GALLIUM_UTILITY_FILES})
 configure_target(gallium)
+target_include_directories(gallium PUBLIC ${LLVM_INCLUDE_DIRS})
+target_compile_definitions(gallium PUBLIC ${LLVM_DEFINITIONS_LIST})
 target_link_libraries(gallium PRIVATE
+        ${GALLIUM_LLVM_LIBS}
         absl::flags
         absl::flags_parse
-        absl::strings)
+        absl::strings
+        absl::flat_hash_map)
