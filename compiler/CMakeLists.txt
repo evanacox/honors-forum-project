@@ -20,13 +20,18 @@ separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
 
 add_subdirectory(vendor/abseil-cpp)
 
+option(GALLIUM_DEV "whether or not to build with `-Werror` or the compiler's equivalent" OFF)
+
 function(configure_target TARGET)
     set_target_properties(${TARGET} PROPERTIES
             CXX_STANDARD 17
             CXX_EXTENSIONS OFF)
-    target_include_directories(${TARGET} PUBLIC ${LLVM_INCLUDE_DIRS})
-    target_compile_definitions(${TARGET} PUBLIC ${LLVM_DEFINITIONS_LIST})
-    target_link_libraries(${TARGET} PUBLIC ${GALLIUM_LLVM_LIBS})
+
+    # enable warnings and warnings-as-errors in development
+    # there's no reason not to, and its off by default for normal use
+    if (GALLIUM_DEV)
+        target_compile_options(${TARGET} PRIVATE ${ABSL_DEFAULT_COPTS})
+    endif ()
 endfunction()
 
 add_subdirectory(src)
