@@ -55,9 +55,11 @@ The AST can then be translated into the IR in a (more) straightforward way, and 
 ### Optimization
 IRs also make it easy for compilers to do automated optimization, enabling a "smart" compiler to rewrite parts of a program in order to make them faster for the computer to actually execute. 
 
-These tricks can be math trickery, reducing/removing unnecessary work, or much more complex and wider-reaching optimizations that I can't explain in a sentence. 
+These tricks can be math trickery, reducing/removing unnecessary work, or much more complex and wider-reaching optimizations that I can't explain in a single sentence (or even a few paragraphs, for that matter). 
+
+> Note: Nearly all modern research into compilers is going into optimization, because for the most part the other parts of compilers are solved problems. Optimization is by far the most complex part of any compiler, and it will not be covered very deeply in these articles.   
 
 ### Machine Code
 Finally, this step is the result of the compiler: a program the computer understands. 
 
-The IR is fully translated into machine code, and then that machine code is put into file (usually an `.exe`) that a user can then execute. 
+The IR is fully translated into machine code, and then that machine code is put into a file (usually an `.exe`) that a user can then execute. 
