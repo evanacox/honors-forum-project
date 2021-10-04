@@ -38,12 +38,14 @@ Think of it like English, where "walked home Joe" is nonsensical while "Joe walk
 
 Think of this like breaking down an English sentence into subject(s), verbs operating on those subjects, and other parts of a sentence, and figuring out what each part refers to/means.
 
-This representation is typically called an "AST." This is actually an abbreviation for "abstract syntax tree," you don't need to remember that. What that actually *is* will be explained in a later article. 
+This representation is typically called an "AST." This is actually an abbreviation for "abstract syntax tree," but you don't need to remember what it stands for right now. What an "AST" actually *is* will be explained in a later article, for now you can just think of it as "a representation of the program that the computer can reason about." 
 
 ### Analysis
 This step varies wildly depending on the programming language / compiler, but in general this amounts to "making sure the code makes sense." 
 
 A decent analogy would be understanding English, many sentences are grammatically correct but nonsensical ("Colorless green ideas sleep furiously," for example). The analysis step filters out those "correct" but nonsensical programs. 
+
+The AST is looked over, and each small part is checked for correctness and that each part "makes sense" both by itself and in the context of the rest of the AST. 
 
 ### Intermediary Representation (IR) 
 IR acts as an "intermediary" step in translating between machine code and the AST.
