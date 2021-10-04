@@ -24,7 +24,7 @@ namespace gal {
 
       explicit NewlineOstream(std::ostream* os) noexcept : os_{os} {
         internal::lock_console();
-      };
+      }
 
       NewlineOstream(const NewlineOstream&) = delete;
 
