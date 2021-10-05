@@ -9,3 +9,30 @@
 # following link: https://opensource.org/licenses/BSD-3-Clause                #
 #                                                                             #
 ##======---------------------------------------------------------------======##
+
+import re
+import os
+
+
+def tools_dir():
+    return os.path.dirname(os.path.realpath(__file__))
+
+
+def syntax_dir():
+    return tools_dir() + "/../src/syntax/"
+
+
+def main():
+    syntax = syntax_dir()
+
+    os.system(f"antlr4 -Dlanguage=Cpp -no-listener -visitor -o {syntax}/generated {syntax}/Gallium.g4")
+
+    for file in os.listdir(f"{syntax}/generated"):
+        if file.endswith(".interp") or file.endswith(".tokens"):
+            os.remove(os.path.join(f"{syntax}/generated/", file))
+
+    # may add more logic in the future
+
+
+if __name__ == "__main__":
+    main()

@@ -8,7 +8,15 @@
 #                                                                             #
 ##======---------------------------------------------------------------======##
 
-set(GALLIUM_UTILITY_FILES utility/flags.cc utility/log.cc utility/ticket_mutex.h utility/ticket_mutex.cc)
+set(GALLIUM_UTILITY_FILES
+        utility/flags.cc
+        utility/log.cc
+        utility/ticket_mutex.h
+        utility/ticket_mutex.cc)
+
+set(GALLIUM_SYNTAX_FILES
+        syntax/parser.cc
+        syntax/lexer.cc)
 
 add_executable(gallium ./main.cc ./driver.cc ${GALLIUM_UTILITY_FILES})
 configure_target(gallium)

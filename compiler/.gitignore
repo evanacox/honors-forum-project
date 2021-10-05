@@ -38,4 +38,4 @@ cmake-*/
 build/
 
 # ANTLR4 generated code
-./src/**/generated/*
+src/syntax/generated/
