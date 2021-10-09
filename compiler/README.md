@@ -6,11 +6,9 @@ so that CMake can find LLVM).
 
 ANTLR v4.9.2 needs to be installed, and two options provided to CMake:
 
-- `GALLIUM_ANTLR4_COMMAND`: A standalone command (probably a script) 
-                            that has the same CLI interface as 
-                            `antlr-4.9-complete.jar`. 
-
 - `GALLIUM_ANTLR4_RUNTIME`: Path to the **static** ANTLR4 C++ runtime library. 
+
+- `GALLIUM_ANTLR4_RUNTIME_INCLUDE`: Path to the ANTLR4 C++ runtime's include directory 
 
 Besides those dependencies, several build flags are provided:
 

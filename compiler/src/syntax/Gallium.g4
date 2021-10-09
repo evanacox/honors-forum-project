@@ -27,13 +27,9 @@ IDENTIFIER
     : [\p{XID_Start}] [\p{XID_Continue}]*
     ;
 
-WHITESPACE_WITHOUT_NEWLINES
-    : [ \t]
-    ;
-
 WHITESPACE
-    : WHITESPACE_WITHOUT_NEWLINES
-    | NEWLINE
+    : ' '
+    | '\t'
     ;
 
 NEWLINE
@@ -47,8 +43,8 @@ modularizedDeclaration
     ;
 
 importDeclaration
-    : 'import' WHITESPACE+ imported=MODULE_NAME WHITESPACE* NEWLINE
-    | 'import' WHITESPACE+
+    : 'import' WHITESPACE+ imported=MODULE_NAME WHITESPACE* NEWLINE+
+    | 'import' WHITESPACE+ entities=identifierList WHITESPACE+ 'from' from=MODULE_NAME WHITESPACE* NEWLINE+
     ;
 
 identifierList
@@ -73,7 +69,7 @@ fnDeclaration
 
 fnArgumentList
     : name=IDENTIFIER WHITESPACE+ ':' WHITESPACE+ realType=type
-    | first=fnArgumentList WHITESPACE+ ',' WHITESPACE+ rest=fnArgumentList
+    | first=fnArgumentList WHITESPACE+ ',' NEWLINE* WHITESPACE+ rest=fnArgumentList
     ;
 
 classDeclaration
@@ -85,7 +81,7 @@ structDeclaration
     ;
 
 typeDeclaration
-    : 'type' WHITESPACE+ name=IDENTIFIER WHITESPACE+ '=' aliasedType=type WHITESPACE_WITHOUT_NEWLINES+ NEWLINE
+    : 'type' WHITESPACE+ name=IDENTIFIER WHITESPACE+ '=' aliasedType=type WHITESPACE* NEWLINE+
     ;
 
 blockStatement
@@ -93,14 +89,14 @@ blockStatement
     ;
 
 type
-    : ref=(AMPERSTAND_MUT | AMPERSTAND)? referredTo=typeWithoutRef
+    : ref=(AMPERSTAND_MUT | AMPERSTAND)? WHITESPACE* referredTo=typeWithoutRef
     ;
 
 typeWithoutRef
-    : '[' WHITESPACE+ slicedType=typeWithoutRef WHITESPACE+ ']'
-    | ptr=(IMMUTABLE_PTR | MUTABLE_PTR) pointedTo=typeWithoutRef
+    : '[' WHITESPACE* slicedType=typeWithoutRef WHITESPACE* ']'
+    | ptr=(STAR_CONST | STAR_MUT) (WHITESPACE+) pointedTo=typeWithoutRef
     | builtin=builtinType
-    | userDefinedType=MODULE_NAME (genericArgs=genericTypeList)?
+    | userDefinedType=MODULE_NAME (LT WHITESPACE* genericArgs=genericTypeList WHITESPACE* GT)?
     ;
 
 builtinType
@@ -126,7 +122,7 @@ builtinType
 
 genericTypeList
     : arg=type
-    | first=type ',' rest=genericTypeList
+    | first=type WHITESPACE* ',' WHITESPACE* rest=genericTypeList
     ;
 
 LT
