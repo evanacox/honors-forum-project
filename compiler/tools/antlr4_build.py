@@ -10,26 +10,27 @@
 #                                                                             #
 ##======---------------------------------------------------------------======##
 
-import re
 import os
+import sys
 
 
-def tools_dir():
-    return os.path.dirname(os.path.realpath(__file__))
+def output_dir():
+    return sys.argv[1]
 
 
 def syntax_dir():
-    return tools_dir() + "/../src/syntax/"
+    return os.path.dirname(os.path.realpath(__file__)) + "/../src/syntax/"
 
 
 def main():
     syntax = syntax_dir()
+    out = output_dir()
 
-    os.system(f"antlr4 -Dlanguage=Cpp -no-listener -visitor -o {syntax}/generated {syntax}/Gallium.g4")
+    os.system(f"antlr4 -Dlanguage=Cpp -no-listener -visitor -o {out} {syntax}/Gallium.g4")
 
-    for file in os.listdir(f"{syntax}/generated"):
+    for file in os.listdir(out):
         if file.endswith(".interp") or file.endswith(".tokens"):
-            os.remove(os.path.join(f"{syntax}/generated/", file))
+            os.remove(os.path.join(out, file))
 
     # may add more logic in the future
 
