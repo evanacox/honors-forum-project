@@ -8,6 +8,8 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./nodes/declaration.h"
+#pragma once
 
-namespace gal {}
+namespace gal::ast {
+  class Type {};
+} // namespace gal::ast

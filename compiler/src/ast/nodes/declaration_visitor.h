@@ -8,6 +8,28 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./nodes/declaration.h"
+#pragma once
 
-namespace gal {}
+namespace gal::ast {
+  class ImportDeclaration;
+  class ImportFromDeclaration;
+  class FnDeclaration;
+  class StructDeclaration;
+  class ClassDeclaration;
+  class TypeDeclaration;
+
+  class DeclarationVisitor {
+  public:
+    virtual void visit(ImportDeclaration*) = 0;
+
+    virtual void visit(ImportFromDeclaration*) = 0;
+
+    virtual void visit(FnDeclaration*) = 0;
+
+    virtual void visit(StructDeclaration*) = 0;
+
+    virtual void visit(ClassDeclaration*) = 0;
+
+    virtual void visit(TypeDeclaration*) = 0;
+  };
+} // namespace gal::ast

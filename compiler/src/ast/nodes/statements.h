@@ -8,6 +8,10 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./nodes/declaration.h"
+#pragma once
 
-namespace gal {}
+namespace gal::ast {
+  class Statement {};
+
+  class BlockStatement : public Statement {};
+} // namespace gal::ast
