@@ -10,96 +10,7 @@
 
 grammar Gallium;
 
-parse
-    : modularizedDeclaration* EOF
-    ;
-
-singleType
-    : type EOF
-    ;
-
-MODULE_NAME
-    : IDENTIFIER
-    | IDENTIFIER '::' MODULE_NAME
-    ;
-
-IDENTIFIER
-    : [\p{XID_Start}] [\p{XID_Continue}]*
-    ;
-
-WHITESPACE
-    : ' '
-    | '\t'
-    ;
-
-NEWLINE
-    : '\n'
-    | '\r\n'
-    ;
-
-modularizedDeclaration
-    : importDeclaration
-    | exportDeclaration
-    ;
-
-importDeclaration
-    : 'import' WHITESPACE+ imported=MODULE_NAME WHITESPACE* NEWLINE+
-    | 'import' WHITESPACE+ entities=identifierList WHITESPACE+ 'from' from=MODULE_NAME WHITESPACE* NEWLINE+
-    ;
-
-identifierList
-    : IDENTIFIER
-    | IDENTIFIER ','
-    ;
-
-exportDeclaration
-    : 'export' WHITESPACE+ exported=declaration
-    ;
-
-declaration
-    : fnDecl=fnDeclaration
-    | classDecl=classDeclaration
-    | structDecl=structDeclaration
-    | typeDecl=typeDeclaration
-    ;
-
-fnDeclaration
-    : 'fn' WHITESPACE+ name=IDENTIFIER WHITESPACE+ '(' args=fnArgumentList ')' body=blockStatement
-    ;
-
-fnArgumentList
-    : name=IDENTIFIER WHITESPACE+ ':' WHITESPACE+ realType=type
-    | first=fnArgumentList WHITESPACE+ ',' NEWLINE* WHITESPACE+ rest=fnArgumentList
-    ;
-
-classDeclaration
-    : EOF
-    ;
-
-structDeclaration
-    : EOF
-    ;
-
-typeDeclaration
-    : 'type' WHITESPACE+ name=IDENTIFIER WHITESPACE+ '=' aliasedType=type WHITESPACE* NEWLINE+
-    ;
-
-blockStatement
-    : EOF
-    ;
-
-type
-    : ref=(AMPERSTAND_MUT | AMPERSTAND)? WHITESPACE* referredTo=typeWithoutRef
-    ;
-
-typeWithoutRef
-    : '[' WHITESPACE* slicedType=typeWithoutRef WHITESPACE* ']'
-    | ptr=(STAR_CONST | STAR_MUT) (WHITESPACE+) pointedTo=typeWithoutRef
-    | builtin=builtinType
-    | userDefinedType=MODULE_NAME (LT WHITESPACE* genericArgs=genericTypeList WHITESPACE* GT)?
-    ;
-
-builtinType
+BUILTIN_TYPE
     : 'i8'
     | 'i16'
     | 'i32'
@@ -120,9 +31,67 @@ builtinType
     | 'char'
     ;
 
-genericTypeList
-    : arg=type
-    | first=type WHITESPACE* ',' WHITESPACE* rest=genericTypeList
+fragment DECIMAL_DIGIT
+    : [0-9]
+    ;
+
+fragment HEX_DIGIT
+    : [0-9a-fA-F]+
+    ;
+
+fragment OCTAL_DIGIT
+    : [0-7]+
+    ;
+
+fragment STRING_LITERAL_CHARACTER
+    : '\\n'  // newline
+    | '\\r'  // carriage return
+    | '\\t'  // tab
+    | '\\v'  // vertical tab
+    | '\\\'' // single quote
+    | '\\"'  // double quote
+    | '\\\\' // backslash
+    | '\\a'  // bell
+    | '\\b'  // backspace
+    | '\\f'  // form feed
+    | '\\o' OCTAL_DIGIT{3}  // 3-digit octal number, 000-377. maps to a single byte
+    | '\\x' HEX_DIGIT{2}    // 2-digit hex number, 00-FF. maps to a single byte
+    | '\\' DECIMAL_DIGIT{3} // 3 digit decimal number, 000-255. maps to a single byte
+    | '\\u' DECIMAL_DIGIT{4} (DECIMAL_DIGIT{4})? // U+nnnn (or U+nnnnnnnn if all 8)
+    | ~'\\'
+    ;
+
+STRING_LITERAL
+    : '"' (STRING_LITERAL_CHARACTER)* '"'
+    ;
+
+CHAR_LITERAL
+    : '\'' STRING_LITERAL_CHARACTER '\''
+    ;
+
+OCTAL_LITERAL
+    : '0o' OCTAL_DIGIT+
+    ;
+
+HEX_LITERAL
+    : '0x' HEX_DIGIT+
+    ;
+
+BINARY_LITERAL
+    : '0b' BINARY_LITERAL+
+    ;
+
+DECIMAL_LITERAL
+    : DECIMAL_DIGIT+
+    ;
+
+BOOL_LITERAL
+    : 'true'
+    | 'false'
+    ;
+
+NIL_LITERAL
+    : 'nil'
     ;
 
 LT
@@ -133,6 +102,14 @@ GT
     : '>'
     ;
 
+TILDE
+    : '~'
+    ;
+
+STAR
+    : '*'
+    ;
+
 AMPERSTAND
     : '&'
     ;
@@ -141,10 +118,384 @@ AMPERSTAND_MUT
     : '&mut'
     ;
 
+CARET
+    : '^'
+    ;
+
+PIPE
+    : '|'
+    ;
+
+LTLT
+    : '<<'
+    ;
+
+GTGT
+    : '>>'
+    ;
+
+LTEQ
+    : '<='
+    ;
+
+GTEQ
+    : '>='
+    ;
+
+EQEQ
+    : '=='
+    ;
+
+BANGEQ
+    : '!='
+    ;
+
+AND_KEYWORD
+    : 'and'
+    ;
+
+OR_KEYWORD
+    : 'or'
+    ;
+
+XOR_KEYWORD
+    : 'xor'
+    ;
+
+NOT_KEYWORD
+    : 'not'
+    ;
+
+FORWARD_SLASH
+    : '/'
+    ;
+
+PERCENT
+    : '%'
+    ;
+
+PLUS
+    : '+'
+    ;
+
+HYPHEN
+    : '-'
+    ;
+
 STAR_CONST
     : '*const'
     ;
 
 STAR_MUT
     : '*mut'
+    ;
+
+WHITESPACE
+    : ' '
+    | '\t'
+    ;
+
+NEWLINE
+    : '\n'
+    | '\r\n'
+    ;
+
+PUB
+    : 'pub'
+    ;
+
+PROT
+    : 'prot'
+    ;
+
+PRIV
+    : 'priv'
+    ;
+
+fragment IDENTIFIER_START
+    : [\p{XID_START}_] // why does XID_Start not include '_'?
+    ;
+
+fragment IDENTIFIER_CONT
+    : [\p{XID_Continue}]
+    ;
+
+IDENTIFIER
+    : IDENTIFIER_START IDENTIFIER_CONT*
+    ;
+
+WALRUS
+    : ':='
+    ;
+
+PLUSEQ
+    : '+='
+    ;
+
+HYPHENEQ
+    : '-='
+    ;
+
+STAREQ
+    : '*='
+    ;
+
+SLASHEQ
+    : '/='
+    ;
+
+PERCENTEQ
+    : '%='
+    ;
+
+LTLTEQ
+    : '<<='
+    ;
+
+GTGTEQ
+    : '>>='
+    ;
+
+AMPERSTANDEQ
+    : '&='
+    ;
+
+CARETEQ
+    : '^='
+    ;
+
+PIPEEQ
+    : '|='
+    ;
+
+ws
+    : (WHITESPACE | NEWLINE)+
+    ;
+    
+parse
+    : ws? modularizedDeclaration+ EOF
+    ;
+
+modularIdentifier
+    : IDENTIFIER ('::' IDENTIFIER)*
+    ;
+
+modularizedDeclaration
+    : importDeclaration WHITESPACE* (NEWLINE+ | EOF)
+    | exportDeclaration WHITESPACE* (NEWLINE+ | EOF)
+    ;
+
+importDeclaration
+    : 'import' WHITESPACE+ modularIdentifier
+    | 'import' WHITESPACE+ importList WHITESPACE+ 'from' WHITESPACE+ modularIdentifier
+    ;
+
+importList
+    : '{' NEWLINE+ ws identifierList ws '}'
+    | '{' ws? identifierList ws? '}'
+    ;
+
+identifierList
+    : IDENTIFIER (',' ws? IDENTIFIER ws?)*
+    ;
+
+exportDeclaration
+    : (exportKeyword='export' WHITESPACE+)? declaration
+    ;
+
+declaration
+    : fnDeclaration
+    | classDeclaration
+    | structDeclaration
+    | typeDeclaration
+    ;
+
+fnDeclaration
+    : (isExtern='extern' ws)? fnPrototype ws? blockExpression
+    ;
+
+fnPrototype
+    : 'fn' ws IDENTIFIER ws? '(' fnArgumentList? ')'
+           (ws fnAttributeList)?
+           (ws '->' ws type)?
+    ;
+
+fnAttributeList
+    : fnAttribute (ws fnAttribute)*
+    ;
+
+fnAttribute
+    : '__pure'
+    | '__throws'
+    | '__alwaysinline'
+    | '__inline'
+    | '__noinline'
+    | '__malloc'
+    | '__hot'
+    | '__cold'
+    | '__arch(' STRING_LITERAL ')'
+    | '__noreturn'
+    ;
+
+fnArgumentList
+    : singleFnArgument ws? (',' ws? singleFnArgument)*
+    ;
+
+singleFnArgument
+    : IDENTIFIER ws? ':' ws? type
+    | '&self'
+    | '&mut self'
+    | 'self'
+    | 'mut self'
+    ;
+
+typeParamList
+    : LT ws? typeParam (ws? ',' ws? typeParam)* ws? GT
+    ;
+
+typeParam
+    : IDENTIFIER (ws? '=' ws? modularIdentifier)?
+    ;
+
+classDeclaration
+    : 'class' ws IDENTIFIER typeParamList? (ws? classInheritance)? ws? '{'
+      (ws? classMember WHITESPACE* NEWLINE+)*
+      ws?
+      '}'
+    ;
+
+classInheritance
+    : ':' ws? classInheritedType (ws? ',' ws? classInheritedType)*
+    ;
+
+classInheritedType
+    : (visibility=(PUB | PROT | PRIV) ws)? modularIdentifier (LT genericTypeList GT)?
+    ;
+
+classMember
+    : (visibility=(PUB | PROT | PRIV) ws)? classMemberWithoutPub
+    ;
+
+classMemberWithoutPub
+    : var='var' classVariableBody
+    | let='let' classVariableBody
+    | fnPrototype ws? blockExpression
+    | typeDeclaration
+    ;
+
+classVariableBody
+    : WHITESPACE+ IDENTIFIER WHITESPACE* ':' WHITESPACE+ type
+    ;
+
+structDeclaration
+    : 'struct' ws IDENTIFIER ws? '{'
+      (ws structMember WHITESPACE* NEWLINE+)*
+      ws?
+      '}'
+    ;
+
+structMember
+    : IDENTIFIER ':' WHITESPACE+ type
+    ;
+
+typeDeclaration
+    : 'type' ws IDENTIFIER ws '=' type
+    ;
+
+statement
+    : exprStatement
+    | bindingStatement
+    ;
+
+bindingStatement
+    : 'let'
+    ;
+
+exprStatement
+    : expr
+    ;
+
+exprList
+    : expr ws? (',' ws? expr)*
+    ;
+
+restOfCall
+    : '(' callArgs=exprList? ')'
+    | '[' indexArgs=exprList? ']'
+    | '.' IDENTIFIER
+    ;
+
+blockExpression
+    : '{' ws? ((statement WHITESPACE* NEWLINE) (ws? statement WHITESPACE* NEWLINE)*)? ws? '}'
+    ;
+
+returnExpr
+    : 'return' ws expr
+    ;
+
+ifExpr
+    : 'if' ws expr ws 'then' ws expr ws 'else' ws expr
+    | 'if' ws expr ws blockExpression (ws 'else' ws blockExpression)?
+    ;
+
+
+
+expr
+    : primaryExpr
+    | blockExpression
+    | expr restOfCall
+    | op=NOT_KEYWORD ws expr
+    | op=(TILDE | AMPERSTAND | HYPHEN | STAR) expr
+    | expr ws op=(STAR | FORWARD_SLASH | PERCENT) ws expr
+    | expr ws op=(PLUS | HYPHEN) ws expr
+    | expr ws op=(LTLT | GTGT) ws expr
+    | expr ws op=AMPERSTAND ws expr
+    | expr ws op=CARET ws expr
+    | expr ws op=PIPE ws expr
+    | expr ws op=AND_KEYWORD ws expr
+    | expr ws op=XOR_KEYWORD ws expr
+    | expr ws op=OR_KEYWORD ws expr
+    | expr ws op=(LT | GT | LTEQ | GTEQ) ws expr
+    | expr ws op=(EQEQ | BANGEQ) ws expr
+    | expr ws op=(WALRUS | PLUSEQ | HYPHENEQ | STAREQ | SLASHEQ | PERCENTEQ | LTLTEQ | GTGTEQ | AMPERSTANDEQ | CARETEQ | PIPEEQ) ws expr
+    | ifExpr
+    | returnExpr
+    ;
+
+primaryExpr
+    : groupExpr
+    | modularIdentifier
+    | digitLiteral
+    | STRING_LITERAL
+    | CHAR_LITERAL
+    | BOOL_LITERAL
+    | NIL_LITERAL
+    ;
+
+groupExpr
+    : '(' ws? expr ws? ')'
+    ;
+
+digitLiteral
+    : hex=HEX_LITERAL
+    | octal=OCTAL_LITERAL
+    | binary=BINARY_LITERAL
+    | decimal=DECIMAL_LITERAL
+    ;
+
+type
+    : ref=(AMPERSTAND_MUT | AMPERSTAND)? WHITESPACE* typeWithoutRef
+    ;
+
+typeWithoutRef
+    : squareBracket='[' WHITESPACE* typeWithoutRef WHITESPACE* ']'
+    | ptr=(STAR_CONST | STAR_MUT) (WHITESPACE+) typeWithoutRef
+    | BUILTIN_TYPE
+    | userDefinedType=modularIdentifier (LT WHITESPACE* genericTypeList WHITESPACE* GT)?
+    | fnType='fn' WHITESPACE* '(' WHITESPACE* genericTypeList WHITESPACE* ')' WHITESPACE+ '->' WHITESPACE+ type
+    | dynType='dyn' modularIdentifier
+    ;  
+
+genericTypeList
+    : type WHITESPACE* (',' WHITESPACE* genericTypeList)*
     ;
