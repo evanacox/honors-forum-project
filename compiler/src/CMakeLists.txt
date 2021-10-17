@@ -31,27 +31,23 @@ add_custom_command(OUTPUT ${GALLIUM_GENERATED_FILES}
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/syntax/Gallium.g4
         COMMENT "running antlr4_build.py on Gallium.g4")
 
-add_executable(gallium ./main.cc ./driver.cc ${GALLIUM_UTILITY_FILES} ${GALLIUM_SYNTAX_FILES} ${GALLIUM_GENERATED_FILES})
-target_include_directories(gallium PUBLIC ${LLVM_INCLUDE_DIRS})
-
-# make include directories for ANTLR4 system, because they don't work in `-Werror`
-target_include_directories(gallium SYSTEM PUBLIC
+# these are a different library so they dont get the `-Werror` added to them
+# because the generated code causes warnings
+add_library(gallium_antlr4 STATIC ${GALLIUM_GENERATED_FILES})
+target_compile_definitions(gallium_antlr4 PUBLIC ANTLR4CPP_STATIC)
+target_include_directories(gallium_antlr4 SYSTEM PUBLIC
         ${GALLIUM_ANTLR4_RUNTIME_INCLUDE}
         ${GALLIUM_ANTLR4_GENERATED_DIR}/../)
 
-# need to set some defines for LLVM headers to not fail to compile when included
+target_link_libraries(gallium_antlr4 PUBLIC ${GALLIUM_ANTLR4_RUNTIME})
+add_executable(gallium ./main.cc ./driver.cc ${GALLIUM_UTILITY_FILES} ${GALLIUM_SYNTAX_FILES})
+gallium_configure_target(gallium)
+target_include_directories(gallium PUBLIC ${LLVM_INCLUDE_DIRS})
 target_compile_definitions(gallium PUBLIC ${LLVM_DEFINITIONS_LIST})
-
-# need to make ANTLR4 not make mingw link against dynamic symbols
-target_compile_definitions(gallium PUBLIC ANTLR4CPP_STATIC)
-
-# link against **static** libs
 target_link_libraries(gallium PRIVATE
         ${GALLIUM_LLVM_LIBS}
-        ${GALLIUM_ANTLR4_RUNTIME}
+        gallium_antlr4
         absl::flags
         absl::flags_parse
         absl::strings
         absl::flat_hash_map)
-
-gallium_configure_target(gallium)

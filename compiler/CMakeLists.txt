@@ -30,14 +30,30 @@ option(GALLIUM_DEV "whether or not to build with `-Werror` or the compiler's equ
 function(gallium_configure_target TARGET)
     list(APPEND GALLIUM_WARNINGS)
 
-    if (CMAKE_CXX_COMPILER EQ "MSVC")
+    if (${MSVC})
         list(APPEND GALLIUM_WARNINGS /W3)
+    else ()
+        list(APPEND GALLIUM_WARNINGS
+                -Wall
+                -Wextra
+                -Wcast-qual
+                -Wconversion-null
+                -Wmissing-declarations
+                -Woverlength-strings
+                -Wpointer-arith
+                -Wunused-local-typedefs
+                -Wunused-result
+                -Wvarargs
+                -Wvla
+                -Wwrite-strings
+                -Werror)
     endif ()
 
     # enable warnings and warnings-as-errors in development
     # there's no reason not to, and its off by default for normal use
     if (GALLIUM_DEV)
         target_compile_options(${TARGET} PRIVATE ${GALLIUM_WARNINGS})
+        message(STATUS "adding ${GALLIUM_WARNINGS} to ${TARGET}")
     endif ()
 endfunction()
 
