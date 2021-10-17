@@ -20,10 +20,10 @@ namespace {
     std::vector<std::string_view> result;
     result.reserve(positionals.size());
 
-    for (auto* ptr : positionals) {
-      // requires a strlen call unfortunately
-      result.emplace_back(ptr);
-    }
+    std::transform(positionals.begin(), positionals.end(), std::back_inserter(result), [](auto* ptr) {
+      // requires a strlen call unfortunately, but w/e
+      return std::string_view{ptr};
+    });
 
     return result;
   }
