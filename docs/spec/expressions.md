@@ -1,3 +1,10 @@
+---
+layout: default
+title: Expressions
+nav_order: 3
+parent: Specification
+---
+
 # Expressions
 Expressions in Gallium are very similar to other C-like languages, with a few changes:
 
@@ -48,13 +55,16 @@ Precedence is highest-to-lowest
 | Expression | Description | Associates |
 |---|---|---|
 | *Type*()<br>a()<br>a[]<br>a.thing | Constructor Call<br>Function Call<br>Subscript<br>Member Access | Left |
-| `not` a<br>~a<br>&a<br>*a | Logical NOT<br>Bitwise NOT<br>Reference-to or Address-of<br>Indirection | Right |
+| `not` a<br/>~a<br/>&a<br/>&mut a<br>*a | Logical NOT<br/>Bitwise NOT<br>Reference-to or Address-of<br/>Mut reference-to/addr-of<br/>Indirection | Right |
 | a * b<br>a / b<br>a % b | Multiplication<br>Division<br>Remainder | Left |
 | a + b<br>a - b | Addition<br>Subtraction | Left |
 | a << b<br>a >> b | Bitwise left-shift<br>Bitwise right-shift | Left |
 | a & b | Bitwise AND | Left |
 | a ^ b | Bitwise XOR | Left |
 | a \| b | Bitwise OR | Left |
+| a `and` b | Logical AND| Left |
+| a `or` b | Logical OR | Left |
+| a `xor` b | Logical XOR | Left |
 | a < b<br>a > b<br>a <= b<br>a >= b | Less-than<br>Greater-than<br>Less-than-or-equal-to<br>Greater-than-or-equal-to | Left |
 | a == b<br>a != b | Equality<br>Inequality | Left |
 | a := b<br>a += b<br>a -= b<br>a *= b<br>a /= b<br>a %= b<br>a <<= b<br>a >>= b<br>a &= b<br>a ^= b<br>a \|= b | Rebinding<br>Compound rebinding | Right |
