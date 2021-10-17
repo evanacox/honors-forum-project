@@ -54,11 +54,12 @@ fragment STRING_LITERAL_CHARACTER
     | '\\a'  // bell
     | '\\b'  // backspace
     | '\\f'  // form feed
-    | '\\o' OCTAL_DIGIT{3}  // 3-digit octal number, 000-377. maps to a single byte
-    | '\\x' HEX_DIGIT{2}    // 2-digit hex number, 00-FF. maps to a single byte
-    | '\\' DECIMAL_DIGIT{3} // 3 digit decimal number, 000-255. maps to a single byte
-    | '\\u' DECIMAL_DIGIT{4} (DECIMAL_DIGIT{4})? // U+nnnn (or U+nnnnnnnn if all 8)
-    | ~'\\'
+    | '\\o' OCTAL_DIGIT OCTAL_DIGIT OCTAL_DIGIT // 3-digit octal number, 000-377. maps to a single byte
+    | '\\x' HEX_DIGIT HEX_DIGIT // 2-digit hex number, 00-FF. maps to a single byte
+    | '\\' DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT // 3 digit decimal number, 000-255. maps to a single byte
+    | '\\u' DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT
+           (DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT)? // U+nnnn (or U+nnnnnnnn if all 8)
+    | ~'\\' // any character besides `\`
     ;
 
 STRING_LITERAL
@@ -212,6 +213,14 @@ PRIV
     : 'priv'
     ;
 
+TO
+    : 'to'
+    ;
+
+DOWNTO
+    : 'downto'
+    ;
+
 fragment IDENTIFIER_START
     : [\p{XID_START}_] // why does XID_Start not include '_'?
     ;
@@ -266,6 +275,16 @@ CARETEQ
 
 PIPEEQ
     : '|='
+    ;
+
+BLOCK_COMMENT
+    :   '/*' .*? '*/'
+        -> skip
+    ;
+
+LINE_COMMENT
+    :   '//' ~[\r\n]*
+        -> skip
     ;
 
 ws
@@ -404,11 +423,17 @@ typeDeclaration
 
 statement
     : exprStatement
+    | assertStatement
     | bindingStatement
     ;
 
+assertStatement
+    : 'assert' ws expr (ws? ',' ws STRING_LITERAL)?
+    ;
+
 bindingStatement
-    : 'let'
+    : let='let' ws IDENTIFIER (ws? ':' ws? type)? ws? '=' ws? expr
+    | var='var' ws IDENTIFIER (ws? ':' ws? type)? ws? '=' ws? expr
     ;
 
 exprStatement
@@ -426,7 +451,7 @@ restOfCall
     ;
 
 blockExpression
-    : '{' ws? ((statement WHITESPACE* NEWLINE) (ws? statement WHITESPACE* NEWLINE)*)? ws? '}'
+    : '{' ((ws? statement WHITESPACE* NEWLINE) (ws? statement WHITESPACE* NEWLINE)*)? ws? '}'
     ;
 
 returnExpr
@@ -438,14 +463,20 @@ ifExpr
     | 'if' ws expr ws blockExpression (ws 'else' ws blockExpression)?
     ;
 
-
+loopExpr
+    : 'while' ws whileCond=expr ws blockExpression
+    | 'loop' ws? blockExpression
+    | 'for' ws loopVariable=IDENTIFIER ws ':=' ws expr ws direction=(TO | DOWNTO) ws expr ws? blockExpression
+    ;
 
 expr
     : primaryExpr
     | blockExpression
     | expr restOfCall
     | op=NOT_KEYWORD ws expr
-    | op=(TILDE | AMPERSTAND | HYPHEN | STAR) expr
+    | op=(TILDE | AMPERSTAND | AMPERSTAND_MUT | HYPHEN | STAR) expr
+    | expr ws as='as' ws type
+    | expr ws asUnsafe='as!' ws type
     | expr ws op=(STAR | FORWARD_SLASH | PERCENT) ws expr
     | expr ws op=(PLUS | HYPHEN) ws expr
     | expr ws op=(LTLT | GTGT) ws expr
@@ -459,6 +490,7 @@ expr
     | expr ws op=(EQEQ | BANGEQ) ws expr
     | expr ws op=(WALRUS | PLUSEQ | HYPHENEQ | STAREQ | SLASHEQ | PERCENTEQ | LTLTEQ | GTGTEQ | AMPERSTANDEQ | CARETEQ | PIPEEQ) ws expr
     | ifExpr
+    | loopExpr
     | returnExpr
     ;
 
@@ -493,7 +525,7 @@ typeWithoutRef
     | BUILTIN_TYPE
     | userDefinedType=modularIdentifier (LT WHITESPACE* genericTypeList WHITESPACE* GT)?
     | fnType='fn' WHITESPACE* '(' WHITESPACE* genericTypeList WHITESPACE* ')' WHITESPACE+ '->' WHITESPACE+ type
-    | dynType='dyn' modularIdentifier
+    | dynType='dyn' ws modularIdentifier
     ;  
 
 genericTypeList

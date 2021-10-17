@@ -10,6 +10,10 @@
 
 #pragma once
 
+#include "./value_visitor.h"
+#include <type_traits>
+#include <utility>
+
 namespace gal::ast {
   class ImportDeclaration;
   class ImportFromDeclaration;
@@ -18,7 +22,7 @@ namespace gal::ast {
   class ClassDeclaration;
   class TypeDeclaration;
 
-  class DeclarationVisitor {
+  class DeclarationVisitorBase {
   public:
     virtual void visit(ImportDeclaration*) = 0;
 
@@ -32,4 +36,23 @@ namespace gal::ast {
 
     virtual void visit(TypeDeclaration*) = 0;
   };
+
+  class ConstDeclarationVisitorBase {
+  public:
+    virtual void visit(const ImportDeclaration&) const = 0;
+
+    virtual void visit(const ImportFromDeclaration&) const = 0;
+
+    virtual void visit(const FnDeclaration&) const = 0;
+
+    virtual void visit(const StructDeclaration&) const = 0;
+
+    virtual void visit(const ClassDeclaration&) const = 0;
+
+    virtual void visit(const TypeDeclaration&) const = 0;
+  };
+
+  template <typename T> class DeclarationVisitor : public ValueVisitor<T, ConstDeclarationVisitorBase> {};
+
+  template <typename T> class ConstDeclarationVisitor : public ValueVisitor<T, ConstDeclarationVisitorBase> {};
 } // namespace gal::ast
