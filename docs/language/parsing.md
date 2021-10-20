@@ -91,10 +91,47 @@ An AST is a highly abstract and highly structured representation of the code, an
 
 Here's an example, an AST for the above list of tokens:
 
-![AST for sin(x) / 5 + pi](../assets/images/ast-1.png)
+![AST for sin(x) / 5 + pi](../assets/images/ast-1-smaller.png)
 
 In this case, the AST is describing what operations the language is saying to do, and *in what order*. Things like order of operations need to be accounted for, the parser is supposed to be able to figure out that `1 + 2 * 3 / 4` is `1 + ((2 * 3) / 4)` and not `(1 + 2) * (3 / 4)` or whatever. 
 
 To express this, the AST shows exactly how the equation should be evaluated. You start by looking at the "add," in order to evaluate this, you need to know what two numbers to add. So, you evaluate the left and the right. To evaluate the left, you need to evaluate both sides of the division before you divide, so you once again go down a level. 
 
 It also needs to be able to understand commands in the language: in this case, it had to know that `sin` was referring to "take the sine of this value," and it had to actually figure out how to integrate that into the larger equation. 
+
+### Another Example
+> A more abbreviated form of AST will be used from now on for space reasons. `+` still means "add the left and right," "f of" still means "calculate f of," etc. 
+
+Consider a slightly more complicated expression:
+
+~~~
+f(5) * x / 4 + log2(g(.3))
+~~~
+
+While this expression may be quite a bit more muddled than the previous, it still maps perfectly to a (relatively) clean AST:
+
+![AST for f(5) * 3 / 4 + log2(g(.3))](../assets/images/ast-2-smaller.png)
+
+## Beyond Math Expressions
+> **Note: Past this point assumes some basic programming knowledge.**
+
+While every example so far has been just math, parsing is used for *far* more than just math expressions. 
+
+The exact same ideas can be applied to anything a programming language needs to express. 
+
+Consider the following Java code:
+
+~~~ java
+class Employee {
+  public String name;
+  public int hourlyPay;
+
+  public int dailyPay(int hoursWorked) {
+    return hourlyPay * hoursWorked;  
+  }
+}
+~~~
+
+This can be mapped into an AST just like the math expression examples can. 
+
+![Java code AST](../assets/images/ast-3-smaller.png)
