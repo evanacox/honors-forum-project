@@ -10,39 +10,67 @@
 
 #pragma once
 
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include <string>
 #include <vector>
 
 namespace gal::ast {
+  /// Represents a module name, e.g `foo::bar::baz`
   class ModuleID {
   public:
+    /// Creates a module id
+    ///
+    /// \param parts The parts that make up the name, i.e `{foo, bar, baz}` for `foo::bar::baz`
     explicit ModuleID(std::vector<std::string> parts) noexcept : parts_{std::move(parts)} {}
 
+    /// Gets the parts of the module name, i.e `{foo, bar, baz}` for `foo::bar::baz`
+    ///
+    /// \return The parts of the module name
     [[nodiscard]] absl::Span<const std::string> parts() const noexcept {
       return parts_;
+    }
+
+    /// Gets a string representation of the module name
+    ///
+    /// \return A string representation of the module name
+    [[nodiscard]] std::string to_string() const noexcept {
+      return absl::StrJoin(parts_, "::");
     }
 
   private:
     std::vector<std::string> parts_;
   };
 
-  ///
-  ///
-  class ModularID {
+  /// Represents a fully-qualified identifier to some entity
+  class FullyQualifiedID {
   public:
+    /// Forms a fully-qualified ID
     ///
-    ///
-    /// \param parts
-    /// \param id
-    explicit ModularID(ModuleID mod, std::string id) noexcept : module_{std::move(mod)}, id_{std::move(id)} {}
+    /// \param mod The module the entity is a part of
+    /// \param id The name of the entity
+    explicit FullyQualifiedID(ModuleID mod, std::string id) noexcept : module_{std::move(mod)}, id_{std::move(id)} {}
 
-    [[nodiscard]] ModuleID module() const noexcept {
+    /// Views the module that the entity is a part of
+    ///
+    /// \return The entity's module
+    [[nodiscard]] const ModuleID& module() const noexcept {
       return module_;
     }
 
-    [[nodiscard]] std::string_view id() const noexcept {
+    /// Gets the name of the entity
+    ///
+    /// \return The entity's name
+    [[nodiscard]] std::string_view name() const noexcept {
       return id_;
+    }
+
+    /// Gets a string representation of the identifier
+    ///
+    /// \return A string representation of the identifier
+    [[nodiscard]] std::string to_string() const noexcept {
+      return absl::StrCat(module_.to_string(), "::", id_);
     }
 
   private:

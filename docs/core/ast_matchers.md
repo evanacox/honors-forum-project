@@ -10,7 +10,7 @@ each node for the **beginning** of a match.
 
 For example, say the following was being matched:
 
-{% highlight cpp %}
+~~~ cpp 
 auto pattern = match::fn_decl(
   match::has_any_param(
     match::with_type(ast::Type(...))
@@ -20,7 +20,7 @@ auto pattern = match::fn_decl(
 auto matcher = match::Matcher();
 matcher.register(pattern);
 matcher.walk(tree);
-{% endhighlight %}
+~~~
 
 When the matching pass hits an `fn` declaration, it would
 see that a matcher was registered for that, and would begin 
@@ -31,7 +31,7 @@ the patterns and matching.
 
 Pattern matchers could work something like:
 
-{% highlight cpp %}
+~~~ cpp 
 // inside of a visitor type
 void visit(const FnDecl& node) {
   if (has_pattern(AstNodeType::fn_decl)) {
@@ -45,5 +45,4 @@ void visit(const FnDecl& node) {
 bool matches(const SomeNode& node) {
   return node.thing() == 3 && matches_other(node.part());
 }
-{% endhighlight %}
-
+~~~

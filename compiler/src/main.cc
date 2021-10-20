@@ -20,9 +20,9 @@ namespace {
     std::vector<std::string_view> result;
     result.reserve(positionals.size());
 
-    for (auto* ptr : positionals) {
-      // requires a strlen call unfortunately
-      result.emplace_back(ptr);
+    for (auto* c_str : positionals) {
+      // requires a strlen call unfortunately, but w/e
+      result.emplace_back(c_str);
     }
 
     return result;

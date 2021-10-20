@@ -10,16 +10,8 @@
 
 #pragma once
 
-#include "../ast/nodes.h"
-#include "../ast/program.h"
-#include <optional>
-#include <string_view>
+#include "./nodes.h"
 
-namespace gal {
-  /// Parses `text` and returns an AST from it, if there were no errors.
-  /// If there were errors, they will be printed and `nullopt` is returned.
-  ///
-  /// \param text The text to parse
-  /// \return A possible AST
-  std::optional<ast::Program> parse(std::string_view text) noexcept;
-} // namespace gal
+namespace gal::ast {
+  class Program {};
+} // namespace gal::ast

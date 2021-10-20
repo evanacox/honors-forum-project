@@ -12,6 +12,7 @@
 
 #include "absl/strings/str_cat.h"
 #include <ostream>
+#include <string_view>
 
 namespace gal {
   namespace internal {
@@ -62,55 +63,55 @@ namespace gal {
   namespace colors {
 
     /// Black ANSI code
-    constexpr auto code_black = "\u001b[30m";
+    inline constexpr std::string_view code_black = "\u001b[30m";
 
     /// Red ANSI code
-    constexpr auto code_red = "\u001b[31m";
+    inline constexpr std::string_view code_red = "\u001b[31m";
 
     /// Green ANSI code
-    constexpr auto code_green = "\u001b[32m";
+    inline constexpr std::string_view code_green = "\u001b[32m";
 
     /// Yellow ANSI code
-    constexpr auto code_yellow = "\u001b[33m";
+    inline constexpr std::string_view code_yellow = "\u001b[33m";
 
     /// Blue ANSI code
-    constexpr auto code_blue = "\u001b[34m";
+    inline constexpr std::string_view code_blue = "\u001b[34m";
 
     /// Magenta ANSI code
-    constexpr auto code_magenta = "\u001b[35m";
+    inline constexpr std::string_view code_magenta = "\u001b[35m";
 
     /// Cyan ANSI code
-    constexpr auto code_cyan = "\u001b[36m";
+    inline constexpr std::string_view code_cyan = "\u001b[36m";
 
     /// White ANSI code
-    constexpr auto code_white = "\u001b[37m";
+    inline constexpr std::string_view code_white = "\u001b[37m";
 
     /// Reset ANSI code
-    constexpr auto code_reset = "\u001b[0m";
+    inline constexpr std::string_view code_reset = "\u001b[0m";
 
     /// Bright Black ANSI code
-    constexpr auto code_bold_black = "\u001b[30;1m";
+    inline constexpr std::string_view code_bold_black = "\u001b[30;1m";
 
     /// Bright Red ANSI code
-    constexpr auto code_bold_red = "\u001b[31;1m";
+    inline constexpr std::string_view code_bold_red = "\u001b[31;1m";
 
     /// Bright Green ANSI code
-    constexpr auto code_bold_green = "\u001b[32;1m";
+    inline constexpr std::string_view code_bold_green = "\u001b[32;1m";
 
     /// Bright Yellow ANSI code
-    constexpr auto code_bold_yellow = "\u001b[33;1m";
+    inline constexpr std::string_view code_bold_yellow = "\u001b[33;1m";
 
     /// Bright Blue ANSI code
-    constexpr auto code_bold_blue = "\u001b[34;1m";
+    inline constexpr std::string_view code_bold_blue = "\u001b[34;1m";
 
     /// Bright Magenta ANSI code
-    constexpr auto code_bold_magenta = "\u001b[35;1m";
+    inline constexpr std::string_view code_bold_magenta = "\u001b[35;1m";
 
     /// Bright Cyan ANSI code
-    constexpr auto code_bold_cyan = "\u001b[36;1m";
+    inline constexpr std::string_view code_bold_cyan = "\u001b[36;1m";
 
     /// Bright White ANSI code
-    constexpr auto code_bold_white = "\u001b[37;1m";
+    inline constexpr std::string_view code_bold_white = "\u001b[37;1m";
 
 #define COLOR_FUNC(color)                                                                                              \
   inline std::string color(std::string_view message) {                                                                 \

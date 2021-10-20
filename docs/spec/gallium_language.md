@@ -28,7 +28,7 @@ Unlike C++'s move semantics, Gallium uses *destructive* moves based on an affine
 
 In normal English, this means that an object can be moved once before it is made unavailable for use by the compiler.
 
-~~~
+~~~ 
 let s = String("Hello")
 let s2 = s              // s is moved to s2 here
 let n = s.len()         // compile error: use of moved-from object
