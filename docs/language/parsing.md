@@ -121,7 +121,7 @@ The exact same ideas can be applied to anything a programming language needs to 
 
 Consider the following Java code:
 
-~~~ java
+~~~ cs
 class Employee {
   public String name;
   public int hourlyPay;
