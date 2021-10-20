@@ -82,7 +82,7 @@ The end result of lexing would look something like this:
 
 We may not have thrown out very much, but we have drastically simplified this for the computer. No longer does every other piece of code in the compiler have to know that `s` followed by `i` followed by `n` means `sin`, lexing has figured that out and now can just tell other code that there's a `sin` token. 
 
-### Parsing
+## Parsing
 While lexing helped break apart the giant list of symbols into a more manageable list, parsing is what actually makes sense of that list. 
 
 The goal of parsing is to turn the list of tokens into some structure the computer can understand. This typically means generating an "AST" (Abstract Syntax Tree). 
