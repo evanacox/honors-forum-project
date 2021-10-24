@@ -7,9 +7,11 @@ parent: Language Design
 
 # High Level Overview of a Compiler's Job
 In the previous article, we explored the fundamental problem of programming
-computers: the computers don't understand the humans, and vice versa. 
+computers: the computers don't understand the humans, and vice-versa. 
 
-We also explored the idea of a compiler vs. an interpreter. 
+We also explored the idea of a compiler vs. an interpreter, for the most part these articles will focus on compilers exclusively from now on. 
+
+> While interpreters are definitely interesting and a challenge on their own, compilers are much easier to reason about at a high level (meaning they're much easier to write about). 
 
 ## Overall Job
 If you recall, the basic goal of a compiler is to translate 
@@ -59,7 +61,9 @@ IRs also make it easy for compilers to do automated optimization, enabling a "sm
 
 These tricks can be math trickery, reducing/removing unnecessary work, or much more complex and wider-reaching optimizations that I can't explain in a single sentence (or even a few paragraphs, for that matter). 
 
-> Note: Nearly all modern research into compilers is going into optimization, because for the most part the other parts of compilers are solved problems. Optimization is by far the most complex part of any compiler, and it will not be covered very deeply in these articles.   
+> Note: Nearly all modern research into compilers is going into optimization, because for the most part the other parts of compilers are "solved problems" and thus do not warrant as much effort for research.
+
+Optimization is by far the most complex part of any compiler, and due to that it will not be covered very deeply in these articles. Some of the more trivial/easily-understandable optimizations may be explored, but most of them are simply too complex for me to explain effectively and succinctly. 
 
 ### Machine Code
 Finally, this step is the result of the compiler: a program the computer understands. 
