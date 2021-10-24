@@ -78,51 +78,55 @@ namespace gal::ast {
     virtual void visit(ForExpression*) = 0;
 
     virtual void visit(ReturnExpression*) = 0;
+
+    virtual ~ExpressionVisitorBase() = default;
   };
 
   class ConstExpressionVisitorBase {
   public:
-    virtual void visit(const StringLiteralExpression&) const = 0;
+    virtual void visit(const StringLiteralExpression&) = 0;
 
-    virtual void visit(const IntegerLiteralExpression&) const = 0;
+    virtual void visit(const IntegerLiteralExpression&) = 0;
 
-    virtual void visit(const FloatLiteralExpression&) const = 0;
+    virtual void visit(const FloatLiteralExpression&) = 0;
 
-    virtual void visit(const BoolLiteralExpression&) const = 0;
+    virtual void visit(const BoolLiteralExpression&) = 0;
 
-    virtual void visit(const CharLiteralExpression&) const = 0;
+    virtual void visit(const CharLiteralExpression&) = 0;
 
-    virtual void visit(const NilLiteral&) const = 0;
+    virtual void visit(const NilLiteral&) = 0;
 
-    virtual void visit(const IdentifierExpression&) const = 0;
+    virtual void visit(const IdentifierExpression&) = 0;
 
-    virtual void visit(const CallExpression&) const = 0;
+    virtual void visit(const CallExpression&) = 0;
 
-    virtual void visit(const IndexExpression&) const = 0;
+    virtual void visit(const IndexExpression&) = 0;
 
-    virtual void visit(const FieldAccessExpression&) const = 0;
+    virtual void visit(const FieldAccessExpression&) = 0;
 
-    virtual void visit(const GroupExpression&) const = 0;
+    virtual void visit(const GroupExpression&) = 0;
 
-    virtual void visit(const UnaryExpression&) const = 0;
+    virtual void visit(const UnaryExpression&) = 0;
 
-    virtual void visit(const BinaryExpression&) const = 0;
+    virtual void visit(const BinaryExpression&) = 0;
 
-    virtual void visit(const CastExpression&) const = 0;
+    virtual void visit(const CastExpression&) = 0;
 
-    virtual void visit(const IfThenExpression&) const = 0;
+    virtual void visit(const IfThenExpression&) = 0;
 
-    virtual void visit(const IfElseExpression&) const = 0;
+    virtual void visit(const IfElseExpression&) = 0;
 
-    virtual void visit(const BlockExpression&) const = 0;
+    virtual void visit(const BlockExpression&) = 0;
 
-    virtual void visit(const LoopExpression&) const = 0;
+    virtual void visit(const LoopExpression&) = 0;
 
-    virtual void visit(const WhileExpression&) const = 0;
+    virtual void visit(const WhileExpression&) = 0;
 
-    virtual void visit(const ForExpression&) const = 0;
+    virtual void visit(const ForExpression&) = 0;
 
-    virtual void visit(const ReturnExpression&) const = 0;
+    virtual void visit(const ReturnExpression&) = 0;
+
+    virtual ~ConstExpressionVisitorBase() = default;
   };
 
   template <typename T> class ExpressionVisitor : public ValueVisitor<T, ExpressionVisitorBase> {};

@@ -17,23 +17,7 @@
 
 namespace gal {
   class TicketMutex {
-    struct State {
-      /// The current ticket being served
-      std::atomic<std::size_t> current = 0;
-
-      /// The number of tickets given out, also equal to the next ticket number to give
-      std::atomic<std::size_t> count = 0;
-
-      /// The mutex actually used to wait
-      std::mutex lock;
-
-      /// The object used to notify threads that `current` changed
-      std::condition_variable waiter;
-    };
-
   public:
-    using native_handle_type = State*;
-
     /// Creates a TicketMutex
     explicit TicketMutex() = default;
 
@@ -58,10 +42,17 @@ namespace gal {
     /// Unlocks the mutex, alerts other threads to check if its their turn
     void unlock() noexcept;
 
-    /// Returns the mutex's state
-    native_handle_type native_handle() noexcept;
-
   private:
-    State state_;
+    /// The current ticket being served
+    std::atomic<std::size_t> current_ = 0;
+
+    /// The number of tickets given out, also equal to the next ticket number to give
+    std::atomic<std::size_t> count_ = 0;
+
+    /// The mutex actually used to wait
+    std::mutex lock_;
+
+    /// The object used to notify threads that `current` changed
+    std::condition_variable waiter_;
   };
 } // namespace gal

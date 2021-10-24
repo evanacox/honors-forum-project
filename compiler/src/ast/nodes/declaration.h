@@ -13,7 +13,8 @@
 #include "./declaration_visitor.h"
 #include "./expression.h"
 #include "./modular_id.h"
-#include "./statements.h"
+#include "./node.h"
+#include "./statement.h"
 #include "./type.h"
 #include <memory>
 #include <string>
@@ -34,7 +35,7 @@ namespace gal::ast {
   ///
   /// Is able to be visited by a `DeclarationVisitorBase`, and can be queried
   /// on whether it's exported and what real type of declaration it is
-  class Declaration {
+  class Declaration : public Node {
   public:
     Declaration() = delete;
 
@@ -62,7 +63,7 @@ namespace gal::ast {
     /// method on that visitor
     ///
     /// \param visitor The visitor to call a method on
-    virtual void accept(const ConstDeclarationVisitorBase& visitor) const = 0;
+    virtual void accept(ConstDeclarationVisitorBase* visitor) const = 0;
 
     /// Helper that allows a visitor to "return" values without needing
     /// dynamic template dispatch.
@@ -82,8 +83,8 @@ namespace gal::ast {
     /// \tparam T The type to return
     /// \param visitor The visitor to "return a value from"
     /// \return The value the visitor yielded
-    template <typename T> T accept(const ConstDeclarationVisitor<T>& visitor) {
-      accept(static_cast<const ConstDeclarationVisitorBase&>(visitor));
+    template <typename T> T accept(ConstDeclarationVisitor<T>* visitor) const {
+      accept(static_cast<ConstDeclarationVisitorBase*>(visitor));
 
       return visitor->take_result();
     }
@@ -95,7 +96,10 @@ namespace gal::ast {
     /// Initializes the state of the declaration base class
     ///
     /// \param exported Whether or not this particular declaration is marked `export`
-    explicit Declaration(bool exported, DeclType real) noexcept : exported_{exported}, real_{real} {}
+    explicit Declaration(SourceLoc loc, bool exported, DeclType real) noexcept
+        : Node(std::move(loc)),
+          exported_{exported},
+          real_{real} {}
 
     /// Protected so only derived can copy
     Declaration(const Declaration&) = default;
@@ -117,8 +121,8 @@ namespace gal::ast {
     ///
     /// \param exported Whether or not the import is `export`ed
     /// \param module_imported The module being imported
-    explicit ImportDeclaration(bool exported, ModuleID module_imported) noexcept
-        : Declaration(exported, DeclType::import_decl),
+    explicit ImportDeclaration(SourceLoc loc, bool exported, ModuleID module_imported) noexcept
+        : Declaration(std::move(loc), exported, DeclType::import_decl),
           mod_{std::move(module_imported)} {}
 
     /// Gets the module that is being imported
@@ -134,8 +138,8 @@ namespace gal::ast {
     }
 
     /// Accepts a const visitor and calls the correct method
-    void accept(const ConstDeclarationVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    void accept(ConstDeclarationVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -153,8 +157,8 @@ namespace gal::ast {
     ///
     /// \param exported Whether or not the decl was exported
     /// \param entities Each entity that was imported
-    explicit ImportFromDeclaration(bool exported, std::vector<FullyQualifiedID> entities) noexcept
-        : Declaration(exported, DeclType::import_from_decl),
+    explicit ImportFromDeclaration(SourceLoc loc, bool exported, std::vector<FullyQualifiedID> entities) noexcept
+        : Declaration(std::move(loc), exported, DeclType::import_from_decl),
           entities_{std::move(entities)} {}
 
     /// Gets a list of the entities imported
@@ -170,8 +174,8 @@ namespace gal::ast {
     }
 
     /// Accepts a const visitor and calls the correct method
-    void accept(const ConstDeclarationVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    void accept(ConstDeclarationVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -182,7 +186,7 @@ namespace gal::ast {
   class FnDeclaration final : public Declaration {
   public:
     /// Functions can be marked with attributes
-    enum class FnAttributeType {
+    enum class AttributeType {
       builtin_pure,          // __pure
       builtin_throws,        // __throws
       builtin_always_inline, // __alwaysinline
@@ -196,8 +200,8 @@ namespace gal::ast {
     };
 
     /// An attribute can have other arguments given to it
-    struct FnAttribute {
-      FnAttributeType type;
+    struct Attribute {
+      AttributeType type;
       std::vector<std::string> args;
     };
 
@@ -215,17 +219,20 @@ namespace gal::ast {
     /// \param args The arguments to the function
     /// \param attributes Any attributes given for the function
     /// \param body The body of the function
-    explicit FnDeclaration(bool exported,
+    explicit FnDeclaration(SourceLoc loc,
+        bool exported,
         bool external,
         std::string name,
         std::vector<Argument> args,
-        std::vector<FnAttribute> attributes,
+        std::vector<Attribute> attributes,
+        std::unique_ptr<Type> return_type,
         std::unique_ptr<BlockExpression> body) noexcept
-        : Declaration(exported, DeclType::fn_decl),
+        : Declaration(std::move(loc), exported, DeclType::fn_decl),
           external_{external},
           name_{std::move(name)},
           args_{std::move(args)},
           attributes_{std::move(attributes)},
+          return_type_{std::move(return_type)},
           body_{std::move(body)} {}
 
     /// Returns if the function is marked `extern`
@@ -259,15 +266,36 @@ namespace gal::ast {
     /// Gets a list of the function attributes
     ///
     /// \return All function attributes
-    [[nodiscard]] absl::Span<const FnAttribute> attributes() const noexcept {
+    [[nodiscard]] absl::Span<const Attribute> attributes() const noexcept {
       return attributes_;
     }
 
     /// Gets a mutable list of the function attributes
     ///
     /// \return All function attributes
-    [[nodiscard]] absl::Span<FnAttribute> mut_attributes() noexcept {
+    [[nodiscard]] absl::Span<Attribute> mut_attributes() noexcept {
       return {attributes_.data(), attributes_.size()};
+    }
+
+    /// Gets the return_type of the function
+    ///
+    /// \return The function return_type
+    [[nodiscard]] const Type& return_type() const noexcept {
+      return *return_type_;
+    }
+
+    /// Gets a mutable ptr to the return_type of the function
+    ///
+    /// \return A mutable ptr to the function return_type
+    [[nodiscard]] Type* mut_return_type() const noexcept {
+      return return_type_.get();
+    }
+
+    /// Correctly release and update the return_type for `*this`
+    ///
+    /// \param return_type The new return_type to use
+    std::unique_ptr<Type> exchange_return_type(std::unique_ptr<Type> return_type) noexcept {
+      return std::exchange(return_type_, std::move(return_type));
     }
 
     /// Gets the body of the function
@@ -297,15 +325,62 @@ namespace gal::ast {
     }
 
     /// Accepts a const visitor and calls the correct method
-    void accept(const ConstDeclarationVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    void accept(ConstDeclarationVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
     bool external_;
     std::string name_;
     std::vector<Argument> args_;
-    std::vector<FnAttribute> attributes_;
+    std::vector<Attribute> attributes_;
+    std::unique_ptr<Type> return_type_;
     std::unique_ptr<BlockExpression> body_;
+  };
+
+  class StructDeclaration : public Declaration {
+  public:
+    struct Field {
+      std::string name;
+      std::unique_ptr<Type> type;
+    };
+
+    explicit StructDeclaration(SourceLoc loc, bool exported, std::vector<Field> fields) noexcept
+        : Declaration(std::move(loc), exported, DeclType::struct_decl),
+          fields_{std::move(fields)} {}
+
+    [[nodiscard]] absl::Span<const Field> fields() const noexcept {
+      return fields_;
+    }
+
+    [[nodiscard]] absl::Span<Field> fields_mut() noexcept {
+      return absl::MakeSpan(fields_);
+    }
+
+    /// Accepts a visitor and calls the correct method
+    void accept(DeclarationVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    /// Accepts a const visitor and calls the correct method
+    void accept(ConstDeclarationVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+  private:
+    std::vector<Field> fields_;
+  };
+
+  class ClassDeclaration final : public Declaration {
+  public:
+    /// Accepts a visitor and calls the correct method
+    void accept(DeclarationVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    /// Accepts a const visitor and calls the correct method
+    void accept(ConstDeclarationVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
   };
 } // namespace gal::ast

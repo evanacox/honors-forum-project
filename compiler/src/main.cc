@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
       absl::StrCat("Invokes the Gallium compiler.\n\nSample Usage:\n\n    ", argv[0], " <file>"));
 
   auto vec = absl::ParseCommandLine(argc, argv);
-  auto files = into_positionals({vec.data(), vec.size()});
+  auto files = into_positionals(absl::MakeSpan(vec));
 
   // `files` includes the first positional argument (which is the exe path), need to ignore
   // also need to ignore the final null string, it will always have a string with just \0 in it

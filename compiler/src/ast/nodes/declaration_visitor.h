@@ -35,21 +35,25 @@ namespace gal::ast {
     virtual void visit(ClassDeclaration*) = 0;
 
     virtual void visit(TypeDeclaration*) = 0;
+
+    virtual ~DeclarationVisitorBase() = default;
   };
 
   class ConstDeclarationVisitorBase {
   public:
-    virtual void visit(const ImportDeclaration&) const = 0;
+    virtual void visit(const ImportDeclaration&) = 0;
 
-    virtual void visit(const ImportFromDeclaration&) const = 0;
+    virtual void visit(const ImportFromDeclaration&) = 0;
 
-    virtual void visit(const FnDeclaration&) const = 0;
+    virtual void visit(const FnDeclaration&) = 0;
 
-    virtual void visit(const StructDeclaration&) const = 0;
+    virtual void visit(const StructDeclaration&) = 0;
 
-    virtual void visit(const ClassDeclaration&) const = 0;
+    virtual void visit(const ClassDeclaration&) = 0;
 
-    virtual void visit(const TypeDeclaration&) const = 0;
+    virtual void visit(const TypeDeclaration&) = 0;
+
+    virtual ~ConstDeclarationVisitorBase() = default;
   };
 
   template <typename T> class DeclarationVisitor : public ValueVisitor<T, ConstDeclarationVisitorBase> {};

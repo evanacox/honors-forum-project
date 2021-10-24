@@ -18,9 +18,11 @@ namespace gal::ast {
   class BuiltinFloatType;
   class BuiltinByteType;
   class BuiltinBoolType;
+  class BuiltinCharType;
   class UserDefinedType;
   class FnPointerType;
   class DynInterfaceType;
+  class VoidType;
 
   class TypeVisitorBase {
   public:
@@ -38,11 +40,17 @@ namespace gal::ast {
 
     virtual void visit(BuiltinBoolType*) = 0;
 
+    virtual void visit(BuiltinCharType*) = 0;
+
     virtual void visit(UserDefinedType*) = 0;
 
     virtual void visit(FnPointerType*) = 0;
 
     virtual void visit(DynInterfaceType*) = 0;
+
+    virtual void visit(VoidType*) = 0;
+
+    virtual ~TypeVisitorBase() = default;
   };
 
   class ConstTypeVisitorBase {
@@ -61,11 +69,17 @@ namespace gal::ast {
 
     virtual void visit(const BuiltinBoolType&) = 0;
 
+    virtual void visit(const BuiltinCharType&) = 0;
+
     virtual void visit(const UserDefinedType&) = 0;
 
     virtual void visit(const FnPointerType&) = 0;
 
     virtual void visit(const DynInterfaceType&) = 0;
+
+    virtual void visit(const VoidType&) = 0;
+
+    virtual ~ConstTypeVisitorBase() = default;
   };
 
   template <typename T> class TypeVisitor : public ValueVisitor<T, TypeVisitorBase> {};

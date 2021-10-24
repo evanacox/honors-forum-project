@@ -8,14 +8,17 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./driver.h"
-#include "./utility/flags.h"
-#include "./utility/log.h"
+#pragma once
 
-namespace gal {
-  Driver::Driver() noexcept = default;
+#include "./nodes/declaration_visitor.h"
+#include "./nodes/expression_visitor.h"
+#include "./nodes/statement_visitor.h"
+#include "./nodes/type_visitor.h"
 
-  int Driver::start(absl::Span<std::string_view>) noexcept {
-    return 0;
-  }
-} // namespace gal
+namespace gal::ast {
+  template <typename T>
+  class AnyVisitor : public DeclarationVisitor<T>,
+                     public ExpressionVisitor<T>,
+                     public StatementVisitor<T>,
+                     public TypeVisitor<T> {};
+} // namespace gal::ast

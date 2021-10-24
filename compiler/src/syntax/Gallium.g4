@@ -29,6 +29,7 @@ BUILTIN_TYPE
     | 'byte'
     | 'bool'
     | 'char'
+    | 'void'
     ;
 
 fragment DECIMAL_DIGIT
@@ -336,7 +337,7 @@ fnDeclaration
 fnPrototype
     : 'fn' ws IDENTIFIER ws? '(' fnArgumentList? ')'
            (ws fnAttributeList)?
-           (ws '->' ws type)?
+           (ws '->' ws type)
     ;
 
 fnAttributeList
@@ -524,8 +525,8 @@ typeWithoutRef
     | ptr=(STAR_CONST | STAR_MUT) (WHITESPACE+) typeWithoutRef
     | BUILTIN_TYPE
     | userDefinedType=modularIdentifier (LT WHITESPACE* genericTypeList WHITESPACE* GT)?
-    | fnType='fn' WHITESPACE* '(' WHITESPACE* genericTypeList WHITESPACE* ')' WHITESPACE+ '->' WHITESPACE+ type
-    | dynType='dyn' ws modularIdentifier
+    | fnType='fn' WHITESPACE* LT (WHITESPACE* genericTypeList WHITESPACE*)? LT WHITESPACE+ '->' WHITESPACE+ type
+    | dynType='dyn' ws modularIdentifier (LT WHITESPACE* genericTypeList WHITESPACE* GT)?
     ;  
 
 genericTypeList

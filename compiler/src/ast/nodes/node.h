@@ -8,14 +8,30 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./driver.h"
-#include "./utility/flags.h"
-#include "./utility/log.h"
+#pragma once
 
-namespace gal {
-  Driver::Driver() noexcept = default;
+#include "../source_loc.h"
 
-  int Driver::start(absl::Span<std::string_view>) noexcept {
-    return 0;
-  }
-} // namespace gal
+namespace gal::ast {
+  /// Base class for all AST nodes, contains source mapping information
+  class Node {
+  public:
+    Node() = delete;
+
+    /// Gets the source info for the node
+    ///
+    /// \return Source location information
+    [[nodiscard]] const SourceLoc& loc() const noexcept {
+      return loc_;
+    }
+
+  protected:
+    /// Initializes the Node
+    ///
+    /// \param loc
+    explicit Node(SourceLoc loc) noexcept : loc_{std::move(loc)} {};
+
+  private:
+    SourceLoc loc_;
+  };
+} // namespace gal::ast

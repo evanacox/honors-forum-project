@@ -12,6 +12,7 @@
 
 #include "./expression_visitor.h"
 #include "./modular_id.h"
+#include "./node.h"
 #include "./type.h"
 #include "absl/types/span.h"
 #include <limits>
@@ -49,8 +50,10 @@ namespace gal::ast {
     return_expr,
   };
 
+  /// Represents the different unary expression operators
   enum class UnaryOp { logical_not, bitwise_not, ref_to, mut_ref_to, negate, dereference };
 
+  /// Represents the different binary expression operators
   enum class BinaryOp {
     mul,
     div,
@@ -84,7 +87,7 @@ namespace gal::ast {
     bitwise_xor_eq,
   };
 
-  class Expression {
+  class Expression : public Node {
   public:
     Expression() = delete;
 
@@ -138,7 +141,7 @@ namespace gal::ast {
     /// method on that visitor
     ///
     /// \param visitor The visitor to call a method on
-    virtual void accept(const ConstExpressionVisitorBase& visitor) const = 0;
+    virtual void accept(ConstExpressionVisitorBase* visitor) const = 0;
 
     /// Helper that allows a visitor to "return" values without needing
     /// dynamic template dispatch.
@@ -158,8 +161,8 @@ namespace gal::ast {
     /// \tparam T The type to return
     /// \param visitor The visitor to "return a value from"
     /// \return The value the visitor yielded
-    template <typename T> T accept(const ConstExpressionVisitor<T>& visitor) {
-      accept(static_cast<const ConstExpressionVisitorBase&>(visitor));
+    template <typename T> T accept(ConstExpressionVisitor<T>* visitor) const {
+      accept(static_cast<ConstExpressionVisitorBase*>(visitor));
 
       return visitor->take_result();
     }
@@ -172,8 +175,9 @@ namespace gal::ast {
     ///
     /// \param real The real expression type
     /// \param evaluates_to The type that the expression evaluates to
-    explicit Expression(ExprType real, std::unique_ptr<Type> evaluates_to = nullptr)
-        : real_{real},
+    explicit Expression(SourceLoc loc, ExprType real, std::unique_ptr<Type> evaluates_to = nullptr)
+        : Node(std::move(loc)),
+          real_{real},
           evaluates_to_{std::move(evaluates_to)} {}
 
   private:
@@ -181,44 +185,76 @@ namespace gal::ast {
     std::unique_ptr<Type> evaluates_to_;
   };
 
+  /// Represents a "string literal," i.e `"Hello, World!"`
   class StringLiteralExpression final : public Expression {
   public:
-    explicit StringLiteralExpression(std::string text) noexcept
-        : Expression(ExprType::string_lit),
+    /// Creates a string literal
+    ///
+    /// \param text The string literal (with ""s)
+    explicit StringLiteralExpression(SourceLoc loc, std::string text) noexcept
+        : Expression(std::move(loc), ExprType::string_lit),
           text_{std::move(text)} {}
 
+    /// Gets the full string literal, **including** quotes
+    ///
+    /// \return The full text
     [[nodiscard]] std::string_view text() const noexcept {
       return text_;
     }
 
+    /// Gets the string literal's text, but without the quotes
+    ///
+    /// \return [1..len - 1] for `text()`
+    [[nodiscard]] std::string_view text_unquoted() const noexcept {
+      const auto s = text();
+
+      return s.substr(1, s.size() - 1);
+    }
+
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
     std::string text_;
   };
 
+  /// Represents an integer literal, i.e [0, 2^64 - 1] in digit form
   class IntegerLiteralExpression final : public Expression {
   public:
-    explicit IntegerLiteralExpression(std::uint64_t value) noexcept
-        : Expression(ExprType::integer_lit),
+    /// Creates an integer literal
+    ///
+    /// \param value The value of the literal
+    explicit IntegerLiteralExpression(SourceLoc loc, std::uint64_t value) noexcept
+        : Expression(std::move(loc), ExprType::integer_lit),
           literal_{value} {};
 
     [[nodiscard]] std::uint64_t value() const noexcept {
       return literal_;
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -229,18 +265,26 @@ namespace gal::ast {
   public:
     static_assert(std::numeric_limits<double>::is_iec559);
 
-    explicit FloatLiteralExpression(double lit) noexcept : Expression(ExprType::float_lit), literal_{lit} {}
+    explicit FloatLiteralExpression(SourceLoc loc, double lit) noexcept
+        : Expression(std::move(loc), ExprType::float_lit),
+          literal_{lit} {}
 
     [[nodiscard]] double value() const noexcept {
       return literal_;
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -249,18 +293,26 @@ namespace gal::ast {
 
   class BoolLiteralExpression final : public Expression {
   public:
-    explicit BoolLiteralExpression(bool value) noexcept : Expression(ExprType::bool_lit), literal_{value} {}
+    explicit BoolLiteralExpression(SourceLoc loc, bool value) noexcept
+        : Expression(std::move(loc), ExprType::bool_lit),
+          literal_{value} {}
 
     [[nodiscard]] bool value() const noexcept {
       return literal_;
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -269,18 +321,26 @@ namespace gal::ast {
 
   class CharLiteralExpression final : public Expression {
   public:
-    explicit CharLiteralExpression(std::uint8_t value) noexcept : Expression(ExprType::char_lit), literal_{value} {}
+    explicit CharLiteralExpression(SourceLoc loc, std::uint8_t value) noexcept
+        : Expression(std::move(loc), ExprType::char_lit),
+          literal_{value} {}
 
     [[nodiscard]] std::uint8_t value() const noexcept {
       return literal_;
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -289,14 +349,20 @@ namespace gal::ast {
 
   class NilLiteral final : public Expression {
   public:
-    explicit NilLiteral() noexcept : Expression(ExprType::nil_lit) {}
+    explicit NilLiteral(SourceLoc loc) noexcept : Expression(std::move(loc), ExprType::nil_lit) {}
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
   };
 
@@ -307,8 +373,8 @@ namespace gal::ast {
       std::string name;
     };
 
-    explicit IdentifierExpression(std::optional<ModuleID> prefix, std::string name) noexcept
-        : Expression(ExprType::identifier),
+    explicit IdentifierExpression(SourceLoc loc, std::optional<ModuleID> prefix, std::string name) noexcept
+        : Expression(std::move(loc), ExprType::identifier),
           state_{Unqualified{std::move(prefix), std::move(name)}} {}
 
     [[nodiscard]] bool is_qualified() const noexcept {
@@ -333,12 +399,18 @@ namespace gal::ast {
       state_ = std::move(id);
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -347,8 +419,10 @@ namespace gal::ast {
 
   class CallExpression final : public Expression {
   public:
-    explicit CallExpression(std::unique_ptr<Expression> callee, std::vector<std::unique_ptr<Expression>> args)
-        : Expression(ExprType::call),
+    explicit CallExpression(SourceLoc loc,
+        std::unique_ptr<Expression> callee,
+        std::vector<std::unique_ptr<Expression>> args)
+        : Expression(std::move(loc), ExprType::call),
           callee_{std::move(callee)},
           args_{std::move(args)} {}
 
@@ -372,12 +446,18 @@ namespace gal::ast {
       return &args_;
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -387,8 +467,10 @@ namespace gal::ast {
 
   class IndexExpression final : public Expression {
   public:
-    explicit IndexExpression(std::unique_ptr<Expression> callee, std::vector<std::unique_ptr<Expression>> args)
-        : Expression(ExprType::index),
+    explicit IndexExpression(SourceLoc loc,
+        std::unique_ptr<Expression> callee,
+        std::vector<std::unique_ptr<Expression>> args)
+        : Expression(std::move(loc), ExprType::index),
           callee_{std::move(callee)},
           args_{std::move(args)} {}
 
@@ -412,12 +494,18 @@ namespace gal::ast {
       return &args_;
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -427,8 +515,8 @@ namespace gal::ast {
 
   class FieldAccessExpression final : public Expression {
   public:
-    explicit FieldAccessExpression(std::unique_ptr<Expression> object, std::string field) noexcept
-        : Expression(ExprType::field_access),
+    explicit FieldAccessExpression(SourceLoc loc, std::unique_ptr<Expression> object, std::string field) noexcept
+        : Expression(std::move(loc), ExprType::field_access),
           object_{std::move(object)},
           field_{std::move(field)} {}
 
@@ -448,12 +536,18 @@ namespace gal::ast {
       return field_;
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -463,8 +557,8 @@ namespace gal::ast {
 
   class GroupExpression final : public Expression {
   public:
-    explicit GroupExpression(std::unique_ptr<Expression> grouped) noexcept
-        : Expression(ExprType::group),
+    explicit GroupExpression(SourceLoc loc, std::unique_ptr<Expression> grouped) noexcept
+        : Expression(std::move(loc), ExprType::group),
           grouped_{std::move(grouped)} {}
 
     [[nodiscard]] const Expression& expr() const noexcept {
@@ -479,12 +573,18 @@ namespace gal::ast {
       return std::exchange(grouped_, std::move(new_expr));
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -493,8 +593,8 @@ namespace gal::ast {
 
   class UnaryExpression final : public Expression {
   public:
-    explicit UnaryExpression(UnaryOp op, std::unique_ptr<Expression> expr)
-        : Expression(ExprType::unary),
+    explicit UnaryExpression(SourceLoc loc, UnaryOp op, std::unique_ptr<Expression> expr)
+        : Expression(std::move(loc), ExprType::unary),
           expr_{std::move(expr)},
           op_{op} {}
 
@@ -514,12 +614,18 @@ namespace gal::ast {
       return op_;
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -529,8 +635,11 @@ namespace gal::ast {
 
   class BinaryExpression final : public Expression {
   public:
-    explicit BinaryExpression(BinaryOp op, std::unique_ptr<Expression> lhs, std::unique_ptr<Expression> rhs)
-        : Expression(ExprType::binary),
+    explicit BinaryExpression(SourceLoc loc,
+        BinaryOp op,
+        std::unique_ptr<Expression> lhs,
+        std::unique_ptr<Expression> rhs)
+        : Expression(std::move(loc), ExprType::binary),
           lhs_{std::move(lhs)},
           rhs_{std::move(rhs)},
           op_{op} {}
@@ -563,12 +672,18 @@ namespace gal::ast {
       return op_;
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -579,8 +694,11 @@ namespace gal::ast {
 
   class CastExpression final : public Expression {
   public:
-    explicit CastExpression(bool unsafe, std::unique_ptr<Expression> castee, std::unique_ptr<Type> cast_to) noexcept
-        : Expression(ExprType::cast),
+    explicit CastExpression(SourceLoc loc,
+        bool unsafe,
+        std::unique_ptr<Expression> castee,
+        std::unique_ptr<Type> cast_to) noexcept
+        : Expression(std::move(loc), ExprType::cast),
           unsafe_{unsafe},
           castee_{std::move(castee)},
           cast_to_{std::move(cast_to)} {}
@@ -609,12 +727,18 @@ namespace gal::ast {
       return std::exchange(cast_to_, std::move(new_cast_to));
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -625,10 +749,11 @@ namespace gal::ast {
 
   class IfThenExpression final : public Expression {
   public:
-    explicit IfThenExpression(std::unique_ptr<Expression> condition,
+    explicit IfThenExpression(SourceLoc loc,
+        std::unique_ptr<Expression> condition,
         std::unique_ptr<Expression> true_branch,
         std::unique_ptr<Expression> false_branch) noexcept
-        : Expression(ExprType::if_then),
+        : Expression(std::move(loc), ExprType::if_then),
           condition_{std::move(condition)},
           true_branch_{std::move(true_branch)},
           false_branch_{std::move(false_branch)} {}
@@ -669,12 +794,18 @@ namespace gal::ast {
       return std::exchange(false_branch_, std::move(new_false_branch));
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -685,8 +816,8 @@ namespace gal::ast {
 
   class BlockExpression final : public Expression {
   public:
-    explicit BlockExpression(std::vector<std::unique_ptr<Statement>> statements) noexcept
-        : Expression(ExprType::block),
+    explicit BlockExpression(SourceLoc loc, std::vector<std::unique_ptr<Statement>> statements) noexcept
+        : Expression(std::move(loc), ExprType::block),
           statements_{std::move(statements)} {}
 
     [[nodiscard]] absl::Span<const std::unique_ptr<Statement>> statements() const noexcept {
@@ -697,12 +828,18 @@ namespace gal::ast {
       return &statements_;
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -711,8 +848,10 @@ namespace gal::ast {
 
   class IfElseExpression final : public Expression {
   public:
-    explicit IfElseExpression(std::unique_ptr<BlockExpression> block, std::unique_ptr<Expression> else_block) noexcept
-        : Expression(ExprType::if_else),
+    explicit IfElseExpression(SourceLoc loc,
+        std::unique_ptr<BlockExpression> block,
+        std::unique_ptr<Expression> else_block) noexcept
+        : Expression(std::move(loc), ExprType::if_else),
           block_{std::move(block)},
           else_block_{std::move(else_block)} {}
 
@@ -742,12 +881,18 @@ namespace gal::ast {
       return std::exchange(else_block_, std::move(new_else_block));
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -757,8 +902,8 @@ namespace gal::ast {
 
   class LoopExpression final : public Expression {
   public:
-    explicit LoopExpression(std::unique_ptr<BlockExpression> body) noexcept
-        : Expression(ExprType::loop),
+    explicit LoopExpression(SourceLoc loc, std::unique_ptr<BlockExpression> body) noexcept
+        : Expression(std::move(loc), ExprType::loop),
           body_{std::move(body)} {};
 
     [[nodiscard]] const BlockExpression& body() const noexcept {
@@ -773,12 +918,18 @@ namespace gal::ast {
       return std::exchange(body_, std::move(new_body));
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -787,8 +938,10 @@ namespace gal::ast {
 
   class WhileExpression final : public Expression {
   public:
-    explicit WhileExpression(std::unique_ptr<Expression> condition, std::unique_ptr<BlockExpression> body) noexcept
-        : Expression(ExprType::while_loop),
+    explicit WhileExpression(SourceLoc loc,
+        std::unique_ptr<Expression> condition,
+        std::unique_ptr<BlockExpression> body) noexcept
+        : Expression(std::move(loc), ExprType::while_loop),
           condition_{std::move(condition)},
           body_{std::move(body)} {};
 
@@ -816,12 +969,18 @@ namespace gal::ast {
       return std::exchange(body_, std::move(new_body));
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -836,12 +995,13 @@ namespace gal::ast {
       down_to,
     };
 
-    explicit ForExpression(std::string loop_variable,
+    explicit ForExpression(SourceLoc loc,
+        std::string loop_variable,
         Direction direction,
         std::unique_ptr<Expression> init,
         std::unique_ptr<Expression> last,
         std::unique_ptr<BlockExpression> body) noexcept
-        : Expression(ExprType::for_loop),
+        : Expression(std::move(loc), ExprType::for_loop),
           loop_variable_{std::move(loop_variable)},
           direction_{direction},
           init_{std::move(init)},
@@ -892,12 +1052,18 @@ namespace gal::ast {
       return std::exchange(body_, std::move(new_body));
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:
@@ -910,8 +1076,8 @@ namespace gal::ast {
 
   class ReturnExpression final : public Expression {
   public:
-    explicit ReturnExpression(std::unique_ptr<Expression> value) noexcept
-        : Expression(ExprType::return_expr),
+    explicit ReturnExpression(SourceLoc loc, std::unique_ptr<Expression> value) noexcept
+        : Expression(std::move(loc), ExprType::return_expr),
           value_{std::move(value)} {}
 
     [[nodiscard]] const Expression& value() const noexcept {
@@ -926,12 +1092,18 @@ namespace gal::ast {
       return std::exchange(value_, std::move(new_value));
     }
 
+    /// Accepts a visitor that's able to mutate the expression
+    ///
+    /// \param visitor The visitor
     void accept(ExpressionVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    void accept(const ConstExpressionVisitorBase& visitor) const final {
-      visitor.visit(*this);
+    /// Accepts a visitor that's unable to mutate the expression
+    ///
+    /// \param visitor The visitor
+    void accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
   private:

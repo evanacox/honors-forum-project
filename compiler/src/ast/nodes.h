@@ -9,5 +9,6 @@
 //======---------------------------------------------------------------======//
 
 #include "./nodes/declaration.h"
-
-namespace gal {}
+#include "./nodes/expression.h"
+#include "./nodes/statement.h"
+#include "./nodes/type.h"

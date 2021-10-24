@@ -24,6 +24,8 @@ namespace gal::ast {
     virtual void visit(ExpressionStatement*) = 0;
 
     virtual void visit(AssertStatement*) = 0;
+
+    virtual ~StatementVisitorBase() = default;
   };
 
   class ConstStatementVisitorBase {
@@ -33,6 +35,8 @@ namespace gal::ast {
     virtual void visit(const ExpressionStatement&) = 0;
 
     virtual void visit(const AssertStatement&) = 0;
+
+    virtual ~ConstStatementVisitorBase() = default;
   };
 
   template <typename T> class StatementVisitor : public ValueVisitor<T, StatementVisitorBase> {};

@@ -61,7 +61,6 @@ namespace gal {
   } // namespace internal
 
   namespace colors {
-
     /// Black ANSI code
     inline constexpr std::string_view code_black = "\u001b[30m";
 

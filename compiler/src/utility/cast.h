@@ -8,14 +8,17 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./driver.h"
-#include "./utility/flags.h"
-#include "./utility/log.h"
+#pragma once
+
+#include <cassert>
+#include <memory>
 
 namespace gal {
-  Driver::Driver() noexcept = default;
+  template <typename T, typename U> std::unique_ptr<T> static_unique_cast(std::unique_ptr<U> ptr) noexcept {
+    auto* real = ptr.release();
 
-  int Driver::start(absl::Span<std::string_view>) noexcept {
-    return 0;
+    assert(dynamic_cast<T*>(real) != nullptr);
+
+    return std::unique_ptr<T>(static_cast<T*>(real));
   }
 } // namespace gal
