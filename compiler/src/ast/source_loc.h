@@ -60,6 +60,15 @@ namespace gal::ast {
       return file_;
     }
 
+    /// Compares two source locations for equality
+    ///
+    /// \param other The other location to compare
+    /// \return True if they are equivalent, false otherwise
+    [[nodiscard]] bool operator==(const SourceLoc& other) const noexcept {
+      return raw_text() == other.raw_text() && line() == other.line() && column() == other.column()
+             && file() == other.file();
+    }
+
   private:
     std::string raw_;
     std::uint64_t line_;

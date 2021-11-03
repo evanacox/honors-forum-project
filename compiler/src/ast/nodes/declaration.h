@@ -29,6 +29,7 @@ namespace gal::ast {
     struct_decl,
     class_decl,
     type_decl,
+    method_decl,
   };
 
   /// Abstract base type for all "declaration" AST nodes
@@ -38,6 +39,9 @@ namespace gal::ast {
   class Declaration : public Node {
   public:
     Declaration() = delete;
+
+    /// Virtual dtor so this can be `delete`ed by a `unique_ptr` or whatever
+    virtual ~Declaration() = default;
 
     /// Checks if the declaration is being `export`ed
     ///
@@ -57,13 +61,17 @@ namespace gal::ast {
     /// method on that visitor
     ///
     /// \param visitor The visitor to call a method on
-    virtual void accept(DeclarationVisitorBase* visitor) = 0;
+    void accept(DeclarationVisitorBase* visitor) {
+      internal_accept(visitor);
+    }
 
     /// Accepts a const visitor with a `void` return type, and calls the correct
     /// method on that visitor
     ///
     /// \param visitor The visitor to call a method on
-    virtual void accept(ConstDeclarationVisitorBase* visitor) const = 0;
+    void accept(ConstDeclarationVisitorBase* visitor) const {
+      internal_accept(visitor);
+    }
 
     /// Helper that allows a visitor to "return" values without needing
     /// dynamic template dispatch.
@@ -88,9 +96,51 @@ namespace gal::ast {
 
       return visitor->take_result();
     }
+    /// Compares two types for equality
+    ///
+    /// \param other The other type node to compare
+    /// \return Whether the two types are equal
+    [[nodiscard]] friend bool operator==(const Declaration& lhs, const Declaration& rhs) noexcept {
+      if (lhs.type() == rhs.type()) {
+        return lhs.internal_equals(rhs);
+      }
 
-    /// Virtual dtor so this can be `delete`ed by a `unique_ptr` or whatever
-    virtual ~Declaration() = default;
+      return false;
+    }
+
+    /// Compares two type nodes for complete equality, including source location.
+    /// Equivalent to `a == b && a.loc() == b.loc()`
+    ///
+    /// \param rhs The other node to compare
+    /// \return Whether the nodes are identical in every observable way
+    [[nodiscard]] bool fully_equals(const Declaration& rhs) noexcept {
+      return *this == rhs && loc() == rhs.loc();
+    }
+
+    /// Clones the node and returns a `unique_ptr` to the copy of the node
+    ///
+    /// \return A new node with the same observable state
+    [[nodiscard]] std::unique_ptr<Declaration> clone() const noexcept {
+      return internal_clone();
+    }
+
+    /// Checks if a node is of a particular type in slightly
+    /// nicer form than `.type() ==`
+    ///
+    /// \param type The type to compare against
+    /// \return Whether or not the node is of that type
+    [[nodiscard]] bool is(DeclType type) const noexcept {
+      return real_ == type;
+    }
+
+    /// Checks if a node is one of a set of types
+    ///
+    /// \tparam Args The list of types
+    /// \param types The types to check against
+    /// \return Whether or not the node is of one of those types
+    template <typename... Args> [[nodiscard]] bool is_one_of(Args... types) const noexcept {
+      return (is(types) && ...);
+    }
 
   protected:
     /// Initializes the state of the declaration base class
@@ -107,6 +157,29 @@ namespace gal::ast {
     /// Protected so only derived can move
     Declaration(Declaration&&) = default;
 
+    /// Accepts a visitor with a `void` return type, and calls the correct
+    /// method on that visitor
+    ///
+    /// \param visitor The visitor to call a method on
+    virtual void internal_accept(DeclarationVisitorBase* visitor) = 0;
+
+    /// Accepts a const visitor with a `void` return type, and calls the correct
+    /// method on that visitor
+    ///
+    /// \param visitor The visitor to call a method on
+    virtual void internal_accept(ConstDeclarationVisitorBase* visitor) const = 0;
+
+    /// Compares two decl objects of the same underlying type for equality
+    ///
+    /// \param other The other node to compare
+    /// \return Whether the nodes are equal
+    [[nodiscard]] virtual bool internal_equals(const Declaration& other) const noexcept = 0;
+
+    /// Creates a clone of the node where `clone()` is called on
+    ///
+    /// \return A node equal in all observable ways
+    [[nodiscard]] virtual std::unique_ptr<Declaration> internal_clone() const noexcept = 0;
+
   private:
     bool exported_;
     DeclType real_;
@@ -115,15 +188,19 @@ namespace gal::ast {
   /// Models a plain `import` declaration of the form `import foo::bar`.
   ///
   /// Simply contains the module imported and nothing else.
-  class ImportDeclaration : public Declaration {
+  class ImportDeclaration final : public Declaration {
   public:
     /// Constructs an `ImportDeclaration`
     ///
     /// \param exported Whether or not the import is `export`ed
     /// \param module_imported The module being imported
-    explicit ImportDeclaration(SourceLoc loc, bool exported, ModuleID module_imported) noexcept
+    explicit ImportDeclaration(SourceLoc loc,
+        bool exported,
+        ModuleID module_imported,
+        std::optional<std::string> alias) noexcept
         : Declaration(std::move(loc), exported, DeclType::import_decl),
-          mod_{std::move(module_imported)} {}
+          mod_{std::move(module_imported)},
+          alias_{std::move(alias)} {}
 
     /// Gets the module that is being imported
     ///
@@ -132,18 +209,40 @@ namespace gal::ast {
       return mod_;
     }
 
-    /// Accepts a visitor and calls the correct method
-    void accept(DeclarationVisitorBase* visitor) final {
+    /// If the import has an `as` clause, returns the alias. Otherwise returns
+    /// an empty optional
+    ///
+    /// \return An alias name, or an empty optional
+    [[nodiscard]] std::optional<std::string_view> alias() const noexcept {
+      if (alias_.has_value()) {
+        return std::make_optional(*alias_);
+      } else {
+        return std::nullopt;
+      }
+    }
+
+  protected:
+    void internal_accept(DeclarationVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a const visitor and calls the correct method
-    void accept(ConstDeclarationVisitorBase* visitor) const final {
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
+      auto& result = internal::debug_cast<const ImportDeclaration&>(other);
+
+      return exported() == result.exported() && mod() == result.mod() && alias() == result.alias();
+    }
+
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
+      return std::make_unique<ImportDeclaration>(loc(), exported(), mod(), alias_);
     }
 
   private:
     ModuleID mod_;
+    std::optional<std::string> alias_;
   };
 
   /// Modules an import-from declaration, i.e `import log2, log10, ln from core::math`.
@@ -168,85 +267,121 @@ namespace gal::ast {
       return entities_;
     }
 
-    /// Accepts a visitor and calls the correct method
-    void accept(DeclarationVisitorBase* visitor) final {
+  protected:
+    void internal_accept(DeclarationVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a const visitor and calls the correct method
-    void accept(ConstDeclarationVisitorBase* visitor) const final {
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
+      auto& result = internal::debug_cast<const ImportFromDeclaration&>(other);
+      auto self_entities = imported_entities();
+      auto other_entities = result.imported_entities();
+
+      return exported() == result.exported()
+             && std::equal(self_entities.begin(), self_entities.end(), other_entities.begin(), other_entities.end());
+    }
+
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
+      return std::make_unique<ImportFromDeclaration>(loc(), exported(), entities_);
     }
 
   private:
     std::vector<FullyQualifiedID> entities_;
   };
 
-  /// Models a full function declaration, prototype and body.
-  class FnDeclaration final : public Declaration {
+  /// Functions can be marked with attributes
+  enum class AttributeType {
+    builtin_pure,          // __pure
+    builtin_throws,        // __throws
+    builtin_always_inline, // __alwaysinline
+    builtin_inline,        // __inline
+    builtin_no_inline,     // __noinline
+    builtin_malloc,        // __malloc
+    builtin_hot,           // __hot
+    builtin_cold,          // __cold
+    builtin_arch,          // __arch("cpu_arch")
+    builtin_noreturn,      // __noreturn
+  };
+
+  /// An attribute can have other arguments given to it
+  struct Attribute {
+    AttributeType type;
+    std::vector<std::string> args;
+  };
+
+  /// An argument is a `name: type` pair
+  struct Argument {
+    std::string name;
+    std::unique_ptr<Type> type;
+  };
+
+  /// Maps the 4 types of `self` that a method is able to take
+  enum class SelfType {
+    self_ref,     // &self
+    mut_self_ref, // &mut self
+    self,         // self
+    mut_self,     // mut self
+  };
+
+  /// Represents a function prototype, works for methods, interface methods,
+  /// function declarations and external function declarations.
+  class FnPrototype {
   public:
-    /// Functions can be marked with attributes
-    enum class AttributeType {
-      builtin_pure,          // __pure
-      builtin_throws,        // __throws
-      builtin_always_inline, // __alwaysinline
-      builtin_inline,        // __inline
-      builtin_no_inline,     // __noinline
-      builtin_malloc,        // __malloc
-      builtin_hot,           // __hot
-      builtin_cold,          // __cold
-      builtin_arch,          // __arch("cpu_arch")
-      builtin_noreturn,      // __noreturn
-    };
+    FnPrototype() = delete;
 
-    /// An attribute can have other arguments given to it
-    struct Attribute {
-      AttributeType type;
-      std::vector<std::string> args;
-    };
-
-    /// An argument is a name: type pair
-    struct Argument {
-      std::string name;
-      std::unique_ptr<Type> type;
-    };
-
-    /// Creates a FnDeclaration
+    /// Creates a function prototype
     ///
-    /// \param exported Whether or not the function is exported
-    /// \param external Whether or not the function is marked `extern`
-    /// \param name The name of the function
-    /// \param args The arguments to the function
-    /// \param attributes Any attributes given for the function
-    /// \param body The body of the function
-    explicit FnDeclaration(SourceLoc loc,
-        bool exported,
-        bool external,
-        std::string name,
+    /// \param name The name of the prototype
+    /// \param self The type of self the function takes, if any
+    /// \param args The arguments of the function
+    /// \param attributes Any attributes the function has on it
+    /// \param return_type The return type of the function
+    explicit FnPrototype(std::string name,
+        std::optional<SelfType> self,
         std::vector<Argument> args,
         std::vector<Attribute> attributes,
-        std::unique_ptr<Type> return_type,
-        std::unique_ptr<BlockExpression> body) noexcept
-        : Declaration(std::move(loc), exported, DeclType::fn_decl),
-          external_{external},
-          name_{std::move(name)},
+        std::unique_ptr<Type> return_type) noexcept
+        : name_{std::move(name)},
+          self_{self},
           args_{std::move(args)},
           attributes_{std::move(attributes)},
-          return_type_{std::move(return_type)},
-          body_{std::move(body)} {}
+          return_type_{std::move(return_type)} {}
 
-    /// Returns if the function is marked `extern`
+    /// Copies an FnPrototype
     ///
-    /// \return Whether the function is meant to be visible on FFI boundaries
-    [[nodiscard]] bool external() const noexcept {
-      return external_;
-    }
+    /// \param other The FnPrototype to copy from
+    FnPrototype(const FnPrototype& other) noexcept
+        : name_{other.name_},
+          self_{other.self()},
+          args_{other.args_},
+          attributes_{other.attributes_},
+          return_type_{other.return_type().clone()} {}
+
+    /// Moves an fn prototype
+    FnPrototype(FnPrototype&&) noexcept = default;
+
+    /// Disables assignment
+    FnPrototype& operator=(const FnPrototype&) noexcept = delete;
+
+    /// Disables assignment
+    FnPrototype& operator=(FnPrototype&&) noexcept = delete;
 
     /// Gets the (unmangled) name of the function
     ///
     /// \return The name of the function
     [[nodiscard]] std::string_view name() const noexcept {
       return name_;
+    }
+
+    /// Gets the type of self, if the prototype has self in it.
+    ///
+    /// \return The self from the prototype
+    [[nodiscard]] std::optional<SelfType> self() const noexcept {
+      return self_;
     }
 
     /// Gets a list of the function arguments
@@ -259,7 +394,7 @@ namespace gal::ast {
     /// Gets a mutable list of the function arguments
     ///
     /// \return The function arguments
-    [[nodiscard]] absl::Span<Argument> mut_args() noexcept {
+    [[nodiscard]] absl::Span<Argument> args_mut() noexcept {
       return {args_.data(), args_.size()};
     }
 
@@ -273,7 +408,7 @@ namespace gal::ast {
     /// Gets a mutable list of the function attributes
     ///
     /// \return All function attributes
-    [[nodiscard]] absl::Span<Attribute> mut_attributes() noexcept {
+    [[nodiscard]] absl::Span<Attribute> attributes_mut() noexcept {
       return {attributes_.data(), attributes_.size()};
     }
 
@@ -287,15 +422,79 @@ namespace gal::ast {
     /// Gets a mutable ptr to the return_type of the function
     ///
     /// \return A mutable ptr to the function return_type
-    [[nodiscard]] Type* mut_return_type() const noexcept {
+    [[nodiscard]] Type* return_type_mut() const noexcept {
       return return_type_.get();
     }
 
     /// Correctly release and update the return_type for `*this`
     ///
     /// \param return_type The new return_type to use
-    std::unique_ptr<Type> exchange_return_type(std::unique_ptr<Type> return_type) noexcept {
-      return std::exchange(return_type_, std::move(return_type));
+    [[nodiscard]] std::unique_ptr<Type>* return_type_owner() noexcept {
+      return &return_type_;
+    }
+
+    /// Compares two FnPrototype objects
+    ///
+    /// \param lhs The first prototype
+    /// \param rhs The second prototype
+    /// \return Whether or not they are equal
+    [[nodiscard]] friend bool operator==(const FnPrototype& lhs, const FnPrototype& rhs) noexcept {
+      auto lhs_args = lhs.args();
+      auto rhs_args = rhs.args();
+
+      return lhs.name() == rhs.name() && lhs.self() == rhs.self()
+             && std::equal(lhs_args.begin(), lhs_args.end(), rhs_args.begin(), rhs_args.end())
+             && lhs.return_type() == rhs.return_type();
+    }
+
+  private:
+    std::string name_;
+    std::optional<SelfType> self_;
+    std::vector<Argument> args_;
+    std::vector<Attribute> attributes_;
+    std::unique_ptr<Type> return_type_;
+  };
+
+  /// Models a full function declaration, prototype and body.
+  class FnDeclaration final : public Declaration {
+  public:
+    /// Creates a FnDeclaration
+    ///
+    /// \param exported Whether or not the function is exported
+    /// \param external Whether or not the function is marked `extern`
+    /// \param proto The function prototype. Must **not** have `self`
+    /// \param body The body of the function
+    explicit FnDeclaration(SourceLoc loc,
+        bool exported,
+        bool external,
+        FnPrototype proto,
+        std::unique_ptr<BlockExpression> body) noexcept
+        : Declaration(std::move(loc), exported, DeclType::fn_decl),
+          external_{external},
+          proto_{std::move(proto)},
+          body_{std::move(body)} {
+      assert(this->proto().self() == std::nullopt);
+    }
+
+    /// Returns if the function is marked `extern`
+    ///
+    /// \return Whether the function is meant to be visible on FFI boundaries
+    [[nodiscard]] bool external() const noexcept {
+      return external_;
+    }
+
+    /// Gets the prototype of the function
+    ///
+    /// \return The function prototype
+    [[nodiscard]] const FnPrototype& proto() const noexcept {
+      return proto_;
+    }
+
+    /// Gets mutable access to the prototype of the function
+    ///
+    /// \return A pointer to the prototype
+    [[nodiscard]] FnPrototype* proto_mut() noexcept {
+      return &proto_;
     }
 
     /// Gets the body of the function
@@ -308,79 +507,313 @@ namespace gal::ast {
     /// Gets a mutable ptr to the body of the function
     ///
     /// \return A mutable ptr to the function body
-    [[nodiscard]] BlockExpression* mut_body() const noexcept {
+    [[nodiscard]] BlockExpression* body_mut() const noexcept {
       return body_.get();
     }
 
     /// Correctly release and update the body for `*this`
     ///
     /// \param body The new body to use
-    std::unique_ptr<BlockExpression> exchange_body(std::unique_ptr<BlockExpression> body) noexcept {
-      return std::exchange(body_, std::move(body));
+    [[nodiscard]] std::unique_ptr<BlockExpression>* body_owner() noexcept {
+      return &body_;
     }
 
-    /// Accepts a visitor and calls the correct method
-    void accept(DeclarationVisitorBase* visitor) final {
+  protected:
+    void internal_accept(DeclarationVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a const visitor and calls the correct method
-    void accept(ConstDeclarationVisitorBase* visitor) const final {
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
+      auto& result = internal::debug_cast<const FnDeclaration&>(other);
+
+      return exported() == result.exported() && external() == result.external() && proto() == result.proto()
+             && body() == result.body();
+    }
+
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
+      return std::make_unique<FnDeclaration>(loc(),
+          exported(),
+          external(),
+          proto_,
+          gal::static_unique_cast<BlockExpression>(body().clone()));
     }
 
   private:
     bool external_;
-    std::string name_;
-    std::vector<Argument> args_;
-    std::vector<Attribute> attributes_;
-    std::unique_ptr<Type> return_type_;
+    FnPrototype proto_;
     std::unique_ptr<BlockExpression> body_;
   };
 
-  class StructDeclaration : public Declaration {
+  /// Models a full function declaration, prototype and body.
+  class MethodDeclaration final : public Declaration {
   public:
+    /// Creates a FnDeclaration
+    ///
+    /// \param exported Whether or not the function is exported
+    /// \param external Whether or not the function is marked `extern`
+    /// \param proto The function prototype. **Must** have `self`
+    /// \param body The body of the function
+    explicit MethodDeclaration(SourceLoc loc,
+        bool exported,
+        FnPrototype proto,
+        std::unique_ptr<BlockExpression> body) noexcept
+        : Declaration(std::move(loc), exported, DeclType::method_decl),
+          proto_{std::move(proto)},
+          body_{std::move(body)} {
+      assert(this->proto().self() != std::nullopt);
+    }
+
+    /// Gets the prototype of the method
+    ///
+    /// \return The function prototype
+    [[nodiscard]] const FnPrototype& proto() const noexcept {
+      return proto_;
+    }
+
+    /// Gets mutable access to the prototype of the method
+    ///
+    /// \return A pointer to the prototype
+    [[nodiscard]] FnPrototype* proto_mut() noexcept {
+      return &proto_;
+    }
+
+    /// Gets the body of the method
+    ///
+    /// \return The method body
+    [[nodiscard]] const BlockExpression& body() const noexcept {
+      return *body_;
+    }
+
+    /// Gets a mutable ptr to the body of the method
+    ///
+    /// \return A mutable ptr to the method body
+    [[nodiscard]] BlockExpression* body_mut() const noexcept {
+      return body_.get();
+    }
+
+    /// Correctly release and update the body for `*this`
+    ///
+    /// \param body The new body to use
+    [[nodiscard]] std::unique_ptr<BlockExpression>* body_owner() noexcept {
+      return &body_;
+    }
+
+  protected:
+    void internal_accept(DeclarationVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
+      auto& result = internal::debug_cast<const MethodDeclaration&>(other);
+
+      return exported() == result.exported() && proto() == result.proto() && body() == result.body();
+    }
+
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
+      return std::make_unique<MethodDeclaration>(loc(),
+          exported(),
+          proto_,
+          gal::static_unique_cast<BlockExpression>(body().clone()));
+    }
+
+  private:
+    FnPrototype proto_;
+    std::unique_ptr<BlockExpression> body_;
+  };
+
+  /// Error type given when the parser reports an error but still needs to "return" something
+  class ErrorDeclaration final : public Declaration {
+  public:
+    /// Creates a fake declaration
+    explicit ErrorDeclaration() : Declaration(SourceLoc{"", 0, 0, {}}, false, DeclType::struct_decl) {}
+
+  protected:
+    void internal_accept(DeclarationVisitorBase*) final {
+      assert(false);
+    }
+
+    void internal_accept(ConstDeclarationVisitorBase*) const final {
+      assert(false);
+    }
+
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
+      (void)internal::debug_cast<const ErrorDeclaration&>(other);
+
+      return true;
+    }
+
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
+      return std::make_unique<ErrorDeclaration>();
+    }
+  };
+
+  /// Models a `struct` declaration in Gallium
+  class StructDeclaration final : public Declaration {
+  public:
+    /// Models a single field in a struct
     struct Field {
       std::string name;
       std::unique_ptr<Type> type;
     };
 
-    explicit StructDeclaration(SourceLoc loc, bool exported, std::vector<Field> fields) noexcept
+    /// Creates a struct declaration
+    ///
+    /// \param loc The location in the source
+    /// \param exported Whether or not the struct was exported
+    /// \param name The name of the structure
+    /// \param fields Every field in the struct
+    explicit StructDeclaration(SourceLoc loc, bool exported, std::string name, std::vector<Field> fields) noexcept
         : Declaration(std::move(loc), exported, DeclType::struct_decl),
+          name_{std::move(name)},
           fields_{std::move(fields)} {}
 
+    /// Gets the name of the structure
+    ///
+    /// \return The name of the structure
+    [[nodiscard]] std::string_view name() const noexcept {
+      return name_;
+    }
+
+    /// Gets a span over the fields
+    ///
+    /// \return An immutable span over the fields
     [[nodiscard]] absl::Span<const Field> fields() const noexcept {
       return fields_;
     }
 
+    /// Gets a mutable span over the fields
+    ///
+    /// \return A span over the fields
     [[nodiscard]] absl::Span<Field> fields_mut() noexcept {
       return absl::MakeSpan(fields_);
     }
 
-    /// Accepts a visitor and calls the correct method
-    void accept(DeclarationVisitorBase* visitor) final {
+  protected:
+    void internal_accept(DeclarationVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a const visitor and calls the correct method
-    void accept(ConstDeclarationVisitorBase* visitor) const final {
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
+      auto& result = internal::debug_cast<const StructDeclaration&>(other);
+      auto self_fields = fields();
+      auto other_fields = result.fields();
+
+      return exported() == result.exported() && name() == result.name()
+             && std::equal(self_fields.begin(), self_fields.end(), other_fields.begin(), other_fields.end());
+    }
+
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
+      return std::make_unique<StructDeclaration>(loc(), exported(), name_, fields_);
     }
 
   private:
+    std::string name_;
     std::vector<Field> fields_;
   };
 
+  /// Models a class declaration
   class ClassDeclaration final : public Declaration {
   public:
-    /// Accepts a visitor and calls the correct method
-    void accept(DeclarationVisitorBase* visitor) final {
+    //
+
+  protected:
+    void internal_accept(DeclarationVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a const visitor and calls the correct method
-    void accept(ConstDeclarationVisitorBase* visitor) const final {
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
       visitor->visit(*this);
     }
+
+    [[nodiscard]] bool internal_equals(const Declaration&) const noexcept final {
+      assert(false);
+
+      return false;
+    }
+
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
+      assert(false);
+
+      return std::make_unique<ErrorDeclaration>();
+    }
   };
+
+  /// Models a type alias declaration
+  class TypeDeclaration final : public Declaration {
+  public:
+    /// Creates a type alias declaration
+    ///
+    /// \param loc The location in the source code
+    /// \param exported Whether or not it's exported
+    /// \param name The name the type is aliased to
+    /// \param type The type being aliased
+    explicit TypeDeclaration(SourceLoc loc, bool exported, std::string name, std::unique_ptr<Type> type) noexcept
+        : Declaration(std::move(loc), exported, DeclType::type_decl),
+          name_{std::move(name)},
+          type_{std::move(type)} {}
+
+    /// Gets the new name for the aliased type
+    ///
+    /// \return The new name
+    [[nodiscard]] std::string_view name() const noexcept {
+      return name_;
+    }
+
+    /// Gets the type being aliased
+    ///
+    /// \return The type being aliased
+    [[nodiscard]] const Type& aliased() const noexcept {
+      return *type_;
+    }
+
+    /// Gets the type being aliased
+    ///
+    /// \return The type being aliased
+    [[nodiscard]] Type* aliased_mut() noexcept {
+      return type_.get();
+    }
+
+    /// Gets a mutable pointer to the *owner* of the type, allowing replacement
+    ///
+    /// \return A pointer to the aliased type. **Must never be null!**
+    [[nodiscard]] std::unique_ptr<Type>* aliased_owner() noexcept {
+      return &type_;
+    }
+
+  protected:
+    void internal_accept(DeclarationVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
+      auto& result = internal::debug_cast<const TypeDeclaration&>(other);
+
+      return name() == result.name() && aliased() == result.aliased();
+    }
+
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
+      return std::make_unique<TypeDeclaration>(loc(), exported(), name_, aliased().clone());
+    }
+
+  private:
+    std::string name_;
+    std::unique_ptr<Type> type_;
+  };
+
 } // namespace gal::ast

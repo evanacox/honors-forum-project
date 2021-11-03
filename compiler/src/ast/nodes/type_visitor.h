@@ -19,8 +19,10 @@ namespace gal::ast {
   class BuiltinByteType;
   class BuiltinBoolType;
   class BuiltinCharType;
+  class UnqualifiedUserDefinedType;
   class UserDefinedType;
   class FnPointerType;
+  class UnqualifiedDynInterfaceType;
   class DynInterfaceType;
   class VoidType;
 
@@ -42,9 +44,13 @@ namespace gal::ast {
 
     virtual void visit(BuiltinCharType*) = 0;
 
+    virtual void visit(UnqualifiedUserDefinedType*) = 0;
+
     virtual void visit(UserDefinedType*) = 0;
 
     virtual void visit(FnPointerType*) = 0;
+
+    virtual void visit(UnqualifiedDynInterfaceType*) = 0;
 
     virtual void visit(DynInterfaceType*) = 0;
 
@@ -71,9 +77,13 @@ namespace gal::ast {
 
     virtual void visit(const BuiltinCharType&) = 0;
 
+    virtual void visit(const UnqualifiedUserDefinedType&) = 0;
+
     virtual void visit(const UserDefinedType&) = 0;
 
     virtual void visit(const FnPointerType&) = 0;
+
+    virtual void visit(const UnqualifiedDynInterfaceType&) = 0;
 
     virtual void visit(const DynInterfaceType&) = 0;
 

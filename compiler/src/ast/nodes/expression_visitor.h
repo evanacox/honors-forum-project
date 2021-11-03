@@ -18,9 +18,12 @@ namespace gal::ast {
   class FloatLiteralExpression;
   class BoolLiteralExpression;
   class CharLiteralExpression;
-  class NilLiteral;
+  class NilLiteralExpression;
+  class UnqualifiedIdentifierExpression;
   class IdentifierExpression;
   class CallExpression;
+  class MethodCallExpression;
+  class StaticMethodCallExpression;
   class IndexExpression;
   class FieldAccessExpression;
   class GroupExpression;
@@ -34,9 +37,13 @@ namespace gal::ast {
   class WhileExpression;
   class ForExpression;
   class ReturnExpression;
+  class BreakExpression;
+  class ContinueExpression;
 
   class ExpressionVisitorBase {
   public:
+    virtual ~ExpressionVisitorBase() = default;
+
     virtual void visit(StringLiteralExpression*) = 0;
 
     virtual void visit(IntegerLiteralExpression*) = 0;
@@ -47,11 +54,17 @@ namespace gal::ast {
 
     virtual void visit(CharLiteralExpression*) = 0;
 
-    virtual void visit(NilLiteral*) = 0;
+    virtual void visit(NilLiteralExpression*) = 0;
+
+    virtual void visit(UnqualifiedIdentifierExpression*) = 0;
 
     virtual void visit(IdentifierExpression*) = 0;
 
     virtual void visit(CallExpression*) = 0;
+
+    virtual void visit(MethodCallExpression*) = 0;
+
+    virtual void visit(StaticMethodCallExpression*) = 0;
 
     virtual void visit(IndexExpression*) = 0;
 
@@ -79,11 +92,15 @@ namespace gal::ast {
 
     virtual void visit(ReturnExpression*) = 0;
 
-    virtual ~ExpressionVisitorBase() = default;
+    virtual void visit(BreakExpression*) = 0;
+
+    virtual void visit(ContinueExpression*) = 0;
   };
 
   class ConstExpressionVisitorBase {
   public:
+    virtual ~ConstExpressionVisitorBase() = default;
+
     virtual void visit(const StringLiteralExpression&) = 0;
 
     virtual void visit(const IntegerLiteralExpression&) = 0;
@@ -94,11 +111,17 @@ namespace gal::ast {
 
     virtual void visit(const CharLiteralExpression&) = 0;
 
-    virtual void visit(const NilLiteral&) = 0;
+    virtual void visit(const NilLiteralExpression&) = 0;
+
+    virtual void visit(const UnqualifiedIdentifierExpression&) = 0;
 
     virtual void visit(const IdentifierExpression&) = 0;
 
     virtual void visit(const CallExpression&) = 0;
+
+    virtual void visit(const MethodCallExpression&) = 0;
+
+    virtual void visit(const StaticMethodCallExpression&) = 0;
 
     virtual void visit(const IndexExpression&) = 0;
 
@@ -126,7 +149,9 @@ namespace gal::ast {
 
     virtual void visit(const ReturnExpression&) = 0;
 
-    virtual ~ConstExpressionVisitorBase() = default;
+    virtual void visit(const BreakExpression&) = 0;
+
+    virtual void visit(const ContinueExpression&) = 0;
   };
 
   template <typename T> class ExpressionVisitor : public ValueVisitor<T, ExpressionVisitorBase> {};

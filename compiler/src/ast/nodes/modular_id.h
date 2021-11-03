@@ -22,8 +22,19 @@ namespace gal::ast {
   public:
     /// Creates a module id
     ///
+    /// \param from_root Whether or not the module starts with `::`
     /// \param parts The parts that make up the name, i.e `{foo, bar, baz}` for `foo::bar::baz`
-    explicit ModuleID(std::vector<std::string> parts) noexcept : parts_{std::move(parts)} {}
+    explicit ModuleID(bool from_root, std::vector<std::string> parts) noexcept
+        : from_root_{from_root},
+          parts_{std::move(parts)} {}
+
+    /// Checks if the user put `::` in front to specify that the module lookup
+    /// starts at the global level
+    ///
+    /// \return True if `::` was at the beginning
+    [[nodiscard]] bool from_root() const noexcept {
+      return from_root_;
+    }
 
     /// Gets the parts of the module name, i.e `{foo, bar, baz}` for `foo::bar::baz`
     ///
@@ -36,11 +47,82 @@ namespace gal::ast {
     ///
     /// \return A string representation of the module name
     [[nodiscard]] std::string to_string() const noexcept {
-      return absl::StrJoin(parts_, "::");
+      auto s = absl::StrJoin(parts_, "::");
+
+      if (from_root_) {
+        return "::" + s;
+      } else {
+        return s;
+      }
+    }
+
+    /// Compares two ModuleIDs for equality
+    ///
+    /// \param lhs The first module id to compare
+    /// \param rhs The second module id to compare
+    /// \return Whether or not they are equal in every observable way
+    [[nodiscard]] constexpr friend bool operator==(const ModuleID& lhs, const ModuleID& rhs) noexcept {
+      auto lhs_p = lhs.parts();
+      auto rhs_p = rhs.parts();
+
+      return lhs.from_root() == rhs.from_root() // early return on `from_root` before we do expensive vec equality
+             && std::equal(lhs_p.begin(), lhs_p.end(), rhs_p.begin(), rhs_p.end());
     }
 
   private:
+    bool from_root_;
     std::vector<std::string> parts_;
+  };
+
+  class UnqualifiedID {
+  public:
+    /// Forms an unqualified ID
+    ///
+    /// \param mod A module prefix, if there is one
+    /// \param id The name of the entity
+    explicit UnqualifiedID(std::optional<ModuleID> mod, std::string id) noexcept
+        : prefix_{std::move(mod)},
+          id_{std::move(id)} {}
+
+    /// Views the module prefix the identifier was declared with
+    ///
+    /// \return The entity's module
+    [[nodiscard]] const std::optional<ModuleID>& prefix() const noexcept {
+      return prefix_;
+    }
+
+    /// Gets the name of the entity
+    ///
+    /// \return The entity's name
+    [[nodiscard]] std::string_view name() const noexcept {
+      return id_;
+    }
+
+    /// Gets a string representation of the identifier
+    ///
+    /// \return A string representation of the identifier
+    [[nodiscard]] std::string to_string() const noexcept {
+      if (prefix().has_value()) {
+        return absl::StrCat(prefix()->to_string(), "::", id_);
+      } else {
+        return id_;
+      }
+    }
+
+    /// Compares two UnqualifiedID for equality
+    ///
+    /// \param lhs The first module id to compare
+    /// \param rhs The second module id to compare
+    /// \return Whether or not they are equal in every observable way
+    [[nodiscard]] constexpr friend bool operator==(const UnqualifiedID& lhs, const UnqualifiedID& rhs) noexcept {
+      // it's fairly likely that two IDs may import the same module but different things,
+      // we may as well early return on that case instead of doing the expensive module cmp first
+      return lhs.name() == rhs.name() && lhs.prefix() == rhs.prefix();
+    }
+
+  private:
+    std::optional<ModuleID> prefix_;
+    std::string id_;
   };
 
   /// Represents a fully-qualified identifier to some entity
@@ -71,6 +153,17 @@ namespace gal::ast {
     /// \return A string representation of the identifier
     [[nodiscard]] std::string to_string() const noexcept {
       return absl::StrCat(module_.to_string(), "::", id_);
+    }
+
+    /// Compares two FullyQualifiedID for equality
+    ///
+    /// \param lhs The first module id to compare
+    /// \param rhs The second module id to compare
+    /// \return Whether or not they are equal in every observable way
+    [[nodiscard]] constexpr friend bool operator==(const FullyQualifiedID& lhs, const FullyQualifiedID& rhs) noexcept {
+      // it's fairly likely that two IDs may import the same module but different things,
+      // we may as well early return on that case instead of doing the expensive module cmp first
+      return lhs.name() == rhs.name() && lhs.module() == rhs.module();
     }
 
   private:

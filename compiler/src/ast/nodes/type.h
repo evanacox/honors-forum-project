@@ -29,8 +29,10 @@ namespace gal::ast {
     builtin_byte,
     builtin_char,
     builtin_void,
+    user_defined_unqualified,
     user_defined,
     fn_pointer,
+    dyn_interface_unqualified,
     dyn_interface,
   };
 
@@ -41,6 +43,9 @@ namespace gal::ast {
   class Type : public Node {
   public:
     Type() = delete;
+
+    /// Virtual dtor so this can be `delete`ed by a `unique_ptr` or whatever
+    virtual ~Type() = default;
 
     /// Gets the real Type type that the Type actually is
     ///
@@ -53,13 +58,17 @@ namespace gal::ast {
     /// method on that visitor
     ///
     /// \param visitor The visitor to call a method on
-    virtual void accept(TypeVisitorBase* visitor) = 0;
+    void accept(TypeVisitorBase* visitor) {
+      internal_accept(visitor);
+    }
 
     /// Accepts a const visitor with a `void` return type, and calls the correct
     /// method on that visitor
     ///
     /// \param visitor The visitor to call a method on
-    virtual void accept(ConstTypeVisitorBase* visitor) const = 0;
+    void accept(ConstTypeVisitorBase* visitor) const {
+      internal_accept(visitor);
+    }
 
     /// Helper that allows a visitor to "return" values without needing
     /// dynamic template dispatch.
@@ -68,7 +77,7 @@ namespace gal::ast {
     /// \param visitor The visitor to "return a value from"
     /// \return The value the visitor yielded
     template <typename T> T accept(TypeVisitor<T>* visitor) {
-      accept(static_cast<TypeVisitorBase*>(visitor));
+      internal_accept(static_cast<TypeVisitorBase*>(visitor));
 
       return visitor->move_result();
     }
@@ -80,13 +89,56 @@ namespace gal::ast {
     /// \param visitor The visitor to "return a value from"
     /// \return The value the visitor yielded
     template <typename T> T accept(ConstTypeVisitor<T>* visitor) const {
-      accept(static_cast<ConstTypeVisitorBase*>(visitor));
+      internal_accept(static_cast<ConstTypeVisitorBase*>(visitor));
 
       return visitor->move_result();
     }
 
-    /// Virtual dtor so this can be `delete`ed by a `unique_ptr` or whatever
-    virtual ~Type() = default;
+    /// Compares two types for equality
+    ///
+    /// \param other The other type node to compare
+    /// \return Whether the two types are equal
+    [[nodiscard]] friend bool operator==(const Type& lhs, const Type& rhs) noexcept {
+      if (lhs.type() == rhs.type()) {
+        return lhs.internal_equals(rhs);
+      }
+
+      return false;
+    }
+
+    /// Compares two type nodes for complete equality, including source location.
+    /// Equivalent to `a == b && a.loc() == b.loc()`
+    ///
+    /// \param rhs The other node to compare
+    /// \return Whether the nodes are identical in every observable way
+    [[nodiscard]] bool fully_equals(const Type& rhs) noexcept {
+      return *this == rhs && loc() == rhs.loc();
+    }
+
+    /// Clones the node and returns a `unique_ptr` to the copy of the node
+    ///
+    /// \return A new node with the same observable state
+    [[nodiscard]] std::unique_ptr<Type> clone() const noexcept {
+      return internal_clone();
+    }
+
+    /// Checks if a node is of a particular type in slightly
+    /// nicer form than `.type() ==`
+    ///
+    /// \param type The type to compare against
+    /// \return Whether or not the node is of that type
+    [[nodiscard]] bool is(TypeType type) const noexcept {
+      return real_ == type;
+    }
+
+    /// Checks if a node is one of a set of types
+    ///
+    /// \tparam Args The list of types
+    /// \param types The types to check against
+    /// \return Whether or not the node is of one of those types
+    template <typename... Args> [[nodiscard]] bool is_one_of(Args... types) const noexcept {
+      return (is(types) && ...);
+    }
 
   protected:
     /// Initializes the state of the Type base class
@@ -99,6 +151,30 @@ namespace gal::ast {
 
     /// Protected so only derived can move
     Type(Type&&) = default;
+
+    /// Accepts a visitor with a `void` return type, and calls the correct
+    /// method on that visitor
+    ///
+    /// \param visitor The visitor to call a method on
+    virtual void internal_accept(TypeVisitorBase* visitor) = 0;
+
+    /// Accepts a const visitor with a `void` return type, and calls the correct
+    /// method on that visitor
+    ///
+    /// \param visitor The visitor to call a method on
+    virtual void internal_accept(ConstTypeVisitorBase* visitor) const = 0;
+
+    /// Compares two types for equality
+    ///
+    /// \note `other` is guaranteed to be the same type
+    /// \param other The other node to compare
+    /// \return Whether the two types are equal
+    [[nodiscard]] virtual bool internal_equals(const Type& other) const noexcept = 0;
+
+    /// Clones the node and returns a `unique_ptr` to the copy of the node
+    ///
+    /// \return A new node with the same observable state
+    [[nodiscard]] virtual std::unique_ptr<Type> internal_clone() const noexcept = 0;
 
   private:
     TypeType real_;
@@ -141,22 +217,28 @@ namespace gal::ast {
     ///
     /// \param new_type The new type to be referencing
     /// \return The old type that was being referenced
-    std::unique_ptr<Type> exchange_referenced(std::unique_ptr<Type> new_type) noexcept {
-      return std::exchange(referenced_, std::move(new_type));
+    [[nodiscard]] std::unique_ptr<Type>* referenced_owner() noexcept {
+      return &referenced_;
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(TypeVisitorBase* visitor) final {
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(ConstTypeVisitorBase* visitor) const final {
+  protected:
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      auto& result = internal::debug_cast<const ReferenceType&>(other);
+
+      return mut() == result.mut() && referenced() == result.referenced();
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<ReferenceType>(loc(), mut(), referenced().clone());
     }
 
   private:
@@ -192,22 +274,26 @@ namespace gal::ast {
     ///
     /// \param new_type The new type to be referencing
     /// \return The old type that was being sliced
-    std::unique_ptr<Type> exchange_sliced(std::unique_ptr<Type> new_type) noexcept {
-      return std::exchange(sliced_, std::move(new_type));
+    [[nodiscard]] std::unique_ptr<Type>* sliced_owner() noexcept {
+      return &sliced_;
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(TypeVisitorBase* visitor) final {
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
       visitor->visit(this);
     }
-
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(ConstTypeVisitorBase* visitor) const final {
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      auto& result = internal::debug_cast<const SliceType&>(other);
+
+      return sliced() == result.sliced();
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<SliceType>(loc(), sliced().clone());
     }
 
   private:
@@ -251,22 +337,27 @@ namespace gal::ast {
     ///
     /// \param new_type The new type to be referencing
     /// \return The old type that was being pointed
-    std::unique_ptr<Type> exchange_pointed(std::unique_ptr<Type> new_type) noexcept {
-      return std::exchange(pointed_, std::move(new_type));
+    [[nodiscard]] std::unique_ptr<Type>* pointed_owner() noexcept {
+      return &pointed_;
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(TypeVisitorBase* visitor) final {
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(ConstTypeVisitorBase* visitor) const final {
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      auto& result = internal::debug_cast<const PointerType&>(other);
+
+      return mut() == result.mut() && pointed() == result.pointed();
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<PointerType>(loc(), mut(), pointed().clone());
     }
 
   private:
@@ -275,7 +366,7 @@ namespace gal::ast {
   };
 
   /// Either in `native_width` state, or the value is positive and a power of 2
-  enum class IntegerWidth : std::int32_t { native_width = -1 };
+  enum class IntegerWidth : std::int64_t { native_width = -1 };
 
   /// Represents a builtin integer type, i.e `isize` or `u8` or `i32`
   class BuiltinIntegralType final : public Type {
@@ -304,18 +395,23 @@ namespace gal::ast {
       return size_;
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(TypeVisitorBase* visitor) final {
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(ConstTypeVisitorBase* visitor) const final {
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      auto& result = internal::debug_cast<const BuiltinIntegralType&>(other);
+
+      return width() == result.width() && has_sign() == result.has_sign();
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<BuiltinIntegralType>(loc(), has_sign(), width());
     }
 
   private:
@@ -344,11 +440,12 @@ namespace gal::ast {
 
   /// Represents a builtin floating-point type, i.e `f64` or `f32`
   class BuiltinFloatType final : public Type {
+  public:
     /// Creates a built-in type
     ///
     /// \param loc The location of the type in the code
     /// \param size The float width of the type
-    explicit BuiltinFloatType(SourceLoc loc, IntegerWidth size) noexcept
+    explicit BuiltinFloatType(SourceLoc loc, FloatWidth size) noexcept
         : Type(std::move(loc), TypeType::builtin_float),
           size_{size} {}
 
@@ -359,18 +456,23 @@ namespace gal::ast {
       return size_;
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(TypeVisitorBase* visitor) final {
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(ConstTypeVisitorBase* visitor) const final {
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      auto& result = internal::debug_cast<const BuiltinFloatType&>(other);
+
+      return width() == result.width();
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<BuiltinFloatType>(loc(), width());
     }
 
   private:
@@ -385,126 +487,239 @@ namespace gal::ast {
     /// \param loc The location of the type in the code
     explicit BuiltinBoolType(SourceLoc loc) noexcept : Type(std::move(loc), TypeType::builtin_bool) {}
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(TypeVisitorBase* visitor) final {
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(ConstTypeVisitorBase* visitor) const final {
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      (void)internal::debug_cast<const BuiltinBoolType&>(other);
+
+      return true;
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<BuiltinBoolType>(loc());
     }
   };
 
   /// Represents the builtin `byte` type
   class BuiltinByteType final : public Type {
+  public:
     /// Creates a built-in bool type
     ///
     /// \param loc The location of the type in the code
     explicit BuiltinByteType(SourceLoc loc) noexcept : Type(std::move(loc), TypeType::builtin_byte) {}
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(TypeVisitorBase* visitor) final {
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(ConstTypeVisitorBase* visitor) const final {
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
       visitor->visit(*this);
     }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      (void)internal::debug_cast<const BuiltinByteType&>(other);
+
+      return true;
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<BuiltinByteType>(loc());
+    }
   };
+
   class BuiltinCharType final : public Type {
+  public:
     /// Creates a built-in bool type
     ///
     /// \param loc The location of the type in the code
     explicit BuiltinCharType(SourceLoc loc) noexcept : Type(std::move(loc), TypeType::builtin_char) {}
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(TypeVisitorBase* visitor) final {
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(ConstTypeVisitorBase* visitor) const final {
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
       visitor->visit(*this);
     }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      (void)internal::debug_cast<const BuiltinCharType&>(other);
+
+      return true;
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<BuiltinCharType>(loc());
+    }
+  };
+
+  /// Models an unqualified UDT
+  class UnqualifiedUserDefinedType final : public Type {
+  public:
+    /// Creates an unqualified UDT
+    ///
+    /// \param loc The location in the source code
+    /// \param id The identifier
+    /// \param generic_params Any generic parameters if they exist
+    explicit UnqualifiedUserDefinedType(SourceLoc loc,
+        UnqualifiedID id,
+        std::optional<std::vector<std::unique_ptr<Type>>> generic_params) noexcept
+        : Type(std::move(loc), TypeType::user_defined_unqualified),
+          id_{std::move(id)},
+          generic_params_{std::move(generic_params)} {}
+
+    /// Gets the actual ID
+    ///
+    /// \return The ID
+    [[nodiscard]] const UnqualifiedID& id() const noexcept {
+      return id_;
+    }
+
+    /// Gets the list of generic parameters
+    ///
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
+      if (generic_params_.has_value()) {
+        return *generic_params_;
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the list of generic parameters
+    ///
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
+      if (generic_params_.has_value()) {
+        return absl::MakeSpan(*generic_params_);
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the owner of the list of generic parameters
+    ///
+    /// \return The owner of the generic parameters
+    [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
+      if (generic_params_.has_value()) {
+        return &*generic_params_;
+      }
+
+      return std::nullopt;
+    }
+
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      auto& result = internal::debug_cast<const UnqualifiedUserDefinedType&>(other);
+
+      return id() == result.id()
+             && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<UnqualifiedUserDefinedType>(loc(), id(), internal::clone_generics(generic_params_));
+    }
+
+  private:
+    UnqualifiedID id_;
+    std::optional<std::vector<std::unique_ptr<Type>>> generic_params_;
   };
 
   /// Represents a **reference** to a user-defined type.
   class UserDefinedType final : public Type {
   public:
-    struct Unqualified {
-      std::optional<ModuleID> module_prefix;
-      std::string name;
-    };
-
+    /// Creates a user-defined type
+    ///
+    /// \param loc The location in the source
+    /// \param id The identifier
+    /// \param generic_params Any generic parameters
     explicit UserDefinedType(SourceLoc loc,
-        std::optional<ModuleID> prefix,
-        std::string name,
-        std::vector<std::unique_ptr<Type>> generic_params) noexcept
+        FullyQualifiedID id,
+        std::optional<std::vector<std::unique_ptr<Type>>> generic_params) noexcept
         : Type(std::move(loc), TypeType::user_defined),
-          name_{Unqualified{std::move(prefix), std::move(name)}},
+          name_{std::move(id)},
           generic_params_{std::move(generic_params)} {}
 
-    [[nodiscard]] bool is_qualified() const noexcept {
-      return std::holds_alternative<FullyQualifiedID>(name_);
-    }
-
-    [[nodiscard]] const Unqualified& unqualified() const noexcept {
-      assert(!is_qualified());
-
-      return std::get<Unqualified>(name_);
-    }
-
-    [[nodiscard]] Unqualified* unqualified_mut() noexcept {
-      assert(!is_qualified());
-
-      return &std::get<Unqualified>(name_);
-    }
-
-    void qualify(FullyQualifiedID id) noexcept {
-      assert(!is_qualified());
-
-      name_ = std::move(id);
-    }
-
-    [[nodiscard]] absl::Span<const std::unique_ptr<Type>> generic_params() const noexcept {
-      return generic_params_;
-    }
-
-    [[nodiscard]] absl::Span<std::unique_ptr<Type>> generic_params_mut() noexcept {
-      return absl::MakeSpan(generic_params_);
-    }
-
-    /// Accepts a visitor that's able to mutate the type
+    /// Gets the fully qualified ID
     ///
-    /// \param visitor The visitor
-    void accept(TypeVisitorBase* visitor) final {
+    /// \return The ID
+    [[nodiscard]] const FullyQualifiedID& id() const noexcept {
+      return name_;
+    }
+
+    /// Gets the list of generic parameters
+    ///
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
+      if (generic_params_.has_value()) {
+        return *generic_params_;
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the list of generic parameters
+    ///
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
+      if (generic_params_.has_value()) {
+        return absl::MakeSpan(*generic_params_);
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the owner of the list of generic parameters
+    ///
+    /// \return The owner of the generic parameters
+    [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
+      if (generic_params_.has_value()) {
+        return &*generic_params_;
+      }
+
+      return std::nullopt;
+    }
+
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a visitor that's unable to mutate the type
-    ///
-    /// \param visitor The visitor
-    void accept(ConstTypeVisitorBase* visitor) const final {
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
       visitor->visit(*this);
     }
 
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      auto& result = internal::debug_cast<const UserDefinedType&>(other);
+
+      return id() == result.id()
+             && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<UserDefinedType>(loc(), id(), internal::clone_generics(generic_params_));
+    }
+
   private:
-    std::variant<Unqualified, FullyQualifiedID> name_;
-    std::vector<std::unique_ptr<Type>> generic_params_;
+    FullyQualifiedID name_;
+    std::optional<std::vector<std::unique_ptr<Type>>> generic_params_;
   };
 
   /// Represents a function pointer type, i.e `fn (i32) -> i32`
@@ -554,22 +769,30 @@ namespace gal::ast {
     ///
     /// \param new_type The new type to use
     /// \return The old type
-    [[nodiscard]] std::unique_ptr<Type> exchange_return_type(std::unique_ptr<Type> new_type) noexcept {
-      return std::exchange(return_type_, std::move(new_type));
+    [[nodiscard]] std::unique_ptr<Type>* return_type_owner() noexcept {
+      return &return_type_;
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(TypeVisitorBase* visitor) final {
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(ConstTypeVisitorBase* visitor) const final {
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      auto& result = internal::debug_cast<const FnPointerType&>(other);
+      auto self_args = args();
+      auto other_args = result.args();
+
+      return return_type() == result.return_type()
+             && std::equal(self_args.begin(), self_args.end(), other_args.begin(), other_args.end(), gal::DerefEq{});
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<FnPointerType>(loc(), gal::clone_span(absl::MakeConstSpan(args_)), return_type().clone());
     }
 
   private:
@@ -578,7 +801,164 @@ namespace gal::ast {
   };
 
   /// Represents a `dyn` trait type, such as `dyn Addable`
-  class DynInterfaceType : public Type {};
+  class DynInterfaceType : public Type {
+  public:
+    /// Creates a dynamic interface type
+    ///
+    /// \param loc Source location
+    /// \param id The name of the interface
+    /// \param generic_params Any generics provided
+    explicit DynInterfaceType(SourceLoc loc,
+        FullyQualifiedID id,
+        std::optional<std::vector<std::unique_ptr<Type>>> generic_params) noexcept
+        : Type(std::move(loc), TypeType::dyn_interface),
+          name_{std::move(id)},
+          generic_params_{std::move(generic_params)} {}
+
+    /// Gets the fully qualified ID
+    ///
+    /// \return The ID
+    [[nodiscard]] const FullyQualifiedID& id() const noexcept {
+      return name_;
+    }
+
+    /// Gets the list of generic parameters
+    ///
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
+      if (generic_params_.has_value()) {
+        return *generic_params_;
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the list of generic parameters
+    ///
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
+      if (generic_params_.has_value()) {
+        return absl::MakeSpan(*generic_params_);
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the owner of the list of generic parameters
+    ///
+    /// \return The owner of the generic parameters
+    [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
+      if (generic_params_.has_value()) {
+        return &*generic_params_;
+      }
+
+      return std::nullopt;
+    }
+
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      auto& result = internal::debug_cast<const DynInterfaceType&>(other);
+
+      return id() == result.id()
+             && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<UserDefinedType>(loc(), id(), internal::clone_generics(generic_params_));
+    }
+
+  private:
+    FullyQualifiedID name_;
+    std::optional<std::vector<std::unique_ptr<Type>>> generic_params_;
+  };
+
+  /// Models an unqualified `dyn foo::Interface<A, B>` type
+  class UnqualifiedDynInterfaceType final : public Type {
+  public:
+    /// Creates an unqualified dyn type
+    ///
+    /// \param loc The location in the source code
+    /// \param id The name of the interface
+    /// \param generic_params Any generics provided
+    explicit UnqualifiedDynInterfaceType(SourceLoc loc,
+        UnqualifiedID id,
+        std::vector<std::unique_ptr<Type>> generic_params) noexcept
+        : Type(std::move(loc), TypeType::dyn_interface_unqualified),
+          id_{std::move(id)},
+          generic_params_{std::move(generic_params)} {}
+
+    /// Gets the actual ID
+    ///
+    /// \return The ID
+    [[nodiscard]] const UnqualifiedID& id() const noexcept {
+      return id_;
+    }
+
+    /// Gets the list of generic parameters
+    ///
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
+      if (generic_params_.has_value()) {
+        return *generic_params_;
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the list of generic parameters
+    ///
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
+      if (generic_params_.has_value()) {
+        return absl::MakeSpan(*generic_params_);
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the owner of the list of generic parameters
+    ///
+    /// \return The owner of the generic parameters
+    [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
+      if (generic_params_.has_value()) {
+        return &*generic_params_;
+      }
+
+      return std::nullopt;
+    }
+
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      auto& result = internal::debug_cast<const UnqualifiedDynInterfaceType&>(other);
+
+      return id() == result.id()
+             && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<UnqualifiedUserDefinedType>(loc(), id(), internal::clone_generics(generic_params_));
+    }
+
+  private:
+    UnqualifiedID id_;
+    std::optional<std::vector<std::unique_ptr<Type>>> generic_params_;
+  };
 
   /// Represents a "unit" type for functions that don't have a
   /// meaningful return value. Only has one state, but it is a "type"
@@ -589,18 +969,47 @@ namespace gal::ast {
     /// \param loc The location of the type in the code
     explicit VoidType(SourceLoc loc) noexcept : Type(std::move(loc), TypeType::builtin_void) {}
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(TypeVisitorBase* visitor) final {
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a visitor and calls the right method on it
-    ///
-    /// \param visitor The visitor to accept
-    void accept(ConstTypeVisitorBase* visitor) const final {
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      (void)internal::debug_cast<const VoidType&>(other);
+
+      return true;
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<VoidType>(loc());
+    }
+  };
+
+  class ErrorType final : public Type {
+  public:
+    explicit ErrorType() : Type(SourceLoc{"", 0, 0, {}}, TypeType::dyn_interface_unqualified) {}
+
+  protected:
+    void internal_accept(TypeVisitorBase*) final {
+      assert(false);
+    }
+
+    void internal_accept(ConstTypeVisitorBase*) const final {
+      assert(false);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
+      (void)internal::debug_cast<const ErrorType&>(other);
+
+      return true;
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<ErrorType>();
     }
   };
 } // namespace gal::ast

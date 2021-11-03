@@ -21,6 +21,8 @@ namespace gal::ast {
   class StructDeclaration;
   class ClassDeclaration;
   class TypeDeclaration;
+  class MethodDeclaration;
+  class ExternalDeclaration;
 
   class DeclarationVisitorBase {
   public:
@@ -35,6 +37,10 @@ namespace gal::ast {
     virtual void visit(ClassDeclaration*) = 0;
 
     virtual void visit(TypeDeclaration*) = 0;
+
+    virtual void visit(MethodDeclaration*) = 0;
+
+    virtual void visit(ExternalDeclaration*) = 0;
 
     virtual ~DeclarationVisitorBase() = default;
   };
@@ -52,6 +58,10 @@ namespace gal::ast {
     virtual void visit(const ClassDeclaration&) = 0;
 
     virtual void visit(const TypeDeclaration&) = 0;
+
+    virtual void visit(const MethodDeclaration&) = 0;
+
+    virtual void visit(const ExternalDeclaration&) = 0;
 
     virtual ~ConstDeclarationVisitorBase() = default;
   };

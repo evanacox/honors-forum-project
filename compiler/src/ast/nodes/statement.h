@@ -30,6 +30,9 @@ namespace gal::ast {
   public:
     Statement() = delete;
 
+    /// Virtual dtor so this can be `delete`ed by a `unique_ptr` or whatever
+    virtual ~Statement() = default;
+
     /// Gets the real statement type that the statement actually is
     ///
     /// \return The type of the Statement
@@ -41,13 +44,17 @@ namespace gal::ast {
     /// method on that visitor
     ///
     /// \param visitor The visitor to call a method on
-    virtual void accept(StatementVisitorBase* visitor) = 0;
+    void accept(StatementVisitorBase* visitor) {
+      internal_accept(visitor);
+    }
 
     /// Accepts a const visitor with a `void` return type, and calls the correct
     /// method on that visitor
     ///
     /// \param visitor The visitor to call a method on
-    virtual void accept(ConstStatementVisitorBase* visitor) const = 0;
+    void accept(ConstStatementVisitorBase* visitor) const {
+      internal_accept(visitor);
+    }
 
     /// Helper that allows a visitor to "return" values without needing
     /// dynamic template dispatch.
@@ -73,8 +80,51 @@ namespace gal::ast {
       return visitor->move_result();
     }
 
-    /// Virtual dtor so this can be `delete`ed by a `unique_ptr` or whatever
-    virtual ~Statement() = default;
+    /// Compares two types for equality
+    ///
+    /// \param other The other type node to compare
+    /// \return Whether the two types are equal
+    [[nodiscard]] friend bool operator==(const Statement& lhs, const Statement& rhs) noexcept {
+      if (lhs.type() == rhs.type()) {
+        return lhs.internal_equals(rhs);
+      }
+
+      return false;
+    }
+
+    /// Compares two type nodes for complete equality, including source location.
+    /// Equivalent to `a == b && a.loc() == b.loc()`
+    ///
+    /// \param rhs The other node to compare
+    /// \return Whether the nodes are identical in every observable way
+    [[nodiscard]] bool fully_equals(const Statement& rhs) noexcept {
+      return *this == rhs && loc() == rhs.loc();
+    }
+
+    /// Clones the node and returns a `unique_ptr` to the copy of the node
+    ///
+    /// \return A new node with the same observable state
+    [[nodiscard]] std::unique_ptr<Statement> clone() const noexcept {
+      return internal_clone();
+    }
+
+    /// Checks if a node is of a particular type in slightly
+    /// nicer form than `.type() ==`
+    ///
+    /// \param type The type to compare against
+    /// \return Whether or not the node is of that type
+    [[nodiscard]] bool is(StmtType type) const noexcept {
+      return real_ == type;
+    }
+
+    /// Checks if a node is one of a set of types
+    ///
+    /// \tparam Args The list of types
+    /// \param types The types to check against
+    /// \return Whether or not the node is of one of those types
+    template <typename... Args> [[nodiscard]] bool is_one_of(Args... types) const noexcept {
+      return (is(types) && ...);
+    }
 
   protected:
     /// Initializes the state of the Statement base class
@@ -87,6 +137,29 @@ namespace gal::ast {
 
     /// Protected so only derived can move
     Statement(Statement&&) = default;
+
+    /// Accepts a visitor with a `void` return type, and calls the correct
+    /// method on that visitor
+    ///
+    /// \param visitor The visitor to call a method on
+    virtual void internal_accept(StatementVisitorBase* visitor) = 0;
+
+    /// Accepts a const visitor with a `void` return type, and calls the correct
+    /// method on that visitor
+    ///
+    /// \param visitor The visitor to call a method on
+    virtual void internal_accept(ConstStatementVisitorBase* visitor) const = 0;
+
+    /// Compares two statement objects of the same underlying type for equality
+    ///
+    /// \param other The other node to compare
+    /// \return Whether the nodes are equal
+    [[nodiscard]] virtual bool internal_equals(const Statement& other) const noexcept = 0;
+
+    /// Creates a clone of the node where `clone()` is called on
+    ///
+    /// \return A node equal in all observable ways
+    [[nodiscard]] virtual std::unique_ptr<Statement> internal_clone() const noexcept = 0;
 
   private:
     StmtType real_;
@@ -103,78 +176,90 @@ namespace gal::ast {
     explicit BindingStatement(SourceLoc loc,
         std::string name,
         std::unique_ptr<Expression> initializer,
-        std::unique_ptr<Type> hint = nullptr) noexcept
+        std::optional<std::unique_ptr<Type>> hint) noexcept
         : Statement(std::move(loc), StmtType::binding),
           name_{std::move(name)},
           initializer_{std::move(initializer)},
           hint_{std::move(hint)} {}
 
+    /// Gets the name of the binding
     ///
-    ///
-    /// \return
+    /// \return The name given to the value
     [[nodiscard]] std::string_view name() const noexcept {
       return name_;
     }
 
+    /// The value given to the binding as the initializer
     ///
-    ///
-    /// \return
+    /// \return The initializer
     [[nodiscard]] const Expression& initializer() const noexcept {
       return *initializer_;
     }
 
+    /// The value given to the binding as the initializer
     ///
-    ///
-    /// \return
-    [[nodiscard]] Expression* initializer() noexcept {
+    /// \return A mutable reference to the initializer
+    [[nodiscard]] Expression* initializer_mut() noexcept {
       return initializer_.get();
     }
 
+    /// Gets the type hint for the binding. If it exists, a valid pointer is
+    /// returned. If it doesn't, a nullopt is returned
     ///
-    ///
-    /// \return
-    [[nodiscard]] bool has_hint() const noexcept {
-      return hint_ != nullptr;
+    /// \return A possible type hint
+    [[nodiscard]] std::optional<const Type*> hint() const noexcept {
+      return (hint_.has_value()) ? std::make_optional(hint_->get()) : std::nullopt;
     }
 
+    /// Gets the type hint for the binding. If it exists, a valid pointer is
+    /// returned. If it doesn't, a nullopt is returned
     ///
-    ///
-    /// \return
-    [[nodiscard]] const Type& hint() const noexcept {
-      assert(has_hint());
-
-      return *hint_;
+    /// \return A possible type hint
+    [[nodiscard]] std::optional<Type*> hint_mut() noexcept {
+      return (hint_.has_value()) ? std::make_optional(hint_->get()) : std::nullopt;
     }
 
-    /// Accepts a visitor with a `void` return type, and calls the correct
-    /// method on that visitor
+    /// If the hint exists, returns a pointer to the hint's owner
+    /// Otherwise returns a nullopt
     ///
-    /// \param visitor The visitor to call a method on
-    void accept(StatementVisitorBase* visitor) final {
+    /// \return A possible type hint
+    [[nodiscard]] std::optional<std::unique_ptr<Type>*> hint_owner() noexcept {
+      return (hint_.has_value()) ? std::make_optional(&*hint_) : std::nullopt;
+    }
+
+  protected:
+    void internal_accept(StatementVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a visitor with a `void` return type, and calls the correct
-    /// method on that visitor
-    ///
-    /// \param visitor The visitor to call a method on
-    void accept(ConstStatementVisitorBase* visitor) const final {
+    void internal_accept(ConstStatementVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Statement& other) const noexcept final {
+      auto& result = internal::debug_cast<const BindingStatement&>(other);
+
+      return name() == result.name() && gal::unwrapping_equal(hint(), result.hint(), gal::DerefEq{})
+             && initializer() == result.initializer();
+    }
+
+    [[nodiscard]] std::unique_ptr<Statement> internal_clone() const noexcept final {
+      return std::make_unique<BindingStatement>(loc(), name_, initializer().clone(), gal::clone_if(hint_));
     }
 
   private:
     std::string name_;
     std::unique_ptr<Expression> initializer_;
-    std::unique_ptr<Type> hint_;
+    std::optional<std::unique_ptr<Type>> hint_;
   };
 
-  ///
+  /// Models an assertion statement in the code
   class AssertStatement final : public Statement {
   public:
+    /// Creates an assertion
     ///
-    ///
-    /// \param assertion
-    /// \param message
+    /// \param assertion The expression to insert
+    /// \param message The message to display if the assertion fires
     explicit AssertStatement(SourceLoc loc,
         std::unique_ptr<Expression> assertion,
         std::unique_ptr<StringLiteralExpression> message) noexcept
@@ -182,38 +267,111 @@ namespace gal::ast {
           assertion_{std::move(assertion)},
           message_{std::move(message)} {}
 
+    /// Gets the assertion that needs to be checked
     ///
-    ///
-    /// \return
+    /// \return The assertion
     [[nodiscard]] const Expression& assertion() const noexcept {
       return *assertion_;
     }
 
+    /// Gets the assertion that needs to be checked
     ///
+    /// \return The assertion
+    [[nodiscard]] Expression* assertion_mut() noexcept {
+      return assertion_.get();
+    }
+
+    /// Gets the assertion that needs to be checked
     ///
-    /// \return
+    /// \return The assertion
+    [[nodiscard]] std::unique_ptr<Expression>* assertion_owner() noexcept {
+      return &assertion_;
+    }
+
+    /// Gets the message that the assertion was given
+    ///
+    /// \return The assertion message
     [[nodiscard]] const StringLiteralExpression& message() const noexcept {
       return *message_;
     }
 
-    /// Accepts a visitor with a `void` return type, and calls the correct
-    /// method on that visitor
-    ///
-    /// \param visitor The visitor to call a method on
-    void accept(StatementVisitorBase* visitor) final {
+  protected:
+    void internal_accept(StatementVisitorBase* visitor) final {
       visitor->visit(this);
     }
 
-    /// Accepts a visitor with a `void` return type, and calls the correct
-    /// method on that visitor
-    ///
-    /// \param visitor The visitor to call a method on
-    void accept(ConstStatementVisitorBase* visitor) const final {
+    void internal_accept(ConstStatementVisitorBase* visitor) const final {
       visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Statement& other) const noexcept final {
+      auto& result = internal::debug_cast<const AssertStatement&>(other);
+
+      return assertion() == result.assertion() && message() == result.message();
+    }
+
+    [[nodiscard]] std::unique_ptr<Statement> internal_clone() const noexcept final {
+      return std::make_unique<AssertStatement>(loc(),
+          assertion().clone(),
+          gal::static_unique_cast<StringLiteralExpression>(message().clone()));
     }
 
   private:
     std::unique_ptr<Expression> assertion_;
     std::unique_ptr<StringLiteralExpression> message_;
+  };
+
+  class ExpressionStatement final : public Statement {
+  public:
+    /// Creates an expression statement
+    ///
+    /// \param loc The location in the source code
+    /// \param expr The expression
+    explicit ExpressionStatement(SourceLoc loc, std::unique_ptr<Expression> expr) noexcept
+        : Statement(std::move(loc), StmtType::expr),
+          expr_{std::move(expr)} {}
+
+    /// Gets the expression in the statement
+    ///
+    /// \return The expression
+    [[nodiscard]] const Expression& expr() const noexcept {
+      return *expr_;
+    }
+
+    /// Gets the expression in the statement
+    ///
+    /// \return The expression
+    [[nodiscard]] Expression* expr_mut() noexcept {
+      return expr_.get();
+    }
+
+    /// Gets the expression in the statement
+    ///
+    /// \return The expression
+    [[nodiscard]] std::unique_ptr<Expression>* expr_owner() noexcept {
+      return &expr_;
+    }
+
+  protected:
+    void internal_accept(StatementVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstStatementVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Statement& other) const noexcept final {
+      auto& result = internal::debug_cast<const ExpressionStatement&>(other);
+
+      return expr() == result.expr();
+    }
+
+    [[nodiscard]] std::unique_ptr<Statement> internal_clone() const noexcept final {
+      return std::make_unique<ExpressionStatement>(loc(), expr().clone());
+    }
+
+  private:
+    std::unique_ptr<Expression> expr_;
   };
 } // namespace gal::ast

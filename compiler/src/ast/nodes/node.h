@@ -34,4 +34,31 @@ namespace gal::ast {
   private:
     SourceLoc loc_;
   };
+
+  namespace internal {
+    /// Cast that does correctness checking in debug mode
+    ///
+    /// \param entity The entity to cast
+    /// \return The cast result
+    template <typename T, typename U> [[nodiscard]] constexpr T& debug_cast(U& entity) noexcept {
+      assert(dynamic_cast<std::remove_reference_t<T>*>(&entity) != nullptr);
+
+      return static_cast<T&>(entity);
+    }
+
+    struct GenericArgsCmp {
+      template <typename T>
+      [[nodiscard]] constexpr bool operator()(absl::Span<const std::unique_ptr<T>> lhs,
+          absl::Span<const std::unique_ptr<T>> rhs) {
+        return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), gal::DerefEq<>{});
+      }
+    };
+
+    template <typename T>
+    [[nodiscard]] std::optional<std::vector<std::unique_ptr<T>>> clone_generics(
+        const std::optional<std::vector<std::unique_ptr<T>>>& generics) {
+      return (generics.has_value()) ? std::make_optional(gal::clone_span(absl::MakeConstSpan(*generics)))
+                                    : std::nullopt;
+    }
+  } // namespace internal
 } // namespace gal::ast
