@@ -1,16 +1,12 @@
 ---
 layout: default
 title: Architecture
-nav_order: 4
+nav_order: 1
 parent: Compiler Design
 ---
 
 # Overall Architecture
 
-{% highlight cpp %}
-#include <iostream>
-
-int main() {
-    std::cout << "Hello!\n";
-}
-{% endhighlight %}
+~~~ cpp
+// test
+~~~
