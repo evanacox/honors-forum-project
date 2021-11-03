@@ -8,6 +8,10 @@
 #                                                                             #
 ##======---------------------------------------------------------------======##
 
+set(GALLIUM_CORE_FILES
+        core/codegen.cc
+        core/error_reporting.cc)
+
 set(GALLIUM_UTILITY_FILES
         utility/flags.cc
         utility/log.cc
@@ -34,13 +38,13 @@ add_custom_command(OUTPUT ${GALLIUM_GENERATED_FILES}
 # these are a different library so they dont get the `-Werror` added to them
 # because the generated code causes warnings
 add_library(gallium_antlr4 STATIC ${GALLIUM_GENERATED_FILES})
+target_link_libraries(gallium_antlr4 PUBLIC ${GALLIUM_ANTLR4_RUNTIME})
 target_compile_definitions(gallium_antlr4 PUBLIC ANTLR4CPP_STATIC)
 target_include_directories(gallium_antlr4 SYSTEM PUBLIC
         ${GALLIUM_ANTLR4_RUNTIME_INCLUDE}
         ${GALLIUM_ANTLR4_GENERATED_DIR}/../)
 
-target_link_libraries(gallium_antlr4 PUBLIC ${GALLIUM_ANTLR4_RUNTIME})
-add_executable(gallium ./main.cc ./driver.cc ${GALLIUM_UTILITY_FILES} ${GALLIUM_SYNTAX_FILES})
+add_executable(gallium ./main.cc ./driver.cc ${GALLIUM_CORE_FILES} ${GALLIUM_UTILITY_FILES} ${GALLIUM_SYNTAX_FILES})
 gallium_configure_target(gallium)
 target_include_directories(gallium PUBLIC ${LLVM_INCLUDE_DIRS})
 target_compile_definitions(gallium PUBLIC ${LLVM_DEFINITIONS_LIST})
