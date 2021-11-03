@@ -132,10 +132,6 @@ LTLT
     : '<<'
     ;
 
-GTGT
-    : '>>'
-    ;
-
 LTEQ
     : '<='
     ;
@@ -297,7 +293,7 @@ parse
     ;
 
 modularIdentifier
-    : IDENTIFIER ('::' IDENTIFIER)*
+    : (isRoot='::')? IDENTIFIER ('::' IDENTIFIER)*
     ;
 
 modularizedDeclaration
@@ -306,7 +302,7 @@ modularizedDeclaration
     ;
 
 importDeclaration
-    : 'import' WHITESPACE+ modularIdentifier
+    : 'import' WHITESPACE+ modularIdentifier (WHITESPACE+ 'as' WHITESPACE+ alias=IDENTIFIER)?
     | 'import' WHITESPACE+ importList WHITESPACE+ 'from' WHITESPACE+ modularIdentifier
     ;
 
@@ -328,6 +324,11 @@ declaration
     | classDeclaration
     | structDeclaration
     | typeDeclaration
+    | externalDeclaration
+    ;
+
+externalDeclaration
+    : 'external' ws '{' ws? (fnPrototype ws)+ ws? '}'
     ;
 
 fnDeclaration
@@ -335,7 +336,7 @@ fnDeclaration
     ;
 
 fnPrototype
-    : 'fn' ws IDENTIFIER ws? '(' fnArgumentList? ')'
+    : 'fn' ws IDENTIFIER ws? typeParamList? ws? '(' fnArgumentList? ')'
            (ws fnAttributeList)?
            (ws '->' ws type)
     ;
@@ -361,12 +362,16 @@ fnArgumentList
     : singleFnArgument ws? (',' ws? singleFnArgument)*
     ;
 
+selfArgument
+    : '&self'
+    | '&mut' ws 'self'
+    | 'self'
+    | 'mut' ws 'self'
+    ;
+
 singleFnArgument
     : IDENTIFIER ws? ':' ws? type
-    | '&self'
-    | '&mut self'
-    | 'self'
-    | 'mut self'
+    | selfArgument
     ;
 
 typeParamList
@@ -374,7 +379,7 @@ typeParamList
     ;
 
 typeParam
-    : IDENTIFIER (ws? '=' ws? modularIdentifier)?
+    : IDENTIFIER (':' ws? interface=genericIdentifier)? (ws? '=' ws? default=genericIdentifier)?
     ;
 
 classDeclaration
@@ -408,7 +413,7 @@ classVariableBody
     ;
 
 structDeclaration
-    : 'struct' ws IDENTIFIER ws? '{'
+    : 'struct' ws IDENTIFIER (ws? typeParamList?) ws? '{'
       (ws structMember WHITESPACE* NEWLINE+)*
       ws?
       '}'
@@ -419,7 +424,7 @@ structMember
     ;
 
 typeDeclaration
-    : 'type' ws IDENTIFIER ws '=' type
+    : 'type' ws typeParamList? IDENTIFIER ws '=' type
     ;
 
 statement
@@ -456,12 +461,28 @@ blockExpression
     ;
 
 returnExpr
-    : 'return' ws expr
+    : 'return' WHITESPACE* expr
+    ;
+
+breakExpr
+    : 'break' (WHITESPACE* expr)?
+    ;
+
+continueExpr
+    : 'continue'
     ;
 
 ifExpr
     : 'if' ws expr ws 'then' ws expr ws 'else' ws expr
-    | 'if' ws expr ws blockExpression (ws 'else' ws blockExpression)?
+    | 'if' ws expr ws blockExpression (ws elifBlock)* (ws elseBlock)?
+    ;
+
+elifBlock
+    : 'elif' ws expr ws blockExpression
+    ;
+
+elseBlock
+    : 'else' ws blockExpression
     ;
 
 loopExpr
@@ -480,7 +501,7 @@ expr
     | expr ws asUnsafe='as!' ws type
     | expr ws op=(STAR | FORWARD_SLASH | PERCENT) ws expr
     | expr ws op=(PLUS | HYPHEN) ws expr
-    | expr ws op=(LTLT | GTGT) ws expr
+    | expr ws ((op=LTLT) | (gtgtHack=GT GT)) ws expr // dirty hack to make >> parse in generic contexts
     | expr ws op=AMPERSTAND ws expr
     | expr ws op=CARET ws expr
     | expr ws op=PIPE ws expr
@@ -492,17 +513,25 @@ expr
     | expr ws op=(WALRUS | PLUSEQ | HYPHENEQ | STAREQ | SLASHEQ | PERCENTEQ | LTLTEQ | GTGTEQ | AMPERSTANDEQ | CARETEQ | PIPEEQ) ws expr
     | ifExpr
     | loopExpr
-    | returnExpr
+    | (returnExpr | breakExpr | continueExpr)
     ;
 
 primaryExpr
     : groupExpr
-    | modularIdentifier
+    | maybeGenericIdentifier
     | digitLiteral
     | STRING_LITERAL
     | CHAR_LITERAL
     | BOOL_LITERAL
     | NIL_LITERAL
+    ;
+
+maybeGenericIdentifier
+    : modularIdentifier typeParamList? ('::' memberGenericIdentifier)*
+    ;
+
+memberGenericIdentifier
+    : IDENTIFIER typeParamList?
     ;
 
 groupExpr
@@ -524,11 +553,11 @@ typeWithoutRef
     : squareBracket='[' WHITESPACE* typeWithoutRef WHITESPACE* ']'
     | ptr=(STAR_CONST | STAR_MUT) (WHITESPACE+) typeWithoutRef
     | BUILTIN_TYPE
-    | userDefinedType=modularIdentifier (LT WHITESPACE* genericTypeList WHITESPACE* GT)?
+    | userDefinedType=genericIdentifier
     | fnType='fn' WHITESPACE* LT (WHITESPACE* genericTypeList WHITESPACE*)? LT WHITESPACE+ '->' WHITESPACE+ type
     | dynType='dyn' ws modularIdentifier (LT WHITESPACE* genericTypeList WHITESPACE* GT)?
     ;  
 
 genericTypeList
-    : type WHITESPACE* (',' WHITESPACE* genericTypeList)*
+    : type WHITESPACE* (',' WHITESPACE* type)*
     ;
