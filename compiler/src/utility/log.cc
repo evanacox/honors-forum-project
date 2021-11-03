@@ -25,8 +25,8 @@ namespace gal {
     console_lock.unlock();
   }
 
-  internal::BufferedFakeOstream outs() noexcept {
-    auto stream = internal::BufferedFakeOstream(&std::cout);
+  internal::UnbufferedFakeOstream outs() noexcept {
+    auto stream = internal::UnbufferedFakeOstream(&std::cout);
 
     stream << colors::bold_cyan("info: ");
 

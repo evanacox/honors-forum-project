@@ -50,7 +50,12 @@ namespace gal {
   class CompilerConfig {
   public:
     /// Create a CompilerConfig object
-    explicit CompilerConfig(std::uint64_t jobs, OptLevel opt, OutputFormat emit, bool debug, bool verbose) noexcept;
+    explicit CompilerConfig(std::uint64_t jobs,
+        OptLevel opt,
+        OutputFormat emit,
+        bool debug,
+        bool verbose,
+        bool colored) noexcept;
 
     /// Gets the number of threads that the compiler is allowed to
     /// create to parse/compile/whatever
@@ -88,12 +93,17 @@ namespace gal {
       return verbose_;
     }
 
+    [[nodiscard]] constexpr bool colored() const noexcept {
+      return colored_;
+    }
+
   private:
     std::uint64_t jobs_;
     OptLevel opt_level_;
     OutputFormat format_;
     bool debug_;
     bool verbose_;
+    bool colored_;
   };
 
   /// Pretty-prints the flag state

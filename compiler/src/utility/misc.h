@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cassert>
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -28,19 +29,63 @@ namespace gal {
     return std::unique_ptr<T>(static_cast<T*>(real));
   }
 
+  /// Equality functor that dereferences its arguments and performs `==` on them.
+  ///
+  /// \tparam T The type to compare
+  template <typename T = void> struct DerefEq {
+    constexpr bool operator()(const T& lhs, const T& rhs) const {
+      return *lhs == *rhs;
+    }
+  };
+
+  template <> struct DerefEq<void> {
+    template <typename T, typename U> constexpr bool operator()(const T& lhs, const U& rhs) const {
+      return *lhs == *rhs;
+    }
+  };
+
   /// Takes two optionals and compares for deep equality. If they both have a value,
-  /// the pointers are dereferenced and compared for equality. Otherwise, their has-value states
+  /// the optionals are unwrapped and compared using a functor. Otherwise, their has-value states
   /// are compared.
   ///
   /// \param lhs The first optional to compare
   /// \param rhs The second optional to compare
-  /// \return `(lhs && rhs) ? (**lhs == **rhs) : (lhs.has_value() == rhs.has_value())`
-  template <typename T>
-  [[nodiscard]] bool unwrapping_equal(std::optional<const T*> lhs, std::optional<const T*> rhs) noexcept {
+  /// \return `(lhs && rhs) ? (cmp(*lhs, *rhs)) : (lhs.has_value() == rhs.has_value())`
+  template <typename T, typename U, typename Cmp = std::equal_to<T>>
+  [[nodiscard]] bool unwrapping_equal(std::optional<T> lhs, std::optional<U> rhs, const Cmp& cmp = Cmp{}) noexcept {
     if (lhs.has_value() && rhs.has_value()) {
-      return **lhs == **rhs;
+      return Cmp(*lhs, *rhs);
     }
 
     return lhs.has_value() == rhs.has_value();
+  }
+
+  /// Clones a span over cloneable AST nodes and returns a new vector with
+  /// the cloned nodes
+  ///
+  /// \param array The span to clone
+  /// \return A new array containing each cloned element
+  template <typename T>
+  std::vector<std::unique_ptr<T>> clone_span(absl::Span<const std::unique_ptr<T>> array) noexcept {
+    auto new_array = std::vector<std::unique_ptr<T>>{};
+
+    for (auto& object : array) {
+      new_array.push_back(object->clone());
+    }
+
+    return new_array;
+  }
+
+  /// Equivalent to `some.map(|val| val->clone())`
+  ///
+  /// \param maybe The maybe to map
+  /// \return The mapped maybe
+  template <typename T>
+  std::optional<std::unique_ptr<T>> clone_if(const std::optional<std::unique_ptr<T>>& maybe) noexcept {
+    if (maybe.has_value()) {
+      return (*maybe)->clone();
+    }
+
+    return std::nullopt;
   }
 } // namespace gal

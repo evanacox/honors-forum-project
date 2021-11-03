@@ -136,19 +136,19 @@ namespace gal {
   /// Gets a wrapped up `std::ostream` that maps to `std::cout`. Automatically
   /// adds newlines whenever the message being printed is finished
   ///
-  /// \return A buffered "ostream"
-  internal::BufferedFakeOstream outs() noexcept;
+  /// \return An unbuffered "ostream"
+  internal::UnbufferedFakeOstream outs() noexcept;
 
   /// Gets a wrapped up `std::ostream` that maps to `std::cerr`. Automatically
   /// adds newlines whenever the message being printed is finished, and
   /// will flush whenever the message is finished.
   ///
-  /// \return A buffered "ostream"
+  /// \return An unbuffered "ostream"
   internal::UnbufferedFakeOstream errs() noexcept;
 
   /// Gets a wrapped up `std::ostream` that maps to `std::cout`. Does not automatically
   /// add anything
   ///
-  /// \return A buffered "ostream"
+  /// \return A real ostream
   std::ostream& raw_outs() noexcept;
 } // namespace gal
