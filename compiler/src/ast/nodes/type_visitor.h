@@ -92,7 +92,10 @@ namespace gal::ast {
     virtual ~ConstTypeVisitorBase() = default;
   };
 
-  template <typename T> class TypeVisitor : public ValueVisitor<T, TypeVisitorBase> {};
+  /// Represents a type visitor that returns a value
+  ///
+  /// \tparam T Represents a
+  template <typename T> using TypeVisitor = ValueVisitor<T, TypeVisitorBase>;
 
-  template <typename T> class ConstTypeVisitor : public ValueVisitor<T, ConstTypeVisitorBase> {};
+  template <typename T> using ConstTypeVisitor = ValueVisitor<T, ConstTypeVisitorBase>;
 } // namespace gal::ast

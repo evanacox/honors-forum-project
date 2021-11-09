@@ -65,7 +65,7 @@ namespace gal::ast {
     template <typename T> T accept(StatementVisitor<T>* visitor) {
       accept(static_cast<StatementVisitorBase*>(visitor));
 
-      return visitor->move_result();
+      return visitor->take_result();
     }
 
     /// Helper that allows a const visitor to "return" values without needing
@@ -77,7 +77,7 @@ namespace gal::ast {
     template <typename T> T accept(ConstStatementVisitor<T>* visitor) const {
       accept(static_cast<ConstStatementVisitorBase*>(visitor));
 
-      return visitor->move_result();
+      return visitor->take_result();
     }
 
     /// Compares two types for equality

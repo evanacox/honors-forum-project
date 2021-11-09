@@ -79,7 +79,7 @@ namespace gal::ast {
     template <typename T> T accept(TypeVisitor<T>* visitor) {
       internal_accept(static_cast<TypeVisitorBase*>(visitor));
 
-      return visitor->move_result();
+      return visitor->take_result();
     }
 
     /// Helper that allows a const visitor to "return" values without needing
@@ -91,7 +91,7 @@ namespace gal::ast {
     template <typename T> T accept(ConstTypeVisitor<T>* visitor) const {
       internal_accept(static_cast<ConstTypeVisitorBase*>(visitor));
 
-      return visitor->move_result();
+      return visitor->take_result();
     }
 
     /// Compares two types for equality
@@ -572,7 +572,7 @@ namespace gal::ast {
     /// \param generic_params Any generic parameters if they exist
     explicit UnqualifiedUserDefinedType(SourceLoc loc,
         UnqualifiedID id,
-        std::optional<std::vector<std::unique_ptr<Type>>> generic_params) noexcept
+        std::vector<std::unique_ptr<Type>> generic_params) noexcept
         : Type(std::move(loc), TypeType::user_defined_unqualified),
           id_{std::move(id)},
           generic_params_{std::move(generic_params)} {}
@@ -588,8 +588,8 @@ namespace gal::ast {
     ///
     /// \return The generic parameters
     [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
-      if (generic_params_.has_value()) {
-        return *generic_params_;
+      if (!generic_params_.empty()) {
+        return absl::MakeConstSpan(generic_params_);
       }
 
       return std::nullopt;
@@ -599,8 +599,8 @@ namespace gal::ast {
     ///
     /// \return The generic parameters
     [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
-      if (generic_params_.has_value()) {
-        return absl::MakeSpan(*generic_params_);
+      if (!generic_params_.empty()) {
+        return absl::MakeSpan(generic_params_);
       }
 
       return std::nullopt;
@@ -610,8 +610,8 @@ namespace gal::ast {
     ///
     /// \return The owner of the generic parameters
     [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
-      if (generic_params_.has_value()) {
-        return &*generic_params_;
+      if (!generic_params_.empty()) {
+        return &generic_params_;
       }
 
       return std::nullopt;
@@ -634,12 +634,12 @@ namespace gal::ast {
     }
 
     [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<UnqualifiedUserDefinedType>(loc(), id(), internal::clone_generics(generic_params_));
+      return std::make_unique<UnqualifiedUserDefinedType>(loc(), id(), std::vector<std::unique_ptr<Type>>{});
     }
 
   private:
     UnqualifiedID id_;
-    std::optional<std::vector<std::unique_ptr<Type>>> generic_params_;
+    std::vector<std::unique_ptr<Type>> generic_params_;
   };
 
   /// Represents a **reference** to a user-defined type.
@@ -652,7 +652,7 @@ namespace gal::ast {
     /// \param generic_params Any generic parameters
     explicit UserDefinedType(SourceLoc loc,
         FullyQualifiedID id,
-        std::optional<std::vector<std::unique_ptr<Type>>> generic_params) noexcept
+        std::vector<std::unique_ptr<Type>> generic_params) noexcept
         : Type(std::move(loc), TypeType::user_defined),
           name_{std::move(id)},
           generic_params_{std::move(generic_params)} {}
@@ -668,8 +668,8 @@ namespace gal::ast {
     ///
     /// \return The generic parameters
     [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
-      if (generic_params_.has_value()) {
-        return *generic_params_;
+      if (!generic_params_.empty()) {
+        return absl::MakeConstSpan(generic_params_);
       }
 
       return std::nullopt;
@@ -679,8 +679,8 @@ namespace gal::ast {
     ///
     /// \return The generic parameters
     [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
-      if (generic_params_.has_value()) {
-        return absl::MakeSpan(*generic_params_);
+      if (!generic_params_.empty()) {
+        return absl::MakeSpan(generic_params_);
       }
 
       return std::nullopt;
@@ -690,8 +690,8 @@ namespace gal::ast {
     ///
     /// \return The owner of the generic parameters
     [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
-      if (generic_params_.has_value()) {
-        return &*generic_params_;
+      if (!generic_params_.empty()) {
+        return &generic_params_;
       }
 
       return std::nullopt;
@@ -719,7 +719,7 @@ namespace gal::ast {
 
   private:
     FullyQualifiedID name_;
-    std::optional<std::vector<std::unique_ptr<Type>>> generic_params_;
+    std::vector<std::unique_ptr<Type>> generic_params_;
   };
 
   /// Represents a function pointer type, i.e `fn (i32) -> i32`
@@ -810,7 +810,7 @@ namespace gal::ast {
     /// \param generic_params Any generics provided
     explicit DynInterfaceType(SourceLoc loc,
         FullyQualifiedID id,
-        std::optional<std::vector<std::unique_ptr<Type>>> generic_params) noexcept
+        std::vector<std::unique_ptr<Type>> generic_params) noexcept
         : Type(std::move(loc), TypeType::dyn_interface),
           name_{std::move(id)},
           generic_params_{std::move(generic_params)} {}
@@ -826,8 +826,8 @@ namespace gal::ast {
     ///
     /// \return The generic parameters
     [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
-      if (generic_params_.has_value()) {
-        return *generic_params_;
+      if (!generic_params_.empty()) {
+        return absl::MakeConstSpan(generic_params_);
       }
 
       return std::nullopt;
@@ -837,8 +837,8 @@ namespace gal::ast {
     ///
     /// \return The generic parameters
     [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
-      if (generic_params_.has_value()) {
-        return absl::MakeSpan(*generic_params_);
+      if (!generic_params_.empty()) {
+        return absl::MakeSpan(generic_params_);
       }
 
       return std::nullopt;
@@ -848,8 +848,8 @@ namespace gal::ast {
     ///
     /// \return The owner of the generic parameters
     [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
-      if (generic_params_.has_value()) {
-        return &*generic_params_;
+      if (!generic_params_.empty()) {
+        return &generic_params_;
       }
 
       return std::nullopt;
@@ -877,7 +877,7 @@ namespace gal::ast {
 
   private:
     FullyQualifiedID name_;
-    std::optional<std::vector<std::unique_ptr<Type>>> generic_params_;
+    std::vector<std::unique_ptr<Type>> generic_params_;
   };
 
   /// Models an unqualified `dyn foo::Interface<A, B>` type
@@ -906,8 +906,8 @@ namespace gal::ast {
     ///
     /// \return The generic parameters
     [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
-      if (generic_params_.has_value()) {
-        return *generic_params_;
+      if (!generic_params_.empty()) {
+        return absl::MakeConstSpan(generic_params_);
       }
 
       return std::nullopt;
@@ -917,8 +917,8 @@ namespace gal::ast {
     ///
     /// \return The generic parameters
     [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
-      if (generic_params_.has_value()) {
-        return absl::MakeSpan(*generic_params_);
+      if (!generic_params_.empty()) {
+        return absl::MakeSpan(generic_params_);
       }
 
       return std::nullopt;
@@ -928,8 +928,8 @@ namespace gal::ast {
     ///
     /// \return The owner of the generic parameters
     [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
-      if (generic_params_.has_value()) {
-        return &*generic_params_;
+      if (!generic_params_.empty()) {
+        return &generic_params_;
       }
 
       return std::nullopt;
@@ -952,12 +952,12 @@ namespace gal::ast {
     }
 
     [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<UnqualifiedUserDefinedType>(loc(), id(), internal::clone_generics(generic_params_));
+      return std::make_unique<UnqualifiedDynInterfaceType>(loc(), id(), internal::clone_generics(generic_params_));
     }
 
   private:
     UnqualifiedID id_;
-    std::optional<std::vector<std::unique_ptr<Type>>> generic_params_;
+    std::vector<std::unique_ptr<Type>> generic_params_;
   };
 
   /// Represents a "unit" type for functions that don't have a

@@ -20,6 +20,7 @@
 #include "generated/GalliumLexer.h"
 #include "generated/GalliumParser.h"
 #include <charconv>
+#include <limits>
 #include <optional>
 #include <sstream>
 #include <string_view>
@@ -51,8 +52,9 @@ namespace {
 
   class ASTGenerator final : public GalliumBaseVisitor {
   public:
-    ast::Program into_ast(GalliumParser::ParseContext* parse_tree) noexcept {
+    ast::Program into_ast(std::string_view source, GalliumParser::ParseContext* parse_tree) noexcept {
       std::vector<std::unique_ptr<ast::Declaration>> decls;
+      original_ = source;
 
       for (auto* decl : parse_tree->modularizedDeclaration()) {
         visitModularizedDeclaration(decl);
@@ -69,6 +71,9 @@ namespace {
       for (auto* node : ctx->IDENTIFIER()) {
         module_parts.push_back(node->toString());
       }
+
+      auto last = std::move(module_parts.back());
+      module_parts.pop_back();
 
       return ast::ModuleID(ctx->isRoot != nullptr, std::move(module_parts));
     }
@@ -116,35 +121,53 @@ namespace {
       return visitChildren(ctx);
     }
 
-    antlrcpp::Any visitFnDeclaration(GalliumParser::FnDeclarationContext* ctx) final {
+    antlrcpp::Any visitExternalDeclaration(GalliumParser::ExternalDeclarationContext* ctx) final {
+      auto prototypes = std::vector<ast::FnPrototype>{};
+
+      for (auto* fn : ctx->fnPrototype()) {
+        auto proto = std::move(visitFnPrototype(fn).as<ast::FnPrototype>());
+
+        prototypes.push_back(std::move(proto));
+      }
+
+      RETURN(std::make_unique<ast::ExternalDeclaration>(loc_from(ctx), exported_, std::move(prototypes)));
+    }
+
+    antlrcpp::Any visitFnPrototype(GalliumParser::FnPrototypeContext* ctx) final {
       std::vector<ast::Argument> args;
-      if (auto* list = ctx->fnPrototype()->fnArgumentList()) {
+      if (auto* list = ctx->fnArgumentList()) {
         args = std::move(visitFnArgumentList(list).as<decltype(args)>());
       }
 
       std::vector<ast::Attribute> attributes;
-      if (auto* list = ctx->fnPrototype()->fnAttributeList()) {
+      if (auto* list = ctx->fnAttributeList()) {
         attributes = std::move(visitFnAttributeList(list).as<decltype(attributes)>());
       }
 
-      auto external = ctx->isExtern != nullptr;
-      auto name = ctx->fnPrototype()->IDENTIFIER()->toString();
+      auto name = ctx->IDENTIFIER()->toString();
 
-      visitType(ctx->fnPrototype()->type());
+      visitType(ctx->type());
       auto return_type = return_value<ast::Type>();
+
+      return ast::FnPrototype(std::move(name),
+          std::nullopt,
+          std::move(args),
+          std::move(attributes),
+          std::move(return_type));
+    }
+
+    antlrcpp::Any visitFnDeclaration(GalliumParser::FnDeclarationContext* ctx) final {
+      auto external = ctx->isExtern != nullptr;
+      auto proto = std::move(visitFnPrototype(ctx->fnPrototype()).as<ast::FnPrototype>());
 
       visitBlockExpression(ctx->blockExpression());
       auto body = gal::static_unique_cast<ast::BlockExpression>(return_value<ast::Expression>());
 
-      return std::make_unique<ast::FnDeclaration>(loc_from(ctx->fnPrototype()),
+      RETURN(std::make_unique<ast::FnDeclaration>(loc_from(ctx->fnPrototype()),
           exported_,
           external,
-          ast::FnPrototype(std::move(name),
-              std::nullopt,
-              std::move(args),
-              std::move(attributes),
-              std::move(return_type)),
-          std::move(body));
+          std::move(proto),
+          std::move(body)));
     }
 
     antlrcpp::Any visitFnAttributeList(GalliumParser::FnAttributeListContext* ctx) final {
@@ -162,7 +185,9 @@ namespace {
     antlrcpp::Any visitFnAttribute(GalliumParser::FnAttributeContext* ctx) final {
       using Type = ast::AttributeType;
 
-      auto attribute = ctx->toString();
+      auto start = ctx->getStart()->getStartIndex();
+      auto stop = ctx->getStop()->getStopIndex();
+      auto attribute = original_.substr(start, (stop - start) + 1);
 
       if (attribute.find("__arch") != std::string::npos) {
         return ast::Attribute{Type::builtin_arch, {ctx->STRING_LITERAL()->toString()}};
@@ -236,15 +261,32 @@ namespace {
     }
 
     antlrcpp::Any visitStructDeclaration(GalliumParser::StructDeclarationContext* ctx) final {
-      return visitChildren(ctx);
+      auto name = ctx->IDENTIFIER()->toString();
+      auto fields = std::vector<ast::StructDeclaration::Field>{};
+
+      for (auto* member : ctx->structMember()) {
+        fields.push_back(std::move(visitStructMember(member).as<ast::StructDeclaration::Field>()));
+      }
+
+      RETURN(std::make_unique<ast::StructDeclaration>(loc_from(ctx), exported_, std::move(name), std::move(fields)));
     }
 
     antlrcpp::Any visitStructMember(GalliumParser::StructMemberContext* ctx) final {
-      return visitChildren(ctx);
+      visitType(ctx->type());
+
+      auto name = ctx->IDENTIFIER()->toString();
+      auto type = return_value<ast::Type>();
+
+      return ast::StructDeclaration::Field{std::move(name), std::move(type)};
     }
 
     antlrcpp::Any visitTypeDeclaration(GalliumParser::TypeDeclarationContext* ctx) final {
-      return visitChildren(ctx);
+      visitType(ctx->type());
+
+      auto name = ctx->IDENTIFIER()->toString();
+      auto type = return_value<ast::Type>();
+
+      RETURN(std::make_unique<ast::TypeDeclaration>(loc_from(ctx), exported_, std::move(name), std::move(type)));
     }
 
     antlrcpp::Any visitStatement(GalliumParser::StatementContext* ctx) final {
@@ -252,19 +294,51 @@ namespace {
     }
 
     antlrcpp::Any visitAssertStatement(GalliumParser::AssertStatementContext* ctx) final {
-      return visitChildren(ctx);
+      visitExpr(ctx->expr());
+      auto condition = return_value<ast::Expression>();
+      parse_string_lit(ctx, ctx->STRING_LITERAL());
+      auto lit = return_value<ast::Expression>();
+
+      RETURN(std::make_unique<ast::AssertStatement>(loc_from(ctx),
+          std::move(condition),
+          gal::static_unique_cast<ast::StringLiteralExpression>(std::move(lit))));
     }
 
     antlrcpp::Any visitBindingStatement(GalliumParser::BindingStatementContext* ctx) final {
-      return visitChildren(ctx);
+      auto name = ctx->IDENTIFIER()->toString();
+      visitExpr(ctx->expr());
+      auto initializer = return_value<ast::Expression>();
+
+      if (ctx->type() != nullptr) {
+        visitType(ctx->type());
+
+        RETURN(std::make_unique<ast::BindingStatement>(loc_from(ctx),
+            std::move(name),
+            std::move(initializer),
+            return_value<ast::Type>()));
+      }
+
+      RETURN(std::make_unique<ast::BindingStatement>(loc_from(ctx),
+          std::move(name),
+          std::move(initializer),
+          std::nullopt));
     }
 
     antlrcpp::Any visitExprStatement(GalliumParser::ExprStatementContext* ctx) final {
-      return visitChildren(ctx);
+      visitExpr(ctx->expr());
+
+      RETURN(std::make_unique<ast::ExpressionStatement>(loc_from(ctx), return_value<ast::Expression>()));
     }
 
-    antlrcpp::Any visitExprList(GalliumParser::ExprListContext* ctx) final {
-      return visitChildren(ctx);
+    antlrcpp::Any visitCallArgList(GalliumParser::CallArgListContext* ctx) final {
+      auto args = std::vector<std::unique_ptr<ast::Expression>>{};
+
+      for (auto* expr : ctx->expr()) {
+        visitExpr(expr);
+        args.push_back(return_value<ast::Expression>());
+      }
+
+      return {std::move(args)};
     }
 
     antlrcpp::Any visitRestOfCall(GalliumParser::RestOfCallContext* ctx) final {
@@ -272,35 +346,157 @@ namespace {
     }
 
     antlrcpp::Any visitBlockExpression(GalliumParser::BlockExpressionContext* ctx) final {
-      return visitChildren(ctx);
+      auto statements = std::vector<std::unique_ptr<ast::Statement>>{};
+
+      for (auto* stmt : ctx->statement()) {
+        visitStatement(stmt);
+        statements.push_back(return_value<ast::Statement>());
+      }
+
+      RETURN(std::make_unique<ast::BlockExpression>(loc_from(ctx), std::move(statements)));
     }
 
     antlrcpp::Any visitReturnExpr(GalliumParser::ReturnExprContext* ctx) final {
-      return visitChildren(ctx);
+      std::optional<std::unique_ptr<ast::Expression>> expr;
+
+      if (auto* ptr = ctx->expr()) {
+        visitExpr(ptr);
+
+        expr = return_value<ast::Expression>();
+      }
+
+      RETURN(std::make_unique<ast::ReturnExpression>(loc_from(ctx), std::move(expr)));
+    }
+
+    antlrcpp::Any visitBreakExpr(GalliumParser::BreakExprContext* ctx) final {
+      std::optional<std::unique_ptr<ast::Expression>> expr;
+
+      if (auto* ptr = ctx->expr()) {
+        visitExpr(ptr);
+
+        expr = return_value<ast::Expression>();
+      }
+
+      RETURN(std::make_unique<ast::BreakExpression>(loc_from(ctx), std::move(expr)));
+    }
+
+    antlrcpp::Any visitContinueExpr(GalliumParser::ContinueExprContext* ctx) final {
+      RETURN(std::make_unique<ast::ContinueExpression>(loc_from(ctx)));
     }
 
     antlrcpp::Any visitIfExpr(GalliumParser::IfExprContext* ctx) final {
+      if (ctx->blockExpression() != nullptr) {
+        RETURN(parse_if_block(ctx));
+      } else {
+        RETURN(parse_if_then(ctx));
+      }
+    }
+
+    antlrcpp::Any visitElifBlock(GalliumParser::ElifBlockContext* ctx) final {
+      visitExpr(ctx->expr());
+      auto cond = return_value<ast::Expression>();
+      visitBlockExpression(ctx->blockExpression());
+      auto body = gal::static_unique_cast<ast::BlockExpression>(return_value<ast::Expression>());
+
+      return {ast::IfElseExpression::ElifBlock{std::move(cond), std::move(body)}};
+    }
+
+    antlrcpp::Any visitElseBlock(GalliumParser::ElseBlockContext* ctx) final {
       return visitChildren(ctx);
     }
 
     antlrcpp::Any visitLoopExpr(GalliumParser::LoopExprContext* ctx) final {
-      return visitChildren(ctx);
+      if (ctx->whileCond != nullptr) {
+        auto condition = parse_expr(ctx->whileCond);
+        auto body = parse_block(ctx->blockExpression());
+
+        RETURN(std::make_unique<ast::WhileExpression>(loc_from(ctx), std::move(condition), std::move(body)));
+      } else if (ctx->loopVariable != nullptr) {
+        auto loop_var = ctx->IDENTIFIER()->toString();
+        auto initializer = parse_expr(ctx->expr(0));
+        auto until = parse_expr(ctx->expr(1));
+        auto body = parse_block(ctx->blockExpression());
+        auto direction = (ctx->direction->getType() == GalliumParser::TO) ? ast::ForExpression::Direction::up_to
+                                                                          : ast::ForExpression::Direction::down_to;
+
+        RETURN(std::make_unique<ast::ForExpression>(loc_from(ctx),
+            std::move(loop_var),
+            direction,
+            std::move(initializer),
+            std::move(until),
+            std::move(body)));
+      } else {
+        auto body = parse_block(ctx->blockExpression());
+
+        RETURN(std::make_unique<ast::LoopExpression>(loc_from(ctx), std::move(body)));
+      }
     }
 
     antlrcpp::Any visitExpr(GalliumParser::ExprContext* ctx) final {
-      return visitChildren(ctx);
+      if (ctx->op != nullptr || ctx->gtgtHack != nullptr) {
+        RETURN(parse_binary_or_unary(ctx));
+      } else if (ctx->restOfCall() != nullptr) {
+        RETURN(parse_callish(ctx));
+      } else if (ctx->as != nullptr || ctx->asUnsafe != nullptr) {
+        RETURN(parse_cast(ctx));
+      } else {
+        return visitChildren(ctx);
+      }
     }
 
     antlrcpp::Any visitPrimaryExpr(GalliumParser::PrimaryExprContext* ctx) final {
-      return visitChildren(ctx);
+      if (ctx->STRING_LITERAL() != nullptr) {
+        RETURN(parse_string_lit(ctx, ctx->STRING_LITERAL()));
+      } else if (ctx->CHAR_LITERAL() != nullptr) {
+        RETURN(parse_char_lit(ctx, ctx->CHAR_LITERAL()));
+      } else if (ctx->BOOL_LITERAL() != nullptr) {
+        RETURN(std::make_unique<ast::BoolLiteralExpression>(loc_from(ctx), ctx->BOOL_LITERAL()->toString() == "true"));
+      } else if (ctx->NIL_LITERAL() != nullptr) {
+        RETURN(std::make_unique<ast::NilLiteralExpression>(loc_from(ctx)));
+      } else {
+        return visitChildren(ctx);
+      }
     }
 
     antlrcpp::Any visitGroupExpr(GalliumParser::GroupExprContext* ctx) final {
-      return visitChildren(ctx);
+      RETURN(std::make_unique<ast::GroupExpression>(loc_from(ctx), parse_expr(ctx->expr())));
     }
 
     antlrcpp::Any visitDigitLiteral(GalliumParser::DigitLiteralContext* ctx) final {
-      return visitChildren(ctx);
+      auto digits = std::string{};
+      auto base = int{};
+
+      if (ctx->hex != nullptr) {
+        digits = ctx->HEX_LITERAL()->toString().substr(2);
+        base = 16;
+      } else if (ctx->octal != nullptr) {
+        digits = ctx->OCTAL_LITERAL()->toString().substr(2);
+        base = 8;
+      } else if (ctx->binary != nullptr) {
+        digits = ctx->BINARY_LITERAL()->toString().substr(2);
+        base = 2;
+      } else {
+        digits = ctx->DECIMAL_LITERAL()->toString();
+        base = 10;
+      }
+
+      auto value = parse_value<std::uint64_t>(digits, base, "integer literal");
+
+      if (auto* int_value = std::get_if<std::uint64_t>(&value)) {
+        RETURN(std::make_unique<ast::IntegerLiteralExpression>(loc_from(ctx), *int_value));
+      } else {
+        RETURN(error_expr(3, loc_from(ctx), {std::get<std::string>(value)}));
+      }
+    }
+
+    antlrcpp::Any visitMaybeGenericIdentifier(GalliumParser::MaybeGenericIdentifierContext* ctx) final {
+      auto id = std::move(visitModularIdentifier(ctx->modularIdentifier()).as<ast::ModuleID>());
+      auto unqualified_id = ast::module_into_unqualified(std::move(id));
+
+      RETURN(std::make_unique<ast::UnqualifiedIdentifierExpression>(loc_from(ctx),
+          std::move(unqualified_id),
+          std::vector<std::unique_ptr<ast::Type>>{},
+          std::nullopt));
     }
 
     antlrcpp::Any visitType(GalliumParser::TypeContext* ctx) final {
@@ -311,34 +507,31 @@ namespace {
       }
 
       auto mut = ref->getType() == GalliumLexer::AMPERSTAND_MUT;
-      visitTypeWithoutRef(ctx->typeWithoutRef());
-      auto referenced = return_value<ast::Type>();
+      auto referenced = parse_type(ctx->typeWithoutRef());
 
       RETURN(std::make_unique<ast::ReferenceType>(loc_from(ctx), mut, std::move(referenced)));
     }
 
     antlrcpp::Any visitTypeWithoutRef(GalliumParser::TypeWithoutRefContext* ctx) final {
       if (ctx->squareBracket != nullptr) {
-        visitTypeWithoutRef(ctx->typeWithoutRef());
+        auto type = parse_type(ctx->typeWithoutRef());
 
-        RETURN(std::make_unique<ast::SliceType>(loc_from(ctx), return_value<ast::Type>()));
+        RETURN(std::make_unique<ast::SliceType>(loc_from(ctx), std::move(type)));
       } else if (ctx->ptr != nullptr) {
-        visitTypeWithoutRef(ctx->typeWithoutRef());
+        auto type = parse_type(ctx->typeWithoutRef());
 
         // can have `ptr` with either STAR_MUT or STAR_CONST
         RETURN(std::make_unique<ast::PointerType>(loc_from(ctx),
             ctx->ptr->getType() == GalliumParser::STAR_MUT,
-            return_value<ast::Type>()));
+            std::move(type)));
       } else if (ctx->BUILTIN_TYPE() != nullptr) {
-        return parse_builtin(ctx);
+        RETURN(parse_builtin(ctx));
       }
 
       auto generic_list = parse_type_list(ctx->genericTypeList());
 
       if (ctx->fnType != nullptr) {
-        visitType(ctx->type());
-
-        RETURN(std::make_unique<ast::FnPointerType>(loc_from(ctx), std::move(generic_list), return_value<ast::Type>()));
+        RETURN(std::make_unique<ast::FnPointerType>(loc_from(ctx), std::move(generic_list), parse_type(ctx->type())));
       }
 
       auto id = parse_unqual_id(ctx->modularIdentifier());
@@ -356,12 +549,10 @@ namespace {
       auto list = std::vector<std::unique_ptr<ast::Type>>{};
 
       for (auto* type : ctx->type()) {
-        visitType(type);
-
-        list.push_back(return_value<ast::Type>());
+        list.push_back(parse_type(type));
       }
 
-      return list;
+      return {std::move(list)};
     }
 
   private:
@@ -387,17 +578,17 @@ namespace {
       return {};
     }
 
-    antlrcpp::Any parse_builtin(GalliumParser::TypeWithoutRefContext* ctx) {
+    std::unique_ptr<ast::Type> parse_builtin(GalliumParser::TypeWithoutRefContext* ctx) noexcept {
       auto as_string = ctx->BUILTIN_TYPE()->toString();
 
       if (as_string == "bool") {
-        RETURN(std::make_unique<ast::BuiltinBoolType>(loc_from(ctx)));
+        return std::make_unique<ast::BuiltinBoolType>(loc_from(ctx));
       } else if (as_string == "byte") {
-        RETURN(std::make_unique<ast::BuiltinByteType>(loc_from(ctx)));
+        return std::make_unique<ast::BuiltinByteType>(loc_from(ctx));
       } else if (as_string == "char") {
-        RETURN(std::make_unique<ast::BuiltinCharType>(loc_from(ctx)));
+        return std::make_unique<ast::BuiltinCharType>(loc_from(ctx));
       } else if (as_string == "void") {
-        RETURN(std::make_unique<ast::VoidType>(loc_from(ctx)));
+        return std::make_unique<ast::VoidType>(loc_from(ctx));
       }
 
       assert(as_string[0] == 'i' || as_string[0] == 'u' || as_string[0] == 'f');
@@ -408,28 +599,320 @@ namespace {
       auto [_, err] = std::from_chars(width[1].data(), width[1].data() + width[1].size(), real_width);
 
       if (err != std::errc()) {
-        return error_expr(1, loc_from(ctx));
+        return error_type(1, loc_from(ctx));
       }
 
       if (as_string[0] == 'f') {
         if (real_width != 32 && real_width != 64 && real_width != 128) {
-          return error_expr(1, loc_from(ctx));
+          return error_type(1, loc_from(ctx));
         }
 
         auto float_width = (real_width == 32)   ? ast::FloatWidth::ieee_single
                            : (real_width == 64) ? ast::FloatWidth::ieee_double
                                                 : ast::FloatWidth::ieee_quadruple;
 
-        RETURN(std::make_unique<ast::BuiltinFloatType>(loc_from(ctx), float_width));
+        return std::make_unique<ast::BuiltinFloatType>(loc_from(ctx), float_width);
       }
 
       if (real_width == 8 || real_width == 16 || real_width == 32 || real_width == 64 || real_width == 128) {
-        RETURN(std::make_unique<ast::BuiltinIntegralType>(loc_from(ctx),
+        return std::make_unique<ast::BuiltinIntegralType>(loc_from(ctx),
             as_string[0] == 'i',
-            static_cast<ast::IntegerWidth>(real_width)));
+            static_cast<ast::IntegerWidth>(real_width));
       }
 
-      return error_expr(1, loc_from(ctx));
+      return error_type(1, loc_from(ctx));
+    }
+
+    static ast::UnaryOp unary_op(antlr4::Token* op) noexcept {
+      switch (op->getType()) {
+        case GalliumParser::NOT_KEYWORD: return ast::UnaryOp::logical_not;
+        case GalliumParser::TILDE: return ast::UnaryOp::bitwise_not;
+        case GalliumParser::AMPERSTAND: return ast::UnaryOp::ref_to;
+        case GalliumParser::AMPERSTAND_MUT: return ast::UnaryOp::mut_ref_to;
+        case GalliumParser::HYPHEN: return ast::UnaryOp::negate;
+        case GalliumParser::STAR: return ast::UnaryOp::dereference;
+        default: assert(false); return ast::UnaryOp::bitwise_not;
+      }
+    }
+
+    static ast::BinaryOp binary_op(antlr4::Token* op, bool gtgt_hack) noexcept {
+      if (gtgt_hack) {
+        return ast::BinaryOp::right_shift;
+      }
+
+      switch (op->getType()) {
+        case GalliumParser::STAR: return ast::BinaryOp::mul;
+        case GalliumParser::FORWARD_SLASH: return ast::BinaryOp::div;
+        case GalliumParser::PERCENT: return ast::BinaryOp::mod;
+        case GalliumParser::PLUS: return ast::BinaryOp::add;
+        case GalliumParser::HYPHEN: return ast::BinaryOp::sub;
+        case GalliumParser::LTLT: return ast::BinaryOp::left_shift;
+        case GalliumParser::AMPERSTAND: return ast::BinaryOp::bitwise_and;
+        case GalliumParser::CARET: return ast::BinaryOp::bitwise_xor;
+        case GalliumParser::PIPE: return ast::BinaryOp::bitwise_or;
+        case GalliumParser::AND_KEYWORD: return ast::BinaryOp::logical_and;
+        case GalliumParser::XOR_KEYWORD: return ast::BinaryOp::logical_xor;
+        case GalliumParser::OR_KEYWORD: return ast::BinaryOp::logical_or;
+        case GalliumParser::LT: return ast::BinaryOp::lt;
+        case GalliumParser::GT: return ast::BinaryOp::gt;
+        case GalliumParser::LTEQ: return ast::BinaryOp::lt_eq;
+        case GalliumParser::GTEQ: return ast::BinaryOp::gt_eq;
+        case GalliumParser::EQEQ: return ast::BinaryOp::equals;
+        case GalliumParser::BANGEQ: return ast::BinaryOp::not_equal;
+        case GalliumParser::WALRUS: return ast::BinaryOp::assignment;
+        case GalliumParser::PLUSEQ: return ast::BinaryOp::add_eq;
+        case GalliumParser::HYPHENEQ: return ast::BinaryOp::sub_eq;
+        case GalliumParser::STAREQ: return ast::BinaryOp::mul_eq;
+        case GalliumParser::SLASHEQ: return ast::BinaryOp::div_eq;
+        case GalliumParser::PERCENTEQ: return ast::BinaryOp::mod_eq;
+        case GalliumParser::LTLTEQ: return ast::BinaryOp::left_shift_eq;
+        case GalliumParser::GTGTEQ: return ast::BinaryOp::right_shift_eq;
+        case GalliumParser::AMPERSTANDEQ: return ast::BinaryOp::bitwise_and_eq;
+        case GalliumParser::CARETEQ: return ast::BinaryOp::bitwise_xor_eq;
+        case GalliumParser::PIPEEQ: return ast::BinaryOp::bitwise_or_eq;
+        default: assert(false); return ast::BinaryOp::mul;
+      }
+    }
+
+    std::unique_ptr<ast::Expression> parse_binary_or_unary(GalliumParser::ExprContext* ctx) noexcept {
+      auto exprs = ctx->expr();
+      auto first = parse_expr(exprs.front());
+
+      if (exprs.size() == 1) {
+        auto op = unary_op(ctx->op);
+
+        return std::make_unique<ast::UnaryExpression>(loc_from(ctx), op, std::move(first));
+      } else {
+        assert(exprs.size() == 2);
+
+        auto second = parse_expr(exprs.back());
+        auto op = binary_op(ctx->op, ctx->gtgtHack != nullptr);
+
+        return std::make_unique<ast::BinaryExpression>(loc_from(ctx), op, std::move(first), std::move(second));
+      }
+    }
+
+    std::unique_ptr<ast::Expression> parse_callish(GalliumParser::ExprContext* ctx) noexcept {
+      auto* rest = ctx->restOfCall();
+      auto callee = parse_expr(ctx->expr(0));
+
+      // if both of those aren't there, we can only be a field access expr
+      if (rest->callArgs == nullptr && rest->indexArgs == nullptr) {
+        return std::make_unique<ast::FieldAccessExpression>(loc_from(ctx),
+            std::move(callee),
+            rest->IDENTIFIER()->toString());
+      }
+
+      auto args = std::move(visitCallArgList(rest->callArgList()) //
+                                .as<std::vector<std::unique_ptr<ast::Expression>>>());
+
+      if (rest->callArgs != nullptr) {
+        return std::make_unique<ast::CallExpression>(loc_from(ctx),
+            std::move(callee),
+            std::move(args),
+            std::vector<std::unique_ptr<ast::Type>>{});
+      } else {
+        return std::make_unique<ast::IndexExpression>(loc_from(ctx), std::move(callee), std::move(args));
+      }
+    }
+
+    std::unique_ptr<ast::CastExpression> parse_cast(GalliumParser::ExprContext* ctx) noexcept {
+      auto unsafe = ctx->asUnsafe != nullptr;
+      auto casting_to = parse_type(ctx->type());
+      auto castee = parse_expr(ctx->expr(0));
+
+      return std::make_unique<ast::CastExpression>(loc_from(ctx), unsafe, std::move(castee), std::move(casting_to));
+    }
+
+    std::unique_ptr<ast::IfThenExpression> parse_if_then(GalliumParser::IfExprContext* ctx) noexcept {
+      // [0] = cond, [1] = true-branch, [2] = false-branch
+      auto exprs = std::array<std::unique_ptr<ast::Expression>, 3>{};
+      auto i = 0;
+
+      for (auto* expr : ctx->expr()) {
+        exprs[i++] = parse_expr(expr);
+      }
+
+      return std::make_unique<ast::IfThenExpression>(loc_from(ctx),
+          std::move(exprs[0]),
+          std::move(exprs[1]),
+          std::move(exprs[2]));
+    }
+
+    std::unique_ptr<ast::IfElseExpression> parse_if_block(GalliumParser::IfExprContext* ctx) noexcept {
+      auto condition = parse_expr(ctx->expr(0));
+      auto body = parse_block(ctx->blockExpression());
+      auto elifs = parse_elifs(ctx);
+      auto else_block = parse_else_block(ctx->elseBlock());
+
+      return std::make_unique<ast::IfElseExpression>(loc_from(ctx),
+          std::move(condition),
+          std::move(body),
+          std::move(elifs),
+          std::move(else_block));
+    }
+
+    std::optional<std::unique_ptr<ast::BlockExpression>> parse_else_block(
+        GalliumParser::ElseBlockContext* ctx) noexcept {
+      if (ctx != nullptr) {
+        return std::make_optional(parse_block(ctx->blockExpression()));
+      }
+
+      return std::nullopt;
+    }
+
+    std::vector<ast::IfElseExpression::ElifBlock> parse_elifs(GalliumParser::IfExprContext* ctx) noexcept {
+      auto elifs = std::vector<ast::IfElseExpression::ElifBlock>{};
+
+      for (auto* elif : ctx->elifBlock()) {
+        auto elif_block = std::move(visitElifBlock(elif).as<ast::IfElseExpression::ElifBlock>());
+
+        elifs.push_back(std::move(elif_block));
+      }
+
+      return elifs;
+    }
+
+    std::unique_ptr<ast::Expression> parse_string_lit(antlr4::ParserRuleContext* ctx,
+        antlr4::tree::TerminalNode* lit) noexcept {
+      static_assert(std::numeric_limits<char>::is_signed ? std::numeric_limits<char>::digits == 7
+                                                         : std::numeric_limits<char>::digits == 8);
+      auto full = lit->toString();
+      auto result = std::string{};
+      auto curr = 0;
+
+      for (auto it = full.begin(); it != full.end(); ++it, ++curr) {
+        if (*it != '\\') {
+          result += *it;
+
+          continue;
+        }
+
+        auto next = *(it + 1);
+
+        auto len = (next == 'o')                         ? 3  // octal = 3 digits
+                   : (next == 'x')                       ? 2  // hex = 2 digits
+                   : (std::isdigit(next) && next != '0') ? 3  // decimal = 3 digits, but \0 is 1
+                                                         : 1; // all others are 1
+
+        // len + 1 because want to take current as well as `len` next chars
+        auto single_char = std::string_view{result}.substr(curr, len + 1);
+        auto parsed_single = parse_single_char(single_char);
+
+        if (auto* ptr = std::get_if<std::uint8_t>(&parsed_single)) {
+          result += static_cast<char>(*ptr);
+        } else {
+          return error_expr(2, loc_from(ctx), {std::get<std::string>(parsed_single)});
+        }
+
+        // ensure that we actually skip the characters we parsed
+        it += len;
+      }
+
+      return std::make_unique<ast::StringLiteralExpression>(loc_from(ctx), std::move(full));
+    }
+
+    template <typename ResultType>
+    static std::variant<ResultType, std::string> parse_value(std::string_view digits,
+        int base,
+        const char* gallium_type) noexcept {
+      static_assert(std::is_unsigned_v<ResultType>);
+      auto value = std::uint64_t{0};
+      auto [_, ec] = std::from_chars(digits.data(), digits.data() + digits.size(), value, base);
+
+      if (ec != std::errc()) {
+        return std::make_error_code(ec).message();
+      }
+
+      // while we could make `from_chars` do out-of-range checking,
+      // we want a nice error message in the normal case of "slightly out of range"
+      // it will still do out-of-range checking but will give a much worse
+      // error message when it's out of bounds for 64-bit
+      if (value > std::numeric_limits<ResultType>::max()) {
+        return absl::StrCat("value '",
+            digits,
+            "' parse to `",
+            value,
+            "` which is outside the range for a `",
+            gallium_type,
+            "` literal");
+      }
+
+      return static_cast<ResultType>(value);
+    }
+
+    static std::variant<std::uint8_t, std::string> parse_single_char(std::string_view full) noexcept {
+      if (full[0] != '\\') {
+        return static_cast<std::uint8_t>(full[1]);
+      }
+
+      if (full[1] == 'o' || full[1] == 'x' || std::isdigit(full[1])) {
+        auto digits = std::string_view{full}.substr(2);
+        auto result = parse_value<std::uint8_t>(digits, full[1] == 'o' ? 8 : full[1] == 'x' ? 16 : 10, "char");
+
+        if (std::holds_alternative<std::string>(result)) {
+          return std::move(std::get<std::string>(result));
+        }
+
+        return std::get<std::uint8_t>(result);
+      }
+
+      // we can't do two implicit conversions when returning
+      // to a `std::variant`, so its either that or `return static_cast<std::uint8_t>(c)`
+      auto value = std::uint8_t{0};
+
+      switch (full[1]) {
+        case '0': value = '\0'; break;
+        case 'n': value = '\n'; break;
+        case 'r': value = '\r'; break;
+        case 't': value = '\t'; break;
+        case 'v': value = '\v'; break;
+        case '\\': value = '\\'; break;
+        case '"': value = '"'; break;
+        case '\'': value = '\''; break;
+        case 'a': value = '\a'; break;
+        case 'b': value = '\b'; break;
+        case 'f': value = '\f'; break;
+        default: assert(false); break; // should be impossible with the grammar
+      }
+
+      return value;
+    }
+
+    std::unique_ptr<ast::Expression> parse_char_lit(antlr4::ParserRuleContext* ctx,
+        antlr4::tree::TerminalNode* lit) noexcept {
+      auto full = lit->toString();
+      auto parsed = parse_single_char(full);
+
+      if (auto* ptr = std::get_if<std::string>(&parsed)) {
+        return error_expr(2, loc_from(ctx), {*ptr});
+      }
+
+      return std::make_unique<ast::CharLiteralExpression>(loc_from(ctx), std::get<std::uint8_t>(parsed));
+    }
+
+    std::unique_ptr<ast::Expression> parse_expr(GalliumParser::ExprContext* ctx) noexcept {
+      visitExpr(ctx);
+
+      return return_value<ast::Expression>();
+    }
+
+    std::unique_ptr<ast::Type> parse_type(GalliumParser::TypeContext* ctx) noexcept {
+      visitType(ctx);
+
+      return return_value<ast::Type>();
+    }
+
+    std::unique_ptr<ast::Type> parse_type(GalliumParser::TypeWithoutRefContext* ctx) noexcept {
+      visitTypeWithoutRef(ctx);
+
+      return return_value<ast::Type>();
+    }
+
+    std::unique_ptr<ast::BlockExpression> parse_block(GalliumParser::BlockExpressionContext* ctx) noexcept {
+      visitBlockExpression(ctx);
+
+      return gal::static_unique_cast<ast::BlockExpression>(return_value<ast::Expression>());
     }
 
     antlrcpp::Any ret(std::unique_ptr<ast::Declaration> ptr) noexcept {
@@ -459,42 +942,59 @@ namespace {
     template <typename T> std::unique_ptr<T> return_value() noexcept {
       // hack to simplify getting the return value from a "returning" visitThing() call
       if constexpr (std::is_same_v<T, ast::Declaration>) {
+        assert(decl_ret_ != nullptr);
+
         return std::move(decl_ret_);
       } else if constexpr (std::is_same_v<T, ast::Expression>) {
+        assert(expr_ret_ != nullptr);
+
         return std::move(expr_ret_);
       } else if constexpr (std::is_same_v<T, ast::Statement>) {
+        assert(stmt_ret_ != nullptr);
+
         return std::move(stmt_ret_);
       } else if constexpr (std::is_same_v<T, ast::Type>) {
+        assert(type_ret_ != nullptr);
+
         return std::move(type_ret_);
       } else {
         static_assert(!sizeof(T*), "check your types");
       }
     }
 
-    void push_error(std::int64_t code, std::vector<gal::UnderlineList::PointedOut> locs) noexcept {
+    void push_error(std::int64_t code,
+        std::vector<gal::UnderlineList::PointedOut> locs,
+        absl::Span<const std::string> notes = {}) noexcept {
       auto underline = std::make_unique<gal::UnderlineList>(std::move(locs));
       auto vec = std::vector<std::unique_ptr<gal::DiagnosticPart>>{};
 
       vec.push_back(std::move(underline));
+
+      for (auto& s : notes) {
+        vec.push_back(std::make_unique<gal::SingleMessage>(s, gal::DiagnosticType::note));
+      }
+
       diagnostics_.emplace_back(code, std::move(vec));
     }
 
-    antlrcpp::Any error_type(std::int64_t code, ast::SourceLoc loc) noexcept {
+    std::unique_ptr<ast::Type> error_type(std::int64_t code, ast::SourceLoc loc) noexcept {
       push_error(code, {{loc}});
 
-      return ret(std::make_unique<ast::ErrorType>());
+      return std::make_unique<ast::ErrorType>();
     }
 
-    antlrcpp::Any error_expr(std::int64_t code, ast::SourceLoc loc) noexcept {
-      push_error(code, {{loc}});
+    std::unique_ptr<ast::Expression> error_expr(std::int64_t code,
+        ast::SourceLoc loc,
+        absl::Span<const std::string> notes = {}) noexcept {
+      push_error(code, {{loc}}, notes);
 
-      return ret(std::make_unique<ast::ErrorExpression>());
+      return std::make_unique<ast::ErrorExpression>();
     }
 
-    antlrcpp::Any error_decl(std::int64_t code, ast::SourceLoc loc) noexcept {
+    std::unique_ptr<ast::Declaration> error_decl(std::int64_t code, ast::SourceLoc loc) noexcept {
       push_error(code, {{loc}});
 
-      return ret(std::make_unique<ast::ErrorDeclaration>());
+      return std::make_unique<ast::ErrorDeclaration>();
     }
 
     std::unique_ptr<ast::Declaration> decl_ret_;
@@ -502,24 +1002,23 @@ namespace {
     std::unique_ptr<ast::Expression> expr_ret_;
     std::unique_ptr<ast::Type> type_ret_;
     std::vector<gal::Diagnostic> diagnostics_;
+    std::string_view original_;
     bool exported_ = false;
   };
 } // namespace
 
 namespace gal {
   std::optional<ast::Program> parse(std::string_view source_code) noexcept {
-    auto input = antlr4::ANTLRInputStream(source_code);
+    auto input = antlr4::ANTLRInputStream(std::string{source_code});
     auto lex = GalliumLexer(&input);
     auto tokens = antlr4::CommonTokenStream(&lex);
     auto parser = GalliumParser(&tokens);
     auto* tree = parser.parse();
 
-    if (parser.getNumberOfSyntaxErrors() == 0) {
-      auto walker = ASTGenerator();
-
-      return walker.into_ast(tree);
+    if (parser.getNumberOfSyntaxErrors() != 0) {
+      return std::nullopt;
     }
 
-    return std::nullopt;
+    return ASTGenerator().into_ast(source_code, tree);
   }
 } // namespace gal

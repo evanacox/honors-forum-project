@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "absl/types/span.h"
 #include <cassert>
 #include <functional>
 #include <memory>
@@ -54,7 +55,7 @@ namespace gal {
   template <typename T, typename U, typename Cmp = std::equal_to<T>>
   [[nodiscard]] bool unwrapping_equal(std::optional<T> lhs, std::optional<U> rhs, const Cmp& cmp = Cmp{}) noexcept {
     if (lhs.has_value() && rhs.has_value()) {
-      return Cmp(*lhs, *rhs);
+      return cmp(*lhs, *rhs);
     }
 
     return lhs.has_value() == rhs.has_value();
@@ -83,7 +84,7 @@ namespace gal {
   template <typename T>
   std::optional<std::unique_ptr<T>> clone_if(const std::optional<std::unique_ptr<T>>& maybe) noexcept {
     if (maybe.has_value()) {
-      return (*maybe)->clone();
+      return gal::static_unique_cast<T>((*maybe)->clone());
     }
 
     return std::nullopt;

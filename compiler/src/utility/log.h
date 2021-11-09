@@ -51,6 +51,12 @@ namespace gal {
         return *this;
       }
 
+      NewlineOstream& operator<<(bool value) noexcept {
+        *os_ << (value ? "True" : "False");
+
+        return *this;
+      }
+
     private:
       std::ostream* os_;
     };

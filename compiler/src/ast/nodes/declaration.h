@@ -30,6 +30,7 @@ namespace gal::ast {
     class_decl,
     type_decl,
     method_decl,
+    external_decl,
   };
 
   /// Abstract base type for all "declaration" AST nodes
@@ -311,12 +312,34 @@ namespace gal::ast {
   struct Attribute {
     AttributeType type;
     std::vector<std::string> args;
+
+    [[nodiscard]] friend bool operator==(const Attribute& lhs, const Attribute& rhs) noexcept {
+      return lhs.type == rhs.type && lhs.args == rhs.args;
+    }
   };
 
   /// An argument is a `name: type` pair
   struct Argument {
     std::string name;
     std::unique_ptr<Type> type;
+
+    Argument() = delete;
+
+    explicit Argument(std::string name, std::unique_ptr<Type> type) noexcept
+        : name{std::move(name)},
+          type{std::move(type)} {}
+
+    Argument(const Argument& other) noexcept : name{other.name}, type{other.type->clone()} {}
+
+    Argument(Argument&&) noexcept = default;
+
+    Argument& operator=(const Argument&) = delete;
+
+    Argument& operator=(Argument&&) = delete;
+
+    [[nodiscard]] friend bool operator==(const Argument& lhs, const Argument& rhs) noexcept {
+      return lhs.name == rhs.name && *lhs.type == *rhs.type;
+    }
   };
 
   /// Maps the 4 types of `self` that a method is able to take
@@ -662,6 +685,24 @@ namespace gal::ast {
     struct Field {
       std::string name;
       std::unique_ptr<Type> type;
+
+      Field() = delete;
+
+      explicit Field(std::string name, std::unique_ptr<Type> type) noexcept
+          : name{std::move(name)},
+            type{std::move(type)} {}
+
+      Field(const Field& other) noexcept : name{other.name}, type{other.type->clone()} {}
+
+      Field(Field&&) = default;
+
+      Field& operator=(const Field&) = delete;
+
+      Field& operator=(Field&&) = delete;
+
+      [[nodiscard]] friend bool operator==(const Field& lhs, const Field& rhs) noexcept {
+        return lhs.name == rhs.name && *lhs.type == *rhs.type;
+      }
     };
 
     /// Creates a struct declaration
@@ -816,4 +857,52 @@ namespace gal::ast {
     std::unique_ptr<Type> type_;
   };
 
+  /// Models a list of functions that are available over FFI
+  class ExternalDeclaration final : public Declaration {
+  public:
+    /// Creates an ExternalDeclaration
+    ///
+    /// \param loc The location in the source
+    /// \param exported Whether or not it's exported
+    /// \param protos The list of fn prototypes
+    explicit ExternalDeclaration(SourceLoc loc, bool exported, std::vector<ast::FnPrototype> protos) noexcept
+        : Declaration(std::move(loc), exported, DeclType::external_decl),
+          protos_{std::move(protos)} {}
+
+    /// Gets the list of prototypes
+    ///
+    /// \return The list of prototypes
+    [[nodiscard]] absl::Span<const ast::FnPrototype> prototypes() const noexcept {
+      return protos_;
+    }
+
+    /// Gets the list of prototypes
+    ///
+    /// \return The list of prototypes
+    [[nodiscard]] absl::Span<ast::FnPrototype> prototypes_mut() noexcept {
+      return absl::MakeSpan(protos_);
+    }
+
+  protected:
+    void internal_accept(DeclarationVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
+      auto& result = internal::debug_cast<const ExternalDeclaration&>(other);
+
+      return protos_ == result.protos_;
+    }
+
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
+      return std::make_unique<ExternalDeclaration>(loc(), exported(), protos_);
+    }
+
+  private:
+    std::vector<ast::FnPrototype> protos_;
+  };
 } // namespace gal::ast

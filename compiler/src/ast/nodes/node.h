@@ -11,6 +11,7 @@
 #pragma once
 
 #include "../source_loc.h"
+#include "absl/types/span.h"
 
 namespace gal::ast {
   /// Base class for all AST nodes, contains source mapping information
@@ -49,16 +50,24 @@ namespace gal::ast {
     struct GenericArgsCmp {
       template <typename T>
       [[nodiscard]] constexpr bool operator()(absl::Span<const std::unique_ptr<T>> lhs,
-          absl::Span<const std::unique_ptr<T>> rhs) {
+          absl::Span<const std::unique_ptr<T>> rhs) const noexcept {
         return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), gal::DerefEq<>{});
+      }
+
+      template <typename T> [[nodiscard]] constexpr bool operator()(const T& lhs, const T& rhs) const noexcept {
+        return (*this)(absl::MakeConstSpan(lhs), absl::MakeConstSpan(rhs));
       }
     };
 
     template <typename T>
-    [[nodiscard]] std::optional<std::vector<std::unique_ptr<T>>> clone_generics(
-        const std::optional<std::vector<std::unique_ptr<T>>>& generics) {
-      return (generics.has_value()) ? std::make_optional(gal::clone_span(absl::MakeConstSpan(*generics)))
-                                    : std::nullopt;
+    [[nodiscard]] std::vector<std::unique_ptr<T>> clone_generics(const std::vector<std::unique_ptr<T>>& generics) {
+      auto vec = std::vector<std::unique_ptr<T>>{};
+
+      for (auto& ptr : generics) {
+        vec.push_back(ptr->clone());
+      }
+
+      return vec;
     }
   } // namespace internal
 } // namespace gal::ast

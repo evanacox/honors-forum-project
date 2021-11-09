@@ -12,6 +12,7 @@
 #include "./syntax/parser.h"
 #include "./utility/flags.h"
 #include "./utility/log.h"
+#include "./utility/pretty.h"
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -40,7 +41,16 @@ namespace gal {
   int Driver::start(absl::Span<std::string_view> files) noexcept {
     for (auto& file : files) {
       auto data = read_file(fs::absolute(file));
-      gal::parse(data);
+
+      gal::outs() << std::quoted(data);
+
+      auto result = gal::parse(data);
+
+      gal::outs() << "was able to parse `" << file << "`: " << result.has_value();
+
+      if (result.has_value()) {
+        // gal::outs() << gal::pretty_print(*result);
+      }
     }
 
     return 0;

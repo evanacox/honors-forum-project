@@ -71,8 +71,8 @@ namespace gal::ast {
     gt,
     lt_eq,
     gt_eq,
-    eq_eq,
-    bang_eq,
+    equals,
+    not_equal,
     left_shift,
     right_shift,
     bitwise_and,
@@ -81,7 +81,7 @@ namespace gal::ast {
     logical_and,
     logical_or,
     logical_xor,
-    walrus,
+    assignment,
     add_eq,
     sub_eq,
     mul_eq,
@@ -519,7 +519,7 @@ namespace gal::ast {
     /// The name of the nested ID, i.e `Foo` in `::Foo<i32>`
     std::string name;
     /// The list of generic parameters, i.e `{i32, i32}` in `::Pair<i32, i32>`
-    std::optional<std::vector<std::unique_ptr<Type>>> ids;
+    std::vector<std::unique_ptr<Type>> ids;
 
     /// Copies a NestedGenericID by cloning the members
     ///
@@ -529,13 +529,18 @@ namespace gal::ast {
     /// Moves a NestedGenericID
     NestedGenericID(NestedGenericID&&) = default;
 
+    NestedGenericID& operator=(const NestedGenericID&) = delete;
+
+    NestedGenericID& operator=(NestedGenericID&&) = delete;
+
     /// Compares two generic IDs
     ///
     /// \param lhs The first ID
     /// \param rhs The second ID
     /// \return Whether or not they're equal
-    constexpr friend bool operator==(const NestedGenericID& lhs, const NestedGenericID& rhs) noexcept {
-      return lhs.name == rhs.name && gal::unwrapping_equal(lhs.ids, rhs.ids, internal::GenericArgsCmp{});
+    [[nodiscard]] friend bool operator==(const NestedGenericID& lhs, const NestedGenericID& rhs) noexcept {
+      return lhs.name == rhs.name
+             && std::equal(lhs.ids.begin(), lhs.ids.end(), rhs.ids.begin(), rhs.ids.end(), gal::DerefEq{});
     }
   };
 
@@ -574,8 +579,7 @@ namespace gal::ast {
     /// \param lhs The first list to compare
     /// \param rhs The second list to compare
     /// \return Whether the ID lists are equal
-    [[nodiscard]] constexpr friend bool operator==(const NestedGenericIDList& lhs,
-        const NestedGenericIDList& rhs) noexcept {
+    [[nodiscard]] friend bool operator==(const NestedGenericIDList& lhs, const NestedGenericIDList& rhs) noexcept {
       auto lhs_ids = lhs.ids();
       auto rhs_ids = rhs.ids();
 
@@ -596,7 +600,7 @@ namespace gal::ast {
     /// \param id The fully-qualified id
     explicit IdentifierExpression(SourceLoc loc,
         FullyQualifiedID id,
-        std::optional<std::vector<std::unique_ptr<Type>>> generic_params,
+        std::vector<std::unique_ptr<Type>> generic_params,
         std::optional<NestedGenericIDList> list) noexcept
         : Expression(std::move(loc), ExprType::identifier),
           id_{std::move(id)},
@@ -610,22 +614,37 @@ namespace gal::ast {
       return id_;
     }
 
-    /// If the call has any type parameters, those are returned
+    /// Gets the list of generic parameters
     ///
-    /// \return Any type parameters that the call has
-    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generics() const noexcept {
-      return (generic_params_.has_value()) //
-                 ? std::make_optional(absl::MakeConstSpan(*generic_params_))
-                 : std::nullopt;
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
+      if (!generic_params_.empty()) {
+        return absl::MakeConstSpan(generic_params_);
+      }
+
+      return std::nullopt;
     }
 
-    /// If the call has any type parameters, those are returned
+    /// Gets the list of generic parameters
     ///
-    /// \return Any type parameters that the call has
-    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generics_mut() const noexcept {
-      return (generic_params_.has_value()) //
-                 ? std::make_optional(absl::MakeSpan(*generic_params_))
-                 : std::nullopt;
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
+      if (!generic_params_.empty()) {
+        return absl::MakeSpan(generic_params_);
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the owner of the list of generic parameters
+    ///
+    /// \return The owner of the generic parameters
+    [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
+      if (!generic_params_.empty()) {
+        return &generic_params_;
+      }
+
+      return std::nullopt;
     }
 
     /// Gets the nested identifiers, if they exist
@@ -654,7 +673,12 @@ namespace gal::ast {
     [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
       auto& result = internal::debug_cast<const IdentifierExpression&>(other);
 
-      return id() == result.id() && gal::unwrapping_equal(generics(), result.generics(), internal::GenericArgsCmp{})
+      return id() == result.id()
+             && std::equal(generic_params_.begin(),
+                 generic_params_.end(),
+                 result.generic_params_.begin(),
+                 result.generic_params_.end(),
+                 gal::DerefEq{})
              && gal::unwrapping_equal(nested(), result.nested(), gal::DerefEq{});
     }
 
@@ -664,7 +688,7 @@ namespace gal::ast {
 
   private:
     FullyQualifiedID id_;
-    std::optional<std::vector<std::unique_ptr<Type>>> generic_params_;
+    std::vector<std::unique_ptr<Type>> generic_params_;
     std::optional<NestedGenericIDList> nested_;
   };
 
@@ -677,7 +701,7 @@ namespace gal::ast {
     /// \param id The fully-qualified id
     explicit UnqualifiedIdentifierExpression(SourceLoc loc,
         UnqualifiedID id,
-        std::optional<std::vector<std::unique_ptr<Type>>> generic_params,
+        std::vector<std::unique_ptr<Type>> generic_params,
         std::optional<NestedGenericIDList> nested_generics) noexcept
         : Expression(std::move(loc), ExprType::identifier_unqualified),
           id_{std::move(id)},
@@ -691,22 +715,37 @@ namespace gal::ast {
       return id_;
     }
 
-    /// If the call has any type parameters, those are returned
+    /// Gets the list of generic parameters
     ///
-    /// \return Any type parameters that the call has
-    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generics() const noexcept {
-      return (generic_params_.has_value()) //
-                 ? std::make_optional(absl::MakeConstSpan(*generic_params_))
-                 : std::nullopt;
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
+      if (!generic_params_.empty()) {
+        return absl::MakeConstSpan(generic_params_);
+      }
+
+      return std::nullopt;
     }
 
-    /// If the call has any type parameters, those are returned
+    /// Gets the list of generic parameters
     ///
-    /// \return Any type parameters that the call has
-    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generics_mut() const noexcept {
-      return (generic_params_.has_value()) //
-                 ? std::make_optional(absl::MakeSpan(*generic_params_))
-                 : std::nullopt;
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
+      if (!generic_params_.empty()) {
+        return absl::MakeSpan(generic_params_);
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the owner of the list of generic parameters
+    ///
+    /// \return The owner of the generic parameters
+    [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
+      if (!generic_params_.empty()) {
+        return &generic_params_;
+      }
+
+      return std::nullopt;
     }
 
     /// Gets the nested identifiers, if they exist
@@ -735,7 +774,12 @@ namespace gal::ast {
     [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
       auto& result = internal::debug_cast<const UnqualifiedIdentifierExpression&>(other);
 
-      return id() == result.id() && gal::unwrapping_equal(generics(), result.generics(), internal::GenericArgsCmp{})
+      return id() == result.id()
+             && std::equal(generic_params_.begin(),
+                 generic_params_.end(),
+                 result.generic_params_.begin(),
+                 result.generic_params_.end(),
+                 gal::DerefEq{})
              && gal::unwrapping_equal(nested(), result.nested(), gal::DerefEq{});
     }
 
@@ -748,7 +792,7 @@ namespace gal::ast {
 
   private:
     UnqualifiedID id_;
-    std::optional<std::vector<std::unique_ptr<Type>>> generic_params_;
+    std::vector<std::unique_ptr<Type>> generic_params_;
     std::optional<NestedGenericIDList> nested_;
   };
 
@@ -763,7 +807,7 @@ namespace gal::ast {
     explicit CallExpression(SourceLoc loc,
         std::unique_ptr<Expression> callee,
         std::vector<std::unique_ptr<Expression>> args,
-        std::optional<std::vector<std::unique_ptr<Type>>> generic_args)
+        std::vector<std::unique_ptr<Type>> generic_args)
         : Expression(std::move(loc), ExprType::call),
           callee_{std::move(callee)},
           args_{std::move(args)},
@@ -804,22 +848,37 @@ namespace gal::ast {
       return absl::MakeSpan(args_);
     }
 
-    /// If the call has any type parameters, those are returned
+    /// Gets the list of generic parameters
     ///
-    /// \return Any type parameters that the call has
-    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generics() const noexcept {
-      return (generic_params_.has_value()) //
-                 ? std::make_optional(absl::MakeConstSpan(*generic_params_))
-                 : std::nullopt;
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
+      if (!generic_params_.empty()) {
+        return absl::MakeConstSpan(generic_params_);
+      }
+
+      return std::nullopt;
     }
 
-    /// If the call has any type parameters, those are returned
+    /// Gets the list of generic parameters
     ///
-    /// \return Any type parameters that the call has
-    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generics_mut() const noexcept {
-      return (generic_params_.has_value()) //
-                 ? std::make_optional(absl::MakeSpan(*generic_params_))
-                 : std::nullopt;
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
+      if (!generic_params_.empty()) {
+        return absl::MakeSpan(generic_params_);
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the owner of the list of generic parameters
+    ///
+    /// \return The owner of the generic parameters
+    [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
+      if (!generic_params_.empty()) {
+        return &generic_params_;
+      }
+
+      return std::nullopt;
     }
 
   protected:
@@ -838,7 +897,11 @@ namespace gal::ast {
 
       return callee() == result.callee()
              && std::equal(self_args.begin(), self_args.end(), res_args.begin(), res_args.end(), gal::DerefEq<>{})
-             && gal::unwrapping_equal(generics(), result.generics(), internal::GenericArgsCmp{});
+             && std::equal(generic_params_.begin(),
+                 generic_params_.end(),
+                 result.generic_params_.begin(),
+                 result.generic_params_.end(),
+                 gal::DerefEq{});
     }
 
     [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
@@ -851,7 +914,7 @@ namespace gal::ast {
   private:
     std::unique_ptr<Expression> callee_;
     std::vector<std::unique_ptr<Expression>> args_;
-    std::optional<std::vector<std::unique_ptr<Type>>> generic_params_;
+    std::vector<std::unique_ptr<Type>> generic_params_;
   };
 
   /// Models a call expression, contains both the callee and the call arguments
@@ -867,7 +930,7 @@ namespace gal::ast {
         std::unique_ptr<Expression> object,
         std::string method_name,
         std::vector<std::unique_ptr<Expression>> args,
-        std::optional<std::vector<std::unique_ptr<Type>>> generic_params)
+        std::vector<std::unique_ptr<Type>> generic_params)
         : Expression(std::move(loc), ExprType::call),
           object_{std::move(object)},
           method_name_{std::move(method_name)},
@@ -916,22 +979,37 @@ namespace gal::ast {
       return &args_;
     }
 
-    /// If the call has any type parameters, those are returned
+    /// Gets the list of generic parameters
     ///
-    /// \return Any type parameters that the call has
-    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generics() const noexcept {
-      return (generic_params_.has_value()) //
-                 ? std::make_optional(absl::MakeConstSpan(*generic_params_))
-                 : std::nullopt;
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
+      if (!generic_params_.empty()) {
+        return absl::MakeConstSpan(generic_params_);
+      }
+
+      return std::nullopt;
     }
 
-    /// If the call has any type parameters, those are returned
+    /// Gets the list of generic parameters
     ///
-    /// \return Any type parameters that the call has
-    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generics_mut() const noexcept {
-      return (generic_params_.has_value()) //
-                 ? std::make_optional(absl::MakeSpan(*generic_params_))
-                 : std::nullopt;
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
+      if (!generic_params_.empty()) {
+        return absl::MakeSpan(generic_params_);
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the owner of the list of generic parameters
+    ///
+    /// \return The owner of the generic parameters
+    [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
+      if (!generic_params_.empty()) {
+        return &generic_params_;
+      }
+
+      return std::nullopt;
     }
 
   protected:
@@ -950,7 +1028,11 @@ namespace gal::ast {
 
       return object() == result.object() && method_name() == result.method_name()
              && std::equal(self_args.begin(), self_args.end(), res_args.begin(), res_args.end(), gal::DerefEq<>{})
-             && gal::unwrapping_equal(generics(), result.generics(), internal::GenericArgsCmp{});
+             && std::equal(generic_params_.begin(),
+                 generic_params_.end(),
+                 result.generic_params_.begin(),
+                 result.generic_params_.end(),
+                 gal::DerefEq{});
     }
 
     [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
@@ -965,7 +1047,7 @@ namespace gal::ast {
     std::unique_ptr<Expression> object_;
     std::string method_name_;
     std::vector<std::unique_ptr<Expression>> args_;
-    std::optional<std::vector<std::unique_ptr<Type>>> generic_params_;
+    std::vector<std::unique_ptr<Type>> generic_params_;
   };
 
   /// Represents an index expression, ie `a[b]`
@@ -1586,6 +1668,10 @@ namespace gal::ast {
 
       /// The block to be entered if that condition is true
       std::unique_ptr<BlockExpression> block;
+
+      explicit ElifBlock(std::unique_ptr<Expression> cond, std::unique_ptr<BlockExpression> block) noexcept
+          : condition{std::move(cond)},
+            block{std::move(block)} {}
 
       /// Copies an ElifBlock by cloning both members
       ///

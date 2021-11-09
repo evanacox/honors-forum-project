@@ -21,8 +21,6 @@ namespace gal::ast {
   /// \tparam BaseVisitor The visitor to derive from
   template <typename T, typename BaseVisitor> class ValueVisitor : public BaseVisitor {
   public:
-    static_assert(!std::is_void_v<T>, "cannot use with `void`, use the base visitor directly");
-
     /// Gets the result from the value visitor, resets it to an "empty" state
     ///
     /// \return The value that the visitor "returned"
@@ -42,5 +40,10 @@ namespace gal::ast {
 
   private:
     std::optional<T> value_;
+  };
+
+  template <typename BaseVisitor> class ValueVisitor<void, BaseVisitor> : public BaseVisitor {
+  public:
+    void take_result() noexcept {}
   };
 } // namespace gal::ast

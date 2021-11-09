@@ -37,7 +37,7 @@ fragment DECIMAL_DIGIT
     ;
 
 fragment HEX_DIGIT
-    : [0-9a-fA-F]+
+    : [0-9a-fA-F]
     ;
 
 fragment OCTAL_DIGIT
@@ -45,7 +45,8 @@ fragment OCTAL_DIGIT
     ;
 
 fragment STRING_LITERAL_CHARACTER
-    : '\\n'  // newline
+    : '\\0'   // null character
+    | '\\n'  // newline
     | '\\r'  // carriage return
     | '\\t'  // tab
     | '\\v'  // vertical tab
@@ -58,13 +59,13 @@ fragment STRING_LITERAL_CHARACTER
     | '\\o' OCTAL_DIGIT OCTAL_DIGIT OCTAL_DIGIT // 3-digit octal number, 000-377. maps to a single byte
     | '\\x' HEX_DIGIT HEX_DIGIT // 2-digit hex number, 00-FF. maps to a single byte
     | '\\' DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT // 3 digit decimal number, 000-255. maps to a single byte
-    | '\\u' DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT
-           (DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT)? // U+nnnn (or U+nnnnnnnn if all 8)
+   // | '\\u' DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT
+   //      (DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT)? // U+nnnn (or U+nnnnnnnn if all 8)
     | ~'\\' // any character besides `\`
     ;
 
 STRING_LITERAL
-    : '"' (STRING_LITERAL_CHARACTER)* '"'
+    : '"' STRING_LITERAL_CHARACTER '"'
     ;
 
 CHAR_LITERAL
@@ -379,7 +380,7 @@ typeParamList
     ;
 
 typeParam
-    : IDENTIFIER (':' ws? interface=genericIdentifier)? (ws? '=' ws? default=genericIdentifier)?
+    : IDENTIFIER (':' ws? interface=maybeGenericIdentifier)? (ws? '=' ws? defaultType=maybeGenericIdentifier)?
     ;
 
 classDeclaration
@@ -446,13 +447,13 @@ exprStatement
     : expr
     ;
 
-exprList
+callArgList
     : expr ws? (',' ws? expr)*
     ;
 
 restOfCall
-    : '(' callArgs=exprList? ')'
-    | '[' indexArgs=exprList? ']'
+    : '(' callArgs=callArgList? ')'
+    | '[' indexArgs=callArgList? ']'
     | '.' IDENTIFIER
     ;
 
@@ -526,6 +527,7 @@ primaryExpr
     | NIL_LITERAL
     ;
 
+
 maybeGenericIdentifier
     : modularIdentifier typeParamList? ('::' memberGenericIdentifier)*
     ;
@@ -553,7 +555,7 @@ typeWithoutRef
     : squareBracket='[' WHITESPACE* typeWithoutRef WHITESPACE* ']'
     | ptr=(STAR_CONST | STAR_MUT) (WHITESPACE+) typeWithoutRef
     | BUILTIN_TYPE
-    | userDefinedType=genericIdentifier
+    | userDefinedType=maybeGenericIdentifier
     | fnType='fn' WHITESPACE* LT (WHITESPACE* genericTypeList WHITESPACE*)? LT WHITESPACE+ '->' WHITESPACE+ type
     | dynType='dyn' ws modularIdentifier (LT WHITESPACE* genericTypeList WHITESPACE* GT)?
     ;  

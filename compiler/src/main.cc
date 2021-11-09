@@ -15,6 +15,10 @@
 #include <string_view>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace {
   std::vector<std::string_view> into_positionals(absl::Span<char*> positionals) noexcept {
     std::vector<std::string_view> result;
@@ -30,6 +34,10 @@ namespace {
 } // namespace
 
 int main(int argc, char** argv) {
+#ifdef _WIN32
+  SetConsoleOutputCP(CP_UTF8);
+#endif
+
   absl::SetProgramUsageMessage(
       absl::StrCat("Invokes the Gallium compiler.\n\nSample Usage:\n\n    ", argv[0], " <file>"));
 

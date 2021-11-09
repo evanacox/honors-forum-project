@@ -46,7 +46,8 @@ function(gallium_configure_target TARGET)
                 -Wvarargs
                 -Wvla
                 -Wwrite-strings
-                -Werror)
+                -Werror
+                -ftemplate-backtrace-limit=20)
     endif ()
 
     # enable warnings and warnings-as-errors in development

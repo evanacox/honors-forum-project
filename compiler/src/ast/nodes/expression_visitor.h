@@ -154,7 +154,7 @@ namespace gal::ast {
     virtual void visit(const ContinueExpression&) = 0;
   };
 
-  template <typename T> class ExpressionVisitor : public ValueVisitor<T, ExpressionVisitorBase> {};
+  template <typename T> using ExpressionVisitor = ValueVisitor<T, ExpressionVisitorBase>;
 
-  template <typename T> class ConstExpressionVisitor : public ValueVisitor<T, ConstExpressionVisitorBase> {};
+  template <typename T> using ConstExpressionVisitor = ValueVisitor<T, ConstExpressionVisitorBase>;
 } // namespace gal::ast

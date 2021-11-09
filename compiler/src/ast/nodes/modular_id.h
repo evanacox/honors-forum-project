@@ -17,6 +17,9 @@
 #include <vector>
 
 namespace gal::ast {
+  class UnqualifiedID;
+  class FullyQualifiedID;
+
   /// Represents a module name, e.g `foo::bar::baz`
   class ModuleID {
   public:
@@ -61,7 +64,7 @@ namespace gal::ast {
     /// \param lhs The first module id to compare
     /// \param rhs The second module id to compare
     /// \return Whether or not they are equal in every observable way
-    [[nodiscard]] constexpr friend bool operator==(const ModuleID& lhs, const ModuleID& rhs) noexcept {
+    [[nodiscard]] friend bool operator==(const ModuleID& lhs, const ModuleID& rhs) noexcept {
       auto lhs_p = lhs.parts();
       auto rhs_p = rhs.parts();
 
@@ -70,6 +73,9 @@ namespace gal::ast {
     }
 
   private:
+    friend UnqualifiedID module_into_unqualified(ModuleID) noexcept;
+    friend FullyQualifiedID module_into_qualified(ModuleID) noexcept;
+
     bool from_root_;
     std::vector<std::string> parts_;
   };
@@ -114,7 +120,7 @@ namespace gal::ast {
     /// \param lhs The first module id to compare
     /// \param rhs The second module id to compare
     /// \return Whether or not they are equal in every observable way
-    [[nodiscard]] constexpr friend bool operator==(const UnqualifiedID& lhs, const UnqualifiedID& rhs) noexcept {
+    [[nodiscard]] friend bool operator==(const UnqualifiedID& lhs, const UnqualifiedID& rhs) noexcept {
       // it's fairly likely that two IDs may import the same module but different things,
       // we may as well early return on that case instead of doing the expensive module cmp first
       return lhs.name() == rhs.name() && lhs.prefix() == rhs.prefix();
@@ -160,7 +166,7 @@ namespace gal::ast {
     /// \param lhs The first module id to compare
     /// \param rhs The second module id to compare
     /// \return Whether or not they are equal in every observable way
-    [[nodiscard]] constexpr friend bool operator==(const FullyQualifiedID& lhs, const FullyQualifiedID& rhs) noexcept {
+    [[nodiscard]] friend bool operator==(const FullyQualifiedID& lhs, const FullyQualifiedID& rhs) noexcept {
       // it's fairly likely that two IDs may import the same module but different things,
       // we may as well early return on that case instead of doing the expensive module cmp first
       return lhs.name() == rhs.name() && lhs.module() == rhs.module();
@@ -170,4 +176,30 @@ namespace gal::ast {
     ModuleID module_;
     std::string id_;
   };
+
+  /// Transforms a moduleID into an unqualified identifier
+  ///
+  /// \param id The module to transform
+  /// \return An unqualified ID
+  inline UnqualifiedID module_into_unqualified(ModuleID id) noexcept {
+    auto vec = std::move(id.parts_);
+    auto last = std::move(vec.back());
+    vec.pop_back();
+
+    return UnqualifiedID(ModuleID(id.from_root(), std::move(vec)), std::move(last));
+  }
+
+  /// Transforms a moduleID into a fully-qualified identifier
+  ///
+  /// \param id The module to transform
+  /// \return A fully-qualified ID
+  inline FullyQualifiedID module_into_qualified(ModuleID id) noexcept {
+    assert(id.from_root());
+
+    auto vec = std::move(id.parts_);
+    auto last = std::move(vec.back());
+    vec.pop_back();
+
+    return FullyQualifiedID(ModuleID(id.from_root(), std::move(vec)), std::move(last));
+  }
 } // namespace gal::ast

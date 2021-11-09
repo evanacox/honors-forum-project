@@ -126,6 +126,8 @@ namespace gal {
             {"invalid builtin width",
                 "integer builtin types must be of width 8/16/32/64/128, floats must have 32/64/128",
                 gal::DiagnosticType::error}},
+        {2, {"invalid char literal", "char literal was unable to be parsed", gal::DiagnosticType::error}},
+        {3, {"invalid integer literal", "integer literal was unable to be parsed", gal::DiagnosticType::error}},
     };
 
     auto it = lookup.find(code);

@@ -39,7 +39,7 @@ namespace gal::ast {
     virtual ~ConstStatementVisitorBase() = default;
   };
 
-  template <typename T> class StatementVisitor : public ValueVisitor<T, StatementVisitorBase> {};
+  template <typename T> using StatementVisitor = ValueVisitor<T, StatementVisitorBase>;
 
-  template <typename T> class ConstStatementVisitor : public ValueVisitor<T, ConstStatementVisitorBase> {};
+  template <typename T> using ConstStatementVisitor = ValueVisitor<T, ConstStatementVisitorBase>;
 } // namespace gal::ast

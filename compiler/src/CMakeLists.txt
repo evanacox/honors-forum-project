@@ -15,8 +15,8 @@ set(GALLIUM_CORE_FILES
 set(GALLIUM_UTILITY_FILES
         utility/flags.cc
         utility/log.cc
-        utility/ticket_mutex.h
-        utility/ticket_mutex.cc)
+        utility/ticket_mutex.cc
+        utility/pretty.cc)
 
 set(GALLIUM_SYNTAX_FILES
         syntax/parser.cc

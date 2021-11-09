@@ -1,0 +1,15 @@
+external {
+    fn puts(a: *const char) -> void
+
+    fn abort() __noreturn -> void
+}
+
+type Hello = i32
+
+fn meme(a: &mut [*mut i32]) -> i64 {
+
+}
+
+fn main() -> void {
+    puts(1, 2, 3)
+}
