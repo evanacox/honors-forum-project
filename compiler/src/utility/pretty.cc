@@ -87,7 +87,8 @@ namespace {
     }
 
     void visit(const ast::ExpressionStatement& node) final {
-      (void)node;
+      print_initial(colors::cyan("expr stmt"));
+      accept_last_member("expr: ", node.expr());
     }
 
     void visit(const ast::AssertStatement& node) final {
@@ -119,7 +120,9 @@ namespace {
     }
 
     void visit(const ast::UnqualifiedIdentifierExpression& node) final {
-      (void)node;
+      print_initial(colors::cyan("unqual-id expr"));
+      print_member("module prefix: ", node.id().prefix() ? node.id().prefix()->to_string() : "n/a");
+      print_last_member("id: ", node.id().name());
     }
 
     void visit(const ast::IdentifierExpression& node) final {
@@ -127,7 +130,8 @@ namespace {
     }
 
     void visit(const ast::CallExpression& node) final {
-      (void)node;
+      print_initial(colors::cyan("call expr"));
+      accept_last_member("callee: ", node.callee());
     }
 
     void visit(const ast::MethodCallExpression& node) final {
@@ -171,7 +175,10 @@ namespace {
     }
 
     void visit(const ast::BlockExpression& node) final {
-      (void)node;
+      print_initial(colors::cyan("block expr"));
+      print_last_list("stmts: ", node.statements(), [this](auto& ptr) {
+        accept_initial(*ptr);
+      });
     }
 
     void visit(const ast::LoopExpression& node) final {

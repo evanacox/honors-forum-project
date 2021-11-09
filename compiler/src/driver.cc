@@ -49,7 +49,7 @@ namespace gal {
       gal::outs() << "was able to parse `" << file << "`: " << result.has_value();
 
       if (result.has_value()) {
-        // gal::outs() << gal::pretty_print(*result);
+        gal::outs() << gal::pretty_print(*result);
       }
     }
 
