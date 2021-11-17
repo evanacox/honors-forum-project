@@ -424,7 +424,7 @@ namespace gal::ast {
   ///
   /// \param width The width to get the width of
   /// \return The real integer width
-  [[nodiscard]] constexpr std::int32_t width_of(IntegerWidth width) noexcept {
+  [[nodiscard]] constexpr std::optional<std::int32_t> width_of(IntegerWidth width) noexcept {
     assert(width != IntegerWidth::native_width);
     assert(static_cast<std::int32_t>(width) > 0);
 

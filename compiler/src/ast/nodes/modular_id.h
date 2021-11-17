@@ -182,11 +182,15 @@ namespace gal::ast {
   /// \param id The module to transform
   /// \return An unqualified ID
   inline UnqualifiedID module_into_unqualified(ModuleID id) noexcept {
+    assert(!id.parts_.empty());
+
     auto vec = std::move(id.parts_);
     auto last = std::move(vec.back());
     vec.pop_back();
 
-    return UnqualifiedID(ModuleID(id.from_root(), std::move(vec)), std::move(last));
+    auto module = vec.empty() ? std::nullopt : std::make_optional(ModuleID(id.from_root(), std::move(vec)));
+
+    return UnqualifiedID(std::move(module), std::move(last));
   }
 
   /// Transforms a moduleID into a fully-qualified identifier
@@ -194,6 +198,7 @@ namespace gal::ast {
   /// \param id The module to transform
   /// \return A fully-qualified ID
   inline FullyQualifiedID module_into_qualified(ModuleID id) noexcept {
+    assert(!id.parts_.empty());
     assert(id.from_root());
 
     auto vec = std::move(id.parts_);

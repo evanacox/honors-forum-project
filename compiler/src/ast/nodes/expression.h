@@ -165,27 +165,41 @@ namespace gal::ast {
     /// Gets the result type of the expression, i.e the type it will evaluate to
     ///
     /// \return The type that the expression evaluates to
-    [[nodiscard]] const Type& result() const noexcept {
-      assert(has_result());
-
-      return *evaluates_to_;
+    [[nodiscard]] std::optional<const Type*> result() const noexcept {
+      if (evaluates_to_.has_value()) {
+        return std::make_optional(&**evaluates_to_);
+      } else {
+        return std::nullopt;
+      }
     }
 
     /// Gets a mutable pointer to the result type
     ///
     /// \return Mutable pointer to the result type
-    [[nodiscard]] Type* result_mut() noexcept {
-      assert(has_result());
-
-      return evaluates_to_.get();
+    [[nodiscard]] std::optional<Type*> result_mut() noexcept {
+      if (evaluates_to_.has_value()) {
+        return std::make_optional(&**evaluates_to_);
+      } else {
+        return std::nullopt;
+      }
     }
 
-    /// Exchanges `new_result` and `result()`, returning the old value of `result()`
+    /// Returns the current result type, if it exists
     ///
-    /// \param new_result The new type for the expression to evaluate to
-    /// \return The old type
-    [[nodiscard]] std::unique_ptr<Type>* result_owner() noexcept {
-      return &evaluates_to_;
+    /// \return The result type
+    [[nodiscard]] std::optional<std::unique_ptr<Type>*> result_owner() noexcept {
+      if (evaluates_to_.has_value()) {
+        return std::make_optional(&*evaluates_to_);
+      } else {
+        return std::nullopt;
+      }
+    }
+
+    /// Updates the result type to a new type
+    ///
+    /// \param new_result The new result type
+    void result_update(std::unique_ptr<Type> new_result) noexcept {
+      evaluates_to_ = std::move(new_result);
     }
 
     /// Accepts a visitor with a `void` return type, and calls the correct
@@ -233,7 +247,7 @@ namespace gal::ast {
     ///
     /// \param real The real expression type
     /// \param evaluates_to The type that the expression evaluates to
-    explicit Expression(SourceLoc loc, ExprType real, std::unique_ptr<Type> evaluates_to = nullptr)
+    explicit Expression(SourceLoc loc, ExprType real, std::optional<std::unique_ptr<Type>> evaluates_to = std::nullopt)
         : Node(std::move(loc)),
           real_{real},
           evaluates_to_{std::move(evaluates_to)} {}
@@ -264,7 +278,7 @@ namespace gal::ast {
 
   private:
     ExprType real_;
-    std::unique_ptr<Type> evaluates_to_;
+    std::optional<std::unique_ptr<Type>> evaluates_to_;
   };
 
   /// Represents a "string literal," i.e `"Hello, World!"`
@@ -364,17 +378,26 @@ namespace gal::ast {
 
     /// Initializes a floating-point literal
     ///
-    /// \param loc
-    /// \param lit
-    explicit FloatLiteralExpression(SourceLoc loc, double lit) noexcept
+    /// \param loc The location in the source
+    /// \param lit The actual value parsed
+    /// \param str_len The number of characters in the string representation it was parsed from
+    explicit FloatLiteralExpression(SourceLoc loc, double lit, std::size_t str_len) noexcept
         : Expression(std::move(loc), ExprType::float_lit),
-          literal_{lit} {}
+          literal_{lit},
+          str_len_{str_len} {}
 
     /// Gets the value of the literal
     ///
     /// \return The literal
     [[nodiscard]] double value() const noexcept {
       return literal_;
+    }
+
+    /// Gets the string length of the lit
+    ///
+    /// \return The string length
+    [[nodiscard]] std::size_t str_len() const noexcept {
+      return str_len_;
     }
 
   protected:
@@ -389,18 +412,19 @@ namespace gal::ast {
     [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
       auto& result = internal::debug_cast<const FloatLiteralExpression&>(other);
 
+      // TODO: is this reasonable? should there be an epsilon of some sort?
       gal::outs() << "FloatLiteralExpression::internal_equals: epsilon???";
 
-      // TODO: is this reasonable? should there be an epsilon of some sort?
-      return value() == result.value();
+      return value() == result.value() && str_len() == result.str_len();
     }
 
     [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<FloatLiteralExpression>(loc(), value());
+      return std::make_unique<FloatLiteralExpression>(loc(), value(), str_len());
     }
 
   private:
     double literal_;
+    std::size_t str_len_;
   };
 
   /// Models a boolean literal, i.e `true` / `false`

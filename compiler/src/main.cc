@@ -15,7 +15,7 @@
 #include <string_view>
 #include <vector>
 
-#ifdef _WIN32
+#if defined(_WIN32) && defined(__MINGW32__) && defined(__GNUC__)
 #include <windows.h>
 #endif
 
@@ -34,7 +34,9 @@ namespace {
 } // namespace
 
 int main(int argc, char** argv) {
-#ifdef _WIN32
+#if defined(_WIN32) && defined(__MINGW32__) && defined(__GNUC__)
+  // MingW defaults to UTF-8 string literals, this breaks pretty printer
+  // and similar code due to UTF-8 code page not being the default on Windows
   SetConsoleOutputCP(CP_UTF8);
 #endif
 

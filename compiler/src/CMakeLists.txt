@@ -20,7 +20,7 @@ set(GALLIUM_UTILITY_FILES
 
 set(GALLIUM_SYNTAX_FILES
         syntax/parser.cc
-        syntax/lexer.cc)
+        syntax/parse_errors.cc)
 
 set(GALLIUM_ANTLR4_GENERATED_DIR ${CMAKE_BINARY_DIR}/antlr4/generated)
 
