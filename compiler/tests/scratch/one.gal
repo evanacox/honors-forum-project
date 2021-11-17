@@ -1,3 +1,38 @@
+external {
+    fn puts(str: *const u8) -> i32
+}
+
+type Hello = &mut [isize]
+
+struct Foo {
+    bar: Baz
+}
+
+struct Point {
+    x: f64
+    y: i128
+    z: f32
+    radius: usize
+    dimension: i64
+    idk: dyn foo::Bar
+}
+
 fn main() -> void {
+    let binding: fn(i32, f64) -> void = nil
+
     puts(1, 2, 3)
+
+    1 + 2 / 3 * 4 % 5
+
+    if true {
+        if false then 1 else 2 
+    } elif 3 {
+        thing.foo
+    } else {
+        lol()
+    }
+
+//    for i := 5 step i.next() until i.done() {
+
+//    }
 }
