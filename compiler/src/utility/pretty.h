@@ -14,6 +14,18 @@
 #include <ostream>
 
 namespace gal {
+  /// Gets the string representation of a unary op
+  ///
+  /// \param op The operator to get the string of
+  /// \return The string version of the op
+  std::string_view unary_op_string(ast::UnaryOp op) noexcept;
+
+  /// Gets the string representation of a binary op
+  ///
+  /// \param op The operator to get the string of
+  /// \return The string version of the op
+  std::string_view binary_op_string(ast::BinaryOp op) noexcept;
+
   /// Prints a tree structure with ASCII that represents the full program
   ///
   /// \param program The program to print

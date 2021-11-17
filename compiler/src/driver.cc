@@ -27,7 +27,7 @@ namespace {
     auto file_data = ""s;
 
     in.seekg(0, std::ios::end);
-    file_data.resize(in.tellg());
+    file_data.resize(in.tellg(), ' ');
     in.seekg(0);
     in.read(file_data.data(), static_cast<std::streamsize>(file_data.size()));
 
@@ -44,12 +44,16 @@ namespace gal {
 
       gal::outs() << std::quoted(data);
 
-      auto result = gal::parse(data);
+      auto result = gal::parse(file, data);
 
-      gal::outs() << "was able to parse `" << file << "`: " << result.has_value();
+      gal::outs() << "was able to parse `" << file << "`: " << std::holds_alternative<ast::Program>(result);
 
-      if (result.has_value()) {
-        gal::outs() << gal::pretty_print(*result);
+      if (auto* program = std::get_if<ast::Program>(&result)) {
+        gal::outs() << gal::pretty_print(*program);
+      } else {
+        for (auto& err : std::get<std::vector<gal::Diagnostic>>(result)) {
+          gal::report_diagnostic(data, err);
+        }
       }
     }
 

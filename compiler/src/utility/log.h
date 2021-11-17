@@ -157,4 +157,10 @@ namespace gal {
   ///
   /// \return A real ostream
   std::ostream& raw_outs() noexcept;
+
+  /// Gets a wrapped up `std::ostream` that maps to `std::cerr`. Does not automatically
+  /// add anything
+  ///
+  /// \return A real ostream
+  std::ostream& raw_errs() noexcept;
 } // namespace gal

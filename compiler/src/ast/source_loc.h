@@ -29,8 +29,10 @@ namespace gal::ast {
     explicit SourceLoc(std::string raw, std::uint64_t line, std::uint64_t column, std::filesystem::path file) noexcept
         : raw_{std::move(raw)},
           line_{line},
-          col_{column},
-          file_{std::move(file)} {}
+          col_{column + 1}, // ANTLR gives you 0-based columns, editors do 1-based
+          file_{std::move(file)} {
+      //
+    }
 
     /// The full raw text of the node
     ///
@@ -51,6 +53,13 @@ namespace gal::ast {
     /// \return The column of the node
     [[nodiscard]] std::uint64_t column() const noexcept {
       return col_;
+    }
+
+    /// Gets the number of characters in the source being pointed to
+    ///
+    /// \return The length of the portion of source code
+    [[nodiscard]] std::size_t length() const noexcept {
+      return raw_.size();
     }
 
     /// Gets the path of the file that the node was parsed from

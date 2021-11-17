@@ -13,7 +13,9 @@
 #include "../ast/program.h"
 #include "../core/error_reporting.h"
 #include "../utility/misc.h"
+#include "./parse_errors.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/strings/charconv.h"
 #include "absl/strings/str_split.h"
 #include "antlr4-runtime.h"
 #include "generated/GalliumBaseVisitor.h"
@@ -44,16 +46,13 @@
 namespace {
   namespace ast = gal::ast;
 
-  template <typename T> ast::SourceLoc loc_from(T* node) noexcept {
-    auto* firstToken = node->getStart();
-
-    return ast::SourceLoc(node->getText(), firstToken->getLine(), firstToken->getCharPositionInLine(), "");
-  }
-
   class ASTGenerator final : public GalliumBaseVisitor {
   public:
-    ast::Program into_ast(std::string_view source, GalliumParser::ParseContext* parse_tree) noexcept {
-      std::vector<std::unique_ptr<ast::Declaration>> decls;
+    std::variant<ast::Program, std::vector<gal::Diagnostic>> into_ast(std::string_view source,
+        std::filesystem::path path,
+        GalliumParser::ParseContext* parse_tree) noexcept {
+      auto decls = std::vector<std::unique_ptr<ast::Declaration>>{};
+      path_ = std::move(path);
       original_ = source;
 
       for (auto* decl : parse_tree->modularizedDeclaration()) {
@@ -62,7 +61,11 @@ namespace {
         decls.push_back(return_value<ast::Declaration>());
       }
 
-      return ast::Program(std::move(decls));
+      if (!diagnostics_.empty()) {
+        return std::move(diagnostics_);
+      } else {
+        return ast::Program(std::move(decls));
+      }
     }
 
     antlrcpp::Any visitModularIdentifier(GalliumParser::ModularIdentifierContext* ctx) final {
@@ -71,9 +74,6 @@ namespace {
       for (auto* node : ctx->IDENTIFIER()) {
         module_parts.push_back(node->toString());
       }
-
-      auto last = std::move(module_parts.back());
-      module_parts.pop_back();
 
       return ast::ModuleID(ctx->isRoot != nullptr, std::move(module_parts));
     }
@@ -294,10 +294,8 @@ namespace {
     }
 
     antlrcpp::Any visitAssertStatement(GalliumParser::AssertStatementContext* ctx) final {
-      visitExpr(ctx->expr());
-      auto condition = return_value<ast::Expression>();
-      parse_string_lit(ctx, ctx->STRING_LITERAL());
-      auto lit = return_value<ast::Expression>();
+      auto condition = parse_expr(ctx->expr());
+      auto lit = parse_string_lit(ctx, ctx->STRING_LITERAL());
 
       RETURN(std::make_unique<ast::AssertStatement>(loc_from(ctx),
           std::move(condition),
@@ -306,8 +304,7 @@ namespace {
 
     antlrcpp::Any visitBindingStatement(GalliumParser::BindingStatementContext* ctx) final {
       auto name = ctx->IDENTIFIER()->toString();
-      visitExpr(ctx->expr());
-      auto initializer = return_value<ast::Expression>();
+      auto initializer = parse_expr(ctx->expr());
 
       if (ctx->type() != nullptr) {
         visitType(ctx->type());
@@ -325,17 +322,14 @@ namespace {
     }
 
     antlrcpp::Any visitExprStatement(GalliumParser::ExprStatementContext* ctx) final {
-      visitExpr(ctx->expr());
-
-      RETURN(std::make_unique<ast::ExpressionStatement>(loc_from(ctx), return_value<ast::Expression>()));
+      RETURN(std::make_unique<ast::ExpressionStatement>(loc_from(ctx), parse_expr(ctx->expr())));
     }
 
     antlrcpp::Any visitCallArgList(GalliumParser::CallArgListContext* ctx) final {
       auto args = std::vector<std::unique_ptr<ast::Expression>>{};
 
       for (auto* expr : ctx->expr()) {
-        visitExpr(expr);
-        args.push_back(return_value<ast::Expression>());
+        args.push_back(parse_expr(expr));
       }
 
       return {std::move(args)};
@@ -360,9 +354,7 @@ namespace {
       std::optional<std::unique_ptr<ast::Expression>> expr;
 
       if (auto* ptr = ctx->expr()) {
-        visitExpr(ptr);
-
-        expr = return_value<ast::Expression>();
+        expr = parse_expr(ptr);
       }
 
       RETURN(std::make_unique<ast::ReturnExpression>(loc_from(ctx), std::move(expr)));
@@ -372,9 +364,7 @@ namespace {
       std::optional<std::unique_ptr<ast::Expression>> expr;
 
       if (auto* ptr = ctx->expr()) {
-        visitExpr(ptr);
-
-        expr = return_value<ast::Expression>();
+        expr = parse_expr(ptr);
       }
 
       RETURN(std::make_unique<ast::BreakExpression>(loc_from(ctx), std::move(expr)));
@@ -393,10 +383,8 @@ namespace {
     }
 
     antlrcpp::Any visitElifBlock(GalliumParser::ElifBlockContext* ctx) final {
-      visitExpr(ctx->expr());
-      auto cond = return_value<ast::Expression>();
-      visitBlockExpression(ctx->blockExpression());
-      auto body = gal::static_unique_cast<ast::BlockExpression>(return_value<ast::Expression>());
+      auto cond = parse_expr(ctx->expr());
+      auto body = parse_block(ctx->blockExpression());
 
       return {ast::IfElseExpression::ElifBlock{std::move(cond), std::move(body)}};
     }
@@ -453,6 +441,12 @@ namespace {
         RETURN(std::make_unique<ast::BoolLiteralExpression>(loc_from(ctx), ctx->BOOL_LITERAL()->toString() == "true"));
       } else if (ctx->NIL_LITERAL() != nullptr) {
         RETURN(std::make_unique<ast::NilLiteralExpression>(loc_from(ctx)));
+      } else if (ctx->maybeGenericIdentifier() != nullptr) {
+        auto id = std::move(visitMaybeGenericIdentifier(ctx->maybeGenericIdentifier()).as<ast::UnqualifiedID>());
+        RETURN(std::make_unique<ast::UnqualifiedIdentifierExpression>(loc_from(ctx),
+            std::move(id),
+            std::vector<std::unique_ptr<ast::Type>>{},
+            std::nullopt));
       } else {
         return visitChildren(ctx);
       }
@@ -489,14 +483,31 @@ namespace {
       }
     }
 
+    antlrcpp::Any visitFloatLiteral(GalliumParser::FloatLiteralContext* ctx) final {
+      auto literals = ctx->DECIMAL_LITERAL();
+      auto as_string = (literals.size() == 2) ? absl::StrCat(literals[0]->toString(), ".", literals[1]->toString())
+                                              : absl::StrCat("0.", literals[0]->toString());
+
+      // from_chars on libstdc++ is screwy for floating-point, works on linux but not some
+      // distributions of mingw-w64.
+      //
+      // since abseil provides it, may as well use that one for portability's sake (with integers
+      // it doesn't really matter, but for floating-point ones we want reproducibility across standard libs)
+      double val;
+      auto [_, e] = absl::from_chars(as_string.data(), as_string.data() + as_string.size(), val);
+
+      if (e != std::errc()) {
+        RETURN(error_expr(4, loc_from(ctx), {std::make_error_code(e).message()}));
+      }
+
+      RETURN(std::make_unique<ast::FloatLiteralExpression>(loc_from(ctx), val, as_string.length()));
+    }
+
     antlrcpp::Any visitMaybeGenericIdentifier(GalliumParser::MaybeGenericIdentifierContext* ctx) final {
       auto id = std::move(visitModularIdentifier(ctx->modularIdentifier()).as<ast::ModuleID>());
       auto unqualified_id = ast::module_into_unqualified(std::move(id));
 
-      RETURN(std::make_unique<ast::UnqualifiedIdentifierExpression>(loc_from(ctx),
-          std::move(unqualified_id),
-          std::vector<std::unique_ptr<ast::Type>>{},
-          std::nullopt));
+      return {std::move(unqualified_id)};
     }
 
     antlrcpp::Any visitType(GalliumParser::TypeContext* ctx) final {
@@ -534,7 +545,7 @@ namespace {
         RETURN(std::make_unique<ast::FnPointerType>(loc_from(ctx), std::move(generic_list), parse_type(ctx->type())));
       }
 
-      auto id = parse_unqual_id(ctx->modularIdentifier());
+      auto id = std::move(visitMaybeGenericIdentifier(ctx->maybeGenericIdentifier()).as<ast::UnqualifiedID>());
 
       if (ctx->userDefinedType != nullptr) {
         RETURN(
@@ -556,19 +567,6 @@ namespace {
     }
 
   private:
-    static ast::UnqualifiedID parse_unqual_id(GalliumParser::ModularIdentifierContext* ctx) noexcept {
-      std::vector<std::string> module_parts;
-
-      for (auto* node : ctx->IDENTIFIER()) {
-        module_parts.push_back(node->toString());
-      }
-
-      auto first = std::move(module_parts.front());
-      module_parts.erase(module_parts.begin());
-
-      return ast::UnqualifiedID(ast::ModuleID{ctx->isRoot != nullptr, std::move(module_parts)}, std::move(first));
-    }
-
     // can deal with null context
     std::vector<std::unique_ptr<ast::Type>> parse_type_list(GalliumParser::GenericTypeListContext* ctx) {
       if (ctx != nullptr) {
@@ -598,11 +596,11 @@ namespace {
       auto real_width = std::int64_t{0};
       auto [_, err] = std::from_chars(width[1].data(), width[1].data() + width[1].size(), real_width);
 
-      if (err != std::errc()) {
-        return error_type(1, loc_from(ctx));
-      }
-
       if (as_string[0] == 'f') {
+        if (err != std::errc()) {
+          return error_type(1, loc_from(ctx), {std::make_error_code(err).message()});
+        }
+
         if (real_width != 32 && real_width != 64 && real_width != 128) {
           return error_type(1, loc_from(ctx));
         }
@@ -612,6 +610,18 @@ namespace {
                                                 : ast::FloatWidth::ieee_quadruple;
 
         return std::make_unique<ast::BuiltinFloatType>(loc_from(ctx), float_width);
+      }
+
+      if (err != std::errc() && width[1] != "size") {
+        return error_type(1,
+            loc_from(ctx),
+            {absl::StrCat("from integer parser: '", std::make_error_code(err).message()), "'"});
+      }
+
+      if (width[1] == "size") {
+        return std::make_unique<ast::BuiltinIntegralType>(loc_from(ctx),
+            as_string[0] == 'i',
+            ast::IntegerWidth::native_width);
       }
 
       if (real_width == 8 || real_width == 16 || real_width == 32 || real_width == 64 || real_width == 128) {
@@ -697,16 +707,29 @@ namespace {
       auto callee = parse_expr(ctx->expr(0));
 
       // if both of those aren't there, we can only be a field access expr
-      if (rest->callArgs == nullptr && rest->indexArgs == nullptr) {
+      if (rest->paren == nullptr && rest->bracket == nullptr) {
         return std::make_unique<ast::FieldAccessExpression>(loc_from(ctx),
             std::move(callee),
             rest->IDENTIFIER()->toString());
       }
 
+      if (rest->paren != nullptr && rest->callArgList() == nullptr) {
+        return std::make_unique<ast::CallExpression>(loc_from(ctx),
+            std::move(callee),
+            std::vector<std::unique_ptr<ast::Expression>>{},
+            std::vector<std::unique_ptr<ast::Type>>{});
+      }
+
+      if (rest->bracket != nullptr && rest->callArgList() == nullptr) {
+        return std::make_unique<ast::IndexExpression>(loc_from(ctx),
+            std::move(callee),
+            std::vector<std::unique_ptr<ast::Expression>>{});
+      }
+
       auto args = std::move(visitCallArgList(rest->callArgList()) //
                                 .as<std::vector<std::unique_ptr<ast::Expression>>>());
 
-      if (rest->callArgs != nullptr) {
+      if (rest->paren != nullptr) {
         return std::make_unique<ast::CallExpression>(loc_from(ctx),
             std::move(callee),
             std::move(args),
@@ -977,8 +1000,10 @@ namespace {
       diagnostics_.emplace_back(code, std::move(vec));
     }
 
-    std::unique_ptr<ast::Type> error_type(std::int64_t code, ast::SourceLoc loc) noexcept {
-      push_error(code, {{loc}});
+    std::unique_ptr<ast::Type> error_type(std::int64_t code,
+        ast::SourceLoc loc,
+        absl::Span<const std::string> notes = {}) noexcept {
+      push_error(code, {{loc}}, notes);
 
       return std::make_unique<ast::ErrorType>();
     }
@@ -997,28 +1022,39 @@ namespace {
       return std::make_unique<ast::ErrorDeclaration>();
     }
 
+    template <typename T> ast::SourceLoc loc_from(T* node) noexcept {
+      auto* firstToken = node->getStart();
+
+      return ast::SourceLoc(node->getText(), firstToken->getLine(), firstToken->getCharPositionInLine(), path_);
+    }
+
     std::unique_ptr<ast::Declaration> decl_ret_;
     std::unique_ptr<ast::Statement> stmt_ret_;
     std::unique_ptr<ast::Expression> expr_ret_;
     std::unique_ptr<ast::Type> type_ret_;
     std::vector<gal::Diagnostic> diagnostics_;
+    std::filesystem::path path_;
     std::string_view original_;
     bool exported_ = false;
   };
 } // namespace
 
 namespace gal {
-  std::optional<ast::Program> parse(std::string_view source_code) noexcept {
+  std::variant<ast::Program, std::vector<gal::Diagnostic>> parse(std::filesystem::path path,
+      std::string_view source_code) noexcept {
     auto input = antlr4::ANTLRInputStream(std::string{source_code});
+    auto error_handler = gal::ParserErrorListener{path};
     auto lex = GalliumLexer(&input);
+    lex.removeErrorListeners();
+    lex.addErrorListener(&error_handler);
     auto tokens = antlr4::CommonTokenStream(&lex);
     auto parser = GalliumParser(&tokens);
     auto* tree = parser.parse();
 
     if (parser.getNumberOfSyntaxErrors() != 0) {
-      return std::nullopt;
+      return error_handler.errors().value();
     }
 
-    return ASTGenerator().into_ast(source_code, tree);
+    return ASTGenerator().into_ast(source_code, std::move(path), tree);
   }
 } // namespace gal

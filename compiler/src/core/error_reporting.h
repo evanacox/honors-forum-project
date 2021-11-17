@@ -83,6 +83,7 @@ namespace gal {
   public:
     struct PointedOut {
       ast::SourceLoc loc;
+      DiagnosticType type = DiagnosticType::error;
       UnderlineType underline = UnderlineType::squiggly;
     };
 
@@ -132,11 +133,12 @@ namespace gal {
   /// Gets the info, description and explanation for a diagnostic code
   ///
   /// \param code The code to look up
-  /// \return Either info, or none if the code doesn't exist
-  std::optional<DiagnosticInfo> diagnostic_info(std::int64_t code) noexcept;
+  /// \return The info for the code
+  DiagnosticInfo diagnostic_info(std::int64_t code) noexcept;
 
   /// Reports a diagnostic and puts it to stdout
   ///
+  /// \param source The source code to base errors off of
   /// \param diagnostic The diagnostic to show
-  void report_diagnostic(const Diagnostic& diagnostic);
+  void report_diagnostic(std::string_view source, const Diagnostic& diagnostic) noexcept;
 } // namespace gal

@@ -290,7 +290,7 @@ ws
     ;
     
 parse
-    : ws? modularizedDeclaration+ EOF
+    : ws? modularizedDeclaration+ ws? EOF
     ;
 
 modularIdentifier
@@ -425,7 +425,7 @@ structMember
     ;
 
 typeDeclaration
-    : 'type' ws typeParamList? IDENTIFIER ws '=' type
+    : 'type' ws? typeParamList? ws? IDENTIFIER ws? '=' ws? type
     ;
 
 statement
@@ -452,8 +452,8 @@ callArgList
     ;
 
 restOfCall
-    : '(' callArgs=callArgList? ')'
-    | '[' indexArgs=callArgList? ']'
+    : paren='(' callArgList? ')'
+    | bracket='[' callArgList? ']'
     | '.' IDENTIFIER
     ;
 
@@ -521,12 +521,12 @@ primaryExpr
     : groupExpr
     | maybeGenericIdentifier
     | digitLiteral
+    | floatLiteral
     | STRING_LITERAL
     | CHAR_LITERAL
     | BOOL_LITERAL
     | NIL_LITERAL
     ;
-
 
 maybeGenericIdentifier
     : modularIdentifier typeParamList? ('::' memberGenericIdentifier)*
@@ -547,6 +547,10 @@ digitLiteral
     | decimal=DECIMAL_LITERAL
     ;
 
+floatLiteral
+    : DECIMAL_LITERAL? '.' DECIMAL_LITERAL
+    ;
+
 type
     : ref=(AMPERSTAND_MUT | AMPERSTAND)? WHITESPACE* typeWithoutRef
     ;
@@ -556,8 +560,8 @@ typeWithoutRef
     | ptr=(STAR_CONST | STAR_MUT) (WHITESPACE+) typeWithoutRef
     | BUILTIN_TYPE
     | userDefinedType=maybeGenericIdentifier
-    | fnType='fn' WHITESPACE* LT (WHITESPACE* genericTypeList WHITESPACE*)? LT WHITESPACE+ '->' WHITESPACE+ type
-    | dynType='dyn' ws modularIdentifier (LT WHITESPACE* genericTypeList WHITESPACE* GT)?
+    | fnType='fn' WHITESPACE* '(' (WHITESPACE* genericTypeList WHITESPACE*)? ')' WHITESPACE+ '->' WHITESPACE+ type
+    | 'dyn' ws dynType=maybeGenericIdentifier
     ;  
 
 genericTypeList

@@ -46,4 +46,8 @@ namespace gal {
   std::ostream& raw_outs() noexcept {
     return std::cout;
   }
+
+  std::ostream& raw_errs() noexcept {
+    return std::cerr;
+  }
 } // namespace gal
