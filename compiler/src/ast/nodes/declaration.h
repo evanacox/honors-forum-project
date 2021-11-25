@@ -31,6 +31,9 @@ namespace gal::ast {
     type_decl,
     method_decl,
     external_decl,
+    external_fn_decl,
+    constant_decl,
+    error_decl,
   };
 
   /// Abstract base type for all "declaration" AST nodes
@@ -97,16 +100,27 @@ namespace gal::ast {
 
       return visitor->take_result();
     }
-    /// Compares two types for equality
+
+    /// Compares two nodes for equality
     ///
-    /// \param other The other type node to compare
-    /// \return Whether the two types are equal
+    /// \param lhs The first node to compare
+    /// \param rhs The second node to compare
+    /// \return Whether the two are equal
     [[nodiscard]] friend bool operator==(const Declaration& lhs, const Declaration& rhs) noexcept {
-      if (lhs.type() == rhs.type()) {
-        return lhs.internal_equals(rhs);
+      if (lhs.is(DeclType::error_decl) || rhs.is(DeclType::error_decl)) {
+        return true;
       }
 
-      return false;
+      return lhs.type() == rhs.type() && lhs.internal_equals(rhs);
+    }
+
+    /// Compares two nodes for inequality
+    ///
+    /// \param lhs The first node to compare
+    /// \param rhs The second node to compare
+    /// \return Whether the two are unequal
+    [[nodiscard]] friend bool operator!=(const Declaration& lhs, const Declaration& rhs) noexcept {
+      return !(lhs == rhs);
     }
 
     /// Compares two type nodes for complete equality, including source location.
@@ -656,7 +670,7 @@ namespace gal::ast {
   class ErrorDeclaration final : public Declaration {
   public:
     /// Creates a fake declaration
-    explicit ErrorDeclaration() : Declaration(SourceLoc{"", 0, 0, {}}, false, DeclType::struct_decl) {}
+    explicit ErrorDeclaration() : Declaration(SourceLoc::nonexistent(), false, DeclType::error_decl) {}
 
   protected:
     void internal_accept(DeclarationVisitorBase*) final {
@@ -682,27 +696,60 @@ namespace gal::ast {
   class StructDeclaration final : public Declaration {
   public:
     /// Models a single field in a struct
-    struct Field {
-      std::string name;
-      std::unique_ptr<Type> type;
-
-      Field() = delete;
-
+    class Field {
+    public:
+      /// Creates a field
+      ///
+      /// \param name The name of the field
+      /// \param type The type of the field
       explicit Field(std::string name, std::unique_ptr<Type> type) noexcept
-          : name{std::move(name)},
-            type{std::move(type)} {}
+          : name_{std::move(name)},
+            type_{std::move(type)} {}
 
-      Field(const Field& other) noexcept : name{other.name}, type{other.type->clone()} {}
+      Field(const Field& other) noexcept : name_{other.name_}, type_{other.type_->clone()} {}
 
       Field(Field&&) = default;
 
-      Field& operator=(const Field&) = delete;
-
-      Field& operator=(Field&&) = delete;
-
+      /// Compares two fields for equality
+      ///
+      /// \param lhs The left field
+      /// \param rhs The right field
+      /// \return Whether they are equal
       [[nodiscard]] friend bool operator==(const Field& lhs, const Field& rhs) noexcept {
-        return lhs.name == rhs.name && *lhs.type == *rhs.type;
+        return lhs.name() == rhs.name() && lhs.type() == rhs.type();
       }
+
+      /// Gets the name of the field
+      ///
+      /// \return The name of the field
+      [[nodiscard]] std::string_view name() const noexcept {
+        return name_;
+      }
+
+      /// Gets the type of the field
+      ///
+      /// \return The type of the field
+      [[nodiscard]] const Type& type() const noexcept {
+        return *type_;
+      }
+
+      /// Gets the type of the field
+      ///
+      /// \return The type of the field
+      [[nodiscard]] Type* type_mut() noexcept {
+        return type_.get();
+      }
+
+      /// Gets the type of the field
+      ///
+      /// \return The type of the field
+      [[nodiscard]] std::unique_ptr<Type>* type_owner() noexcept {
+        return &type_;
+      }
+
+    private:
+      std::string name_;
+      std::unique_ptr<Type> type_;
     };
 
     /// Creates a struct declaration
@@ -857,6 +904,55 @@ namespace gal::ast {
     std::unique_ptr<Type> type_;
   };
 
+  /// Maps to an **external** function, i.e one declared within an `external` block
+  class ExternalFnDeclaration final : public Declaration {
+  public:
+    /// Creates an external fn decl
+    ///
+    /// \param loc The location of the fn
+    /// \param exported Whether or not the external block was exported
+    /// \param proto The prototype
+    explicit ExternalFnDeclaration(SourceLoc loc, bool exported, ast::FnPrototype proto) noexcept
+        : Declaration(std::move(loc), exported, DeclType::external_fn_decl),
+          proto_{std::move(proto)} {}
+
+    /// Gets the prototype of the fn
+    ///
+    /// \return The prototype
+    [[nodiscard]] const ast::FnPrototype& proto() const noexcept {
+      return proto_;
+    }
+
+    /// Gets the prototype of the fn
+    ///
+    /// \return The prototype
+    [[nodiscard]] ast::FnPrototype* proto_mut() noexcept {
+      return &proto_;
+    }
+
+  protected:
+    void internal_accept(DeclarationVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
+      auto& result = internal::debug_cast<const ast::ExternalFnDeclaration&>(other);
+
+      return proto() == result.proto();
+    }
+
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
+      return std::make_unique<ast::ExternalFnDeclaration>(loc(), exported(), proto());
+    }
+
+  private:
+    ast::FnPrototype proto_;
+  };
+
   /// Models a list of functions that are available over FFI
   class ExternalDeclaration final : public Declaration {
   public:
@@ -864,23 +960,25 @@ namespace gal::ast {
     ///
     /// \param loc The location in the source
     /// \param exported Whether or not it's exported
-    /// \param protos The list of fn prototypes
-    explicit ExternalDeclaration(SourceLoc loc, bool exported, std::vector<ast::FnPrototype> protos) noexcept
+    /// \param externals The list of external fns
+    explicit ExternalDeclaration(SourceLoc loc,
+        bool exported,
+        std::vector<std::unique_ptr<ast::ExternalFnDeclaration>> externals) noexcept
         : Declaration(std::move(loc), exported, DeclType::external_decl),
-          protos_{std::move(protos)} {}
+          externals_{std::move(externals)} {}
 
-    /// Gets the list of prototypes
+    /// Gets the list of external fns
     ///
-    /// \return The list of prototypes
-    [[nodiscard]] absl::Span<const ast::FnPrototype> prototypes() const noexcept {
-      return protos_;
+    /// \return The list of external fns
+    [[nodiscard]] absl::Span<const std::unique_ptr<ast::ExternalFnDeclaration>> externals() const noexcept {
+      return externals_;
     }
 
-    /// Gets the list of prototypes
+    /// Gets the list of external fns
     ///
-    /// \return The list of prototypes
-    [[nodiscard]] absl::Span<ast::FnPrototype> prototypes_mut() noexcept {
-      return absl::MakeSpan(protos_);
+    /// \return The list of external fns
+    [[nodiscard]] absl::Span<std::unique_ptr<ast::ExternalFnDeclaration>> externals_mut() noexcept {
+      return absl::MakeSpan(externals_);
     }
 
   protected:
@@ -895,14 +993,94 @@ namespace gal::ast {
     [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
       auto& result = internal::debug_cast<const ExternalDeclaration&>(other);
 
-      return protos_ == result.protos_;
+      return externals_ == result.externals_;
     }
 
     [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
-      return std::make_unique<ExternalDeclaration>(loc(), exported(), protos_);
+      return std::make_unique<ExternalDeclaration>(loc(), exported(), gal::clone_span(externals()));
     }
 
   private:
-    std::vector<ast::FnPrototype> protos_;
+    std::vector<std::unique_ptr<ast::ExternalFnDeclaration>> externals_;
+  };
+
+  /// Models a constant, i.e `const pi: f64 = 3.14159265`
+  class ConstantDeclaration final : public Declaration {
+  public:
+    /// Creates a constant declaration
+    ///
+    /// \param loc The location of the constant
+    /// \param exported Whether or not it was exported
+    /// \param name The name of the constant
+    /// \param hint The type of the constant
+    /// \param init The initializer for the constant
+    explicit ConstantDeclaration(ast::SourceLoc loc,
+        bool exported,
+        std::string name,
+        std::unique_ptr<Type> hint,
+        std::unique_ptr<Expression> init) noexcept
+        : Declaration(std::move(loc), exported, DeclType::constant_decl),
+          name_{std::move(name)},
+          hint_{std::move(hint)},
+          initializer_{std::move(init)} {}
+
+    /// Gets the name of the constant
+    ///
+    /// \return The name of the constant
+    [[nodiscard]] std::string_view name() const noexcept {
+      return name_;
+    }
+
+    /// Gets the type hint of the constant
+    ///
+    /// \return The type hint
+    [[nodiscard]] const Type& hint() const noexcept {
+      return *hint_;
+    }
+
+    /// Gets the type hint of the constant
+    ///
+    /// \return The type hint
+    [[nodiscard]] Type* hint_mut() noexcept {
+      return hint_.get();
+    }
+
+    /// Gets the initializer of the constant
+    ///
+    /// \return The initializer
+    [[nodiscard]] const Expression& initializer() const noexcept {
+      return *initializer_;
+    }
+
+    /// Gets the initializer of the constant
+    ///
+    /// \return The initializer
+    [[nodiscard]] Expression* initializer_mut() noexcept {
+      return initializer_.get();
+    }
+
+  protected:
+    void internal_accept(DeclarationVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
+      auto& result = internal::debug_cast<const ConstantDeclaration&>(other);
+
+      return name() == result.name() && hint() == result.hint() && initializer() == result.initializer();
+    }
+
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
+      return std::make_unique<ConstantDeclaration>(loc(), exported(), name_, hint().clone(), initializer().clone());
+    }
+
+  private:
+    std::string name_;
+    std::unique_ptr<Type> hint_;
+    std::unique_ptr<Expression> initializer_;
   };
 } // namespace gal::ast

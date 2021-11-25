@@ -19,6 +19,11 @@
 #include <variant>
 
 namespace gal::ast {
+  namespace internal {
+    // dirty hack because i'm lazy and don't want to clean up after i moved this fn
+    using gal::internal::debug_cast;
+  } // namespace internal
+
   enum class TypeType {
     reference,
     slice,
@@ -34,6 +39,8 @@ namespace gal::ast {
     fn_pointer,
     dyn_interface_unqualified,
     dyn_interface,
+    error,
+    nil_pointer,
   };
 
   /// Abstract base type for all "Type" AST nodes
@@ -94,16 +101,26 @@ namespace gal::ast {
       return visitor->take_result();
     }
 
-    /// Compares two types for equality
+    /// Compares two nodes for equality
     ///
-    /// \param other The other type node to compare
-    /// \return Whether the two types are equal
+    /// \param lhs The first node to compare
+    /// \param rhs The second node to compare
+    /// \return Whether the two are equal
     [[nodiscard]] friend bool operator==(const Type& lhs, const Type& rhs) noexcept {
-      if (lhs.type() == rhs.type()) {
-        return lhs.internal_equals(rhs);
+      if (lhs.is(TypeType::error) || rhs.is(TypeType::error)) {
+        return true;
       }
 
-      return false;
+      return lhs.type() == rhs.type() && lhs.internal_equals(rhs);
+    }
+
+    /// Compares two nodes for inequality
+    ///
+    /// \param lhs The first node to compare
+    /// \param rhs The second node to compare
+    /// \return Whether the two are unequal
+    [[nodiscard]] friend bool operator!=(const Type& lhs, const Type& rhs) noexcept {
+      return !(lhs == rhs);
     }
 
     /// Compares two type nodes for complete equality, including source location.
@@ -425,10 +442,11 @@ namespace gal::ast {
   /// \param width The width to get the width of
   /// \return The real integer width
   [[nodiscard]] constexpr std::optional<std::int32_t> width_of(IntegerWidth width) noexcept {
-    assert(width != IntegerWidth::native_width);
-    assert(static_cast<std::int32_t>(width) > 0);
-
-    return static_cast<std::int32_t>(width);
+    if (width == IntegerWidth::native_width) {
+      return std::nullopt;
+    } else {
+      return static_cast<std::int32_t>(width);
+    }
   }
 
   /// The width of a floating-point type
@@ -652,7 +670,7 @@ namespace gal::ast {
     /// \param generic_params Any generic parameters
     explicit UserDefinedType(SourceLoc loc,
         FullyQualifiedID id,
-        std::vector<std::unique_ptr<Type>> generic_params) noexcept
+        std::vector<std::unique_ptr<Type>> generic_params = {}) noexcept
         : Type(std::move(loc), TypeType::user_defined),
           name_{std::move(id)},
           generic_params_{std::move(generic_params)} {}
@@ -989,9 +1007,31 @@ namespace gal::ast {
     }
   };
 
+  class NilPointerType final : public Type {
+  public:
+    explicit NilPointerType(SourceLoc loc) : Type(std::move(loc), TypeType::nil_pointer) {}
+
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Type&) const noexcept final {
+      return true;
+    }
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
+      return std::make_unique<NilPointerType>(loc());
+    }
+  };
+
   class ErrorType final : public Type {
   public:
-    explicit ErrorType() : Type(SourceLoc{"", 0, 0, {}}, TypeType::dyn_interface_unqualified) {}
+    explicit ErrorType() : Type(SourceLoc::nonexistent(), TypeType::error) {}
 
   protected:
     void internal_accept(TypeVisitorBase*) final {
@@ -1002,9 +1042,7 @@ namespace gal::ast {
       assert(false);
     }
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      (void)internal::debug_cast<const ErrorType&>(other);
-
+    [[nodiscard]] bool internal_equals(const Type&) const noexcept final {
       return true;
     }
 

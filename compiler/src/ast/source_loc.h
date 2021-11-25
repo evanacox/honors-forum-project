@@ -30,8 +30,14 @@ namespace gal::ast {
         : raw_{std::move(raw)},
           line_{line},
           col_{column + 1}, // ANTLR gives you 0-based columns, editors do 1-based
-          file_{std::move(file)} {
-      //
+          file_{std::move(file)} {}
+
+    /// Explicitly returns a nonexistent and **meaningless** source
+    /// location without allowing default construction
+    ///
+    /// \return A meaningless source location
+    static SourceLoc nonexistent() noexcept {
+      return SourceLoc{"", 0, 0, ""};
     }
 
     /// The full raw text of the node

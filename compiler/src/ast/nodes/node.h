@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "../../utility/misc.h"
 #include "../source_loc.h"
 #include "absl/types/span.h"
 
@@ -36,17 +37,28 @@ namespace gal::ast {
     SourceLoc loc_;
   };
 
-  namespace internal {
-    /// Cast that does correctness checking in debug mode
+  /// Mixin type for nodes that need to be name-mangled
+  class Mangled {
+  public:
+    /// Gets the mangled name of a functionf
     ///
-    /// \param entity The entity to cast
-    /// \return The cast result
-    template <typename T, typename U> [[nodiscard]] constexpr T& debug_cast(U& entity) noexcept {
-      assert(dynamic_cast<std::remove_reference_t<T>*>(&entity) != nullptr);
-
-      return static_cast<T&>(entity);
+    /// \return The mangled name of the function
+    [[nodiscard]] std::string_view mangled_name() const noexcept {
+      return mangled_;
     }
 
+    /// Sets the mangled name of a function
+    ///
+    /// \param mangled_name The mangled name of the function
+    void set_mangled(std::string mangled_name) noexcept {
+      mangled_ = std::move(mangled_name);
+    }
+
+  private:
+    std::string mangled_;
+  };
+
+  namespace internal {
     struct GenericArgsCmp {
       template <typename T>
       [[nodiscard]] constexpr bool operator()(absl::Span<const std::unique_ptr<T>> lhs,

@@ -9,6 +9,7 @@
 //======---------------------------------------------------------------======//
 
 #include "./driver.h"
+#include "./core/typechecker.h"
 #include "./syntax/parser.h"
 #include "./utility/flags.h"
 #include "./utility/log.h"
@@ -33,30 +34,38 @@ namespace {
 
     return file_data;
   }
+
+  void report_errors(std::string_view file, absl::Span<const gal::Diagnostic> diagnostics) noexcept {
+    for (auto& diagnostic : diagnostics) {
+      gal::report_diagnostic(file, diagnostic);
+    }
+  }
 } // namespace
 
 namespace gal {
-  Driver::Driver() noexcept = default;
-
   int Driver::start(absl::Span<std::string_view> files) noexcept {
     for (auto& file : files) {
-      auto data = read_file(fs::absolute(file));
-
-      gal::outs() << std::quoted(data);
-
-      auto result = gal::parse(file, data);
-
-      gal::outs() << "was able to parse `" << file << "`: " << std::holds_alternative<ast::Program>(result);
-
-      if (auto* program = std::get_if<ast::Program>(&result)) {
-        gal::outs() << gal::pretty_print(*program);
-      } else {
-        for (auto& err : std::get<std::vector<gal::Diagnostic>>(result)) {
-          gal::report_diagnostic(data, err);
-        }
+      if (auto program = parse_file(file)) {
+        gal::raw_outs() << gal::pretty_print(**program) << '\n';
+        gal::type_check(*program);
       }
     }
 
     return 0;
+  }
+
+  std::optional<ast::Program*> Driver::parse_file(std::string_view path) noexcept {
+    auto data = read_file(fs::absolute(path));
+    auto result = gal::parse(path, data);
+
+    if (auto* program = std::get_if<ast::Program>(&result)) {
+      programs_.push_back(std::move(*program));
+
+      return &programs_.back();
+    } else {
+      report_errors(data, std::get<std::vector<gal::Diagnostic>>(result));
+
+      return std::nullopt;
+    }
   }
 } // namespace gal

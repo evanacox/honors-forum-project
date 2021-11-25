@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "../ast/nodes/node.h"
 #include "../ast/source_loc.h"
 #include <cassert>
 #include <cstdint>
@@ -64,10 +65,6 @@ namespace gal {
     explicit SingleMessage(std::string message, DiagnosticType type, std::int64_t code = -1) noexcept;
 
   protected:
-    /// Builds the diagnostic message. May be multiple lines, will never end with a newline
-    ///
-    /// \param padding Padding to insert before each line of the message
-    /// \return The message
     [[nodiscard]] std::string internal_build(std::string_view, std::string_view padding) const noexcept final;
 
   private:
@@ -83,6 +80,7 @@ namespace gal {
   public:
     struct PointedOut {
       ast::SourceLoc loc;
+      std::string message = {};
       DiagnosticType type = DiagnosticType::error;
       UnderlineType underline = UnderlineType::squiggly;
     };
@@ -93,19 +91,15 @@ namespace gal {
     explicit UnderlineList(std::vector<PointedOut> locs) noexcept;
 
   protected:
-    /// Builds the underline list, returning a string holding each underline
-    ///
-    /// \param source The source code that all of the source locations given in the ctor refer to
-    /// \param padding A padding string to put before each line
-    /// \return A ready-to-display string
     [[nodiscard]] std::string internal_build(std::string_view source, std::string_view padding) const noexcept final;
 
   private:
     std::vector<PointedOut> list_;
+    std::optional<ast::SourceLoc> important_loc_;
   };
 
   /// A real diagnostic message that is ready to print
-  class Diagnostic {
+  class Diagnostic final {
   public:
     /// Initializes the diagnostic
     ///
@@ -124,9 +118,16 @@ namespace gal {
     std::vector<std::unique_ptr<DiagnosticPart>> parts_;
   };
 
+  /// Holds the key information about a diagnostic code
+  /// that error reporting needs to be able to display
   struct DiagnosticInfo {
+    /// A single-line short message explaining the diagnostic
     std::string_view one_liner;
+
+    /// A longer-form explanation of the diagnostic, suitable for a note
     std::string_view explanation;
+
+    /// The type of the diagnostic, i.e note/warning/error
     DiagnosticType diagnostic_type;
   };
 
@@ -141,4 +142,54 @@ namespace gal {
   /// \param source The source code to base errors off of
   /// \param diagnostic The diagnostic to show
   void report_diagnostic(std::string_view source, const Diagnostic& diagnostic) noexcept;
+
+  /// Points out a bit of source code
+  ///
+  /// \param node The node to point out
+  /// \param type The diagnostic type of the underline
+  /// \param inline_message A message to show next to the underline
+  /// \return A underline diagnostic part
+  [[nodiscard]] std::unique_ptr<gal::DiagnosticPart> point_out(const ast::Node& node,
+      gal::DiagnosticType type,
+      std::string inline_message = {}) noexcept;
+
+  /// Points out a specific source location
+  ///
+  /// \param loc The location to point out
+  /// \param type The diagnostic type of the underline
+  /// \param inline_message A message to show next to the underline
+  /// \return A underline diagnostic part
+  [[nodiscard]] std::unique_ptr<gal::DiagnosticPart> point_out(const ast::SourceLoc& loc,
+      gal::DiagnosticType type,
+      std::string inline_message = {}) noexcept;
+
+  /// Points out a bit of source code
+  ///
+  /// \param node The node to point out
+  /// \param type The type of point-out for it to be
+  /// \param inline_message A message to put with the underline
+  /// \return A point-out
+  [[nodiscard]] gal::UnderlineList::PointedOut point_out_part(const ast::Node& node,
+      gal::DiagnosticType type,
+      std::string inline_message = {}) noexcept;
+
+  /// Points out a bit of source code
+  ///
+  /// \param loc The location to point out
+  /// \param type The type of point-out for it to be
+  /// \param inline_message A message to put with the underline
+  /// \return A point-out
+  [[nodiscard]] gal::UnderlineList::PointedOut point_out_part(const ast::SourceLoc& loc,
+      gal::DiagnosticType type,
+      std::string inline_message = {}) noexcept;
+
+  ///  Creates an UnderlineList from a list of `PointedOut`s
+  ///
+  /// \param args The list of `PointedOut`s
+  /// \return An `UnderlineList`
+  template <typename... Args> std::unique_ptr<gal::DiagnosticPart> point_out_list(Args&&... args) noexcept {
+    auto list = gal::into_list(std::forward<Args>(args)...);
+
+    return std::make_unique<gal::UnderlineList>(std::move(list));
+  }
 } // namespace gal

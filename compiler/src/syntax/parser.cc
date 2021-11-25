@@ -97,7 +97,7 @@ namespace {
         std::vector<ast::FullyQualifiedID> ids;
 
         for (auto* id : list->identifierList()->IDENTIFIER()) {
-          ids.emplace_back(module_id, id->toString());
+          ids.emplace_back(module_id.to_string(), id->toString());
         }
 
         RETURN(std::make_unique<ast::ImportFromDeclaration>(loc_from(ctx), exported_, std::move(ids)));
@@ -121,13 +121,26 @@ namespace {
       return visitChildren(ctx);
     }
 
+    antlrcpp::Any visitConstDeclaration(GalliumParser::ConstDeclarationContext* ctx) final {
+      auto name = ctx->IDENTIFIER()->getText();
+      auto hint = parse_type(ctx->type());
+      visitConstantExpr(ctx->constantExpr());
+      auto init = return_value<ast::Expression>();
+
+      RETURN(std::make_unique<ast::ConstantDeclaration>(loc_from(ctx),
+          exported_,
+          std::move(name),
+          std::move(hint),
+          std::move(init)));
+    }
+
     antlrcpp::Any visitExternalDeclaration(GalliumParser::ExternalDeclarationContext* ctx) final {
-      auto prototypes = std::vector<ast::FnPrototype>{};
+      auto prototypes = std::vector<std::unique_ptr<ast::ExternalFnDeclaration>>{};
 
       for (auto* fn : ctx->fnPrototype()) {
         auto proto = std::move(visitFnPrototype(fn).as<ast::FnPrototype>());
 
-        prototypes.push_back(std::move(proto));
+        prototypes.push_back(std::make_unique<ast::ExternalFnDeclaration>(loc_from(fn), exported_, std::move(proto)));
       }
 
       RETURN(std::make_unique<ast::ExternalDeclaration>(loc_from(ctx), exported_, std::move(prototypes)));
@@ -438,7 +451,7 @@ namespace {
       } else if (ctx->CHAR_LITERAL() != nullptr) {
         RETURN(parse_char_lit(ctx, ctx->CHAR_LITERAL()));
       } else if (ctx->BOOL_LITERAL() != nullptr) {
-        RETURN(std::make_unique<ast::BoolLiteralExpression>(loc_from(ctx), ctx->BOOL_LITERAL()->toString() == "true"));
+        RETURN(std::make_unique<ast::BoolLiteralExpression>(loc_from(ctx), ctx->BOOL_LITERAL()->getText() == "true"));
       } else if (ctx->NIL_LITERAL() != nullptr) {
         RETURN(std::make_unique<ast::NilLiteralExpression>(loc_from(ctx)));
       } else if (ctx->maybeGenericIdentifier() != nullptr) {
@@ -447,6 +460,45 @@ namespace {
             std::move(id),
             std::vector<std::unique_ptr<ast::Type>>{},
             std::nullopt));
+      } else {
+        return visitChildren(ctx);
+      }
+    }
+
+    antlrcpp::Any visitStructInitExpr(GalliumParser::StructInitExprContext* ctx) final {
+      auto type = parse_type(ctx->typeWithoutRef());
+      auto list =
+          std::move(visitStructInitMemberList(ctx->structInitMemberList()).as<std::vector<ast::FieldInitializer>>());
+
+      RETURN(std::make_unique<ast::StructExpression>(loc_from(ctx), std::move(type), std::move(list)));
+    }
+
+    antlrcpp::Any visitStructInitMemberList(GalliumParser::StructInitMemberListContext* ctx) final {
+      auto result = std::vector<ast::FieldInitializer>{};
+
+      for (auto* init_member : ctx->structInitMember()) {
+        result.push_back(std::move(visitStructInitMember(init_member).as<ast::FieldInitializer>()));
+      }
+
+      return result;
+    }
+
+    antlrcpp::Any visitStructInitMember(GalliumParser::StructInitMemberContext* ctx) final {
+      auto name = ctx->IDENTIFIER()->getText();
+      auto expr = parse_expr(ctx->expr());
+
+      return ast::FieldInitializer(loc_from(ctx), std::move(name), std::move(expr));
+    }
+
+    antlrcpp::Any visitConstantExpr(GalliumParser::ConstantExprContext* ctx) final {
+      if (ctx->STRING_LITERAL() != nullptr) {
+        RETURN(parse_string_lit(ctx, ctx->STRING_LITERAL()));
+      } else if (ctx->CHAR_LITERAL() != nullptr) {
+        RETURN(parse_char_lit(ctx, ctx->CHAR_LITERAL()));
+      } else if (ctx->BOOL_LITERAL() != nullptr) {
+        RETURN(std::make_unique<ast::BoolLiteralExpression>(loc_from(ctx), ctx->BOOL_LITERAL()->getText() == "true"));
+      } else if (ctx->NIL_LITERAL() != nullptr) {
+        RETURN(std::make_unique<ast::NilLiteralExpression>(loc_from(ctx)));
       } else {
         return visitChildren(ctx);
       }
@@ -488,19 +540,14 @@ namespace {
       auto as_string = (literals.size() == 2) ? absl::StrCat(literals[0]->toString(), ".", literals[1]->toString())
                                               : absl::StrCat("0.", literals[0]->toString());
 
-      // from_chars on libstdc++ is screwy for floating-point, works on linux but not some
-      // distributions of mingw-w64.
-      //
-      // since abseil provides it, may as well use that one for portability's sake (with integers
-      // it doesn't really matter, but for floating-point ones we want reproducibility across standard libs)
-      double val;
-      auto [_, e] = absl::from_chars(as_string.data(), as_string.data() + as_string.size(), val);
+      auto result = gal::from_digits(as_string, std::chars_format::general);
 
-      if (e != std::errc()) {
-        RETURN(error_expr(4, loc_from(ctx), {std::make_error_code(e).message()}));
+      if (auto* error = std::get_if<std::error_code>(&result)) {
+        RETURN(error_expr(4, loc_from(ctx), {error->message()}));
       }
 
-      RETURN(std::make_unique<ast::FloatLiteralExpression>(loc_from(ctx), val, as_string.length()));
+      RETURN(
+          std::make_unique<ast::FloatLiteralExpression>(loc_from(ctx), std::get<double>(result), as_string.length()));
     }
 
     antlrcpp::Any visitMaybeGenericIdentifier(GalliumParser::MaybeGenericIdentifierContext* ctx) final {
@@ -592,15 +639,25 @@ namespace {
       assert(as_string[0] == 'i' || as_string[0] == 'u' || as_string[0] == 'f');
 
       // split into ['', width]
-      std::vector<std::string_view> width = absl::StrSplit(as_string, as_string[0]);
-      auto real_width = std::int64_t{0};
-      auto [_, err] = std::from_chars(width[1].data(), width[1].data() + width[1].size(), real_width);
+      auto [prefix, rest] = std::pair{as_string.substr(0, 1), as_string.substr(1)};
+
+      if (rest == "size") {
+        return std::make_unique<ast::BuiltinIntegralType>(loc_from(ctx),
+            as_string[0] == 'i',
+            ast::IntegerWidth::native_width);
+      }
+
+      auto result = gal::from_digits(rest, 10);
+
+      if (auto* error = std::get_if<std::error_code>(&result)) {
+        return error_type(1,
+            loc_from(ctx),
+            {absl::StrCat("error from integer parser: '", absl::StripAsciiWhitespace(error->message()), "'")});
+      }
+
+      auto real_width = std::get<std::uint64_t>(result);
 
       if (as_string[0] == 'f') {
-        if (err != std::errc()) {
-          return error_type(1, loc_from(ctx), {std::make_error_code(err).message()});
-        }
-
         if (real_width != 32 && real_width != 64 && real_width != 128) {
           return error_type(1, loc_from(ctx));
         }
@@ -610,18 +667,6 @@ namespace {
                                                 : ast::FloatWidth::ieee_quadruple;
 
         return std::make_unique<ast::BuiltinFloatType>(loc_from(ctx), float_width);
-      }
-
-      if (err != std::errc() && width[1] != "size") {
-        return error_type(1,
-            loc_from(ctx),
-            {absl::StrCat("from integer parser: '", std::make_error_code(err).message()), "'"});
-      }
-
-      if (width[1] == "size") {
-        return std::make_unique<ast::BuiltinIntegralType>(loc_from(ctx),
-            as_string[0] == 'i',
-            ast::IntegerWidth::native_width);
       }
 
       if (real_width == 8 || real_width == 16 || real_width == 32 || real_width == 64 || real_width == 128) {
@@ -838,30 +883,32 @@ namespace {
     template <typename ResultType>
     static std::variant<ResultType, std::string> parse_value(std::string_view digits,
         int base,
-        const char* gallium_type) noexcept {
+        std::string_view gallium_type) noexcept {
       static_assert(std::is_unsigned_v<ResultType>);
-      auto value = std::uint64_t{0};
-      auto [_, ec] = std::from_chars(digits.data(), digits.data() + digits.size(), value, base);
 
-      if (ec != std::errc()) {
-        return std::make_error_code(ec).message();
+      auto result = gal::from_digits(digits, base);
+
+      if (auto* error = std::get_if<std::error_code>(&result)) {
+        return error->message();
+      }
+
+      auto value = std::get<std::uint64_t>(result);
+
+      if (auto converted = gal::try_narrow<ResultType>(value)) {
+        return *converted;
       }
 
       // while we could make `from_chars` do out-of-range checking,
       // we want a nice error message in the normal case of "slightly out of range"
       // it will still do out-of-range checking but will give a much worse
       // error message when it's out of bounds for 64-bit
-      if (value > std::numeric_limits<ResultType>::max()) {
-        return absl::StrCat("value '",
-            digits,
-            "' parse to `",
-            value,
-            "` which is outside the range for a `",
-            gallium_type,
-            "` literal");
-      }
-
-      return static_cast<ResultType>(value);
+      return absl::StrCat("value '",
+          digits,
+          "' parse to `",
+          value,
+          "` which is outside the range for a `",
+          gallium_type,
+          "` literal");
     }
 
     static std::variant<std::uint8_t, std::string> parse_single_char(std::string_view full) noexcept {
@@ -1049,6 +1096,8 @@ namespace gal {
     lex.addErrorListener(&error_handler);
     auto tokens = antlr4::CommonTokenStream(&lex);
     auto parser = GalliumParser(&tokens);
+    parser.removeErrorListeners();
+    parser.addErrorListener(&error_handler);
     auto* tree = parser.parse();
 
     if (parser.getNumberOfSyntaxErrors() != 0) {

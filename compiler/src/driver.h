@@ -8,25 +8,30 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
+#include "./ast/program.h"
 #include "absl/types/span.h"
+#include <optional>
 #include <string_view>
+#include <vector>
 
 namespace gal {
-  ///
-  ///
-  ///
+  /// "Drives" the compilation process. Gives options/settings to other modules,
+  /// calls other code in the correct order, etc.
   class Driver {
   public:
+    /// Runs the compiler and returns an exit code for the program
     ///
-    ///
-    ///
-    explicit Driver() noexcept;
+    /// \param files The file options given to the program
+    [[nodiscard]] int start(absl::Span<std::string_view> files) noexcept;
 
+    /// Parses a file, if it parses successfully it is added to `programs_`
+    /// and a pointer is returned. Otherwise, nullopt is returned.
     ///
-    ///
-    ///
-    int start(absl::Span<std::string_view> files) noexcept;
+    /// \param path The path to read
+    /// \return A possible program
+    [[nodiscard]] std::optional<ast::Program*> parse_file(std::string_view path) noexcept;
 
   private:
+    std::vector<ast::Program> programs_;
   };
 } // namespace gal

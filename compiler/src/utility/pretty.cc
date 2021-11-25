@@ -61,10 +61,11 @@ namespace {
 
     void visit(const ast::StructDeclaration& node) final {
       print_initial(colors::bold_red("struct decl"));
+      print_member("name: ", id_str(node.name()));
       print_last_list("members: ", node.fields(), [this](auto& field) {
-        print_initial("field");
-        print_member("name: ", field.name);
-        accept_last_member("type: ", *field.type);
+        print_initial(colors::yellow("field"));
+        print_member("name: ", id_str(field.name()));
+        accept_last_member("type: ", field.type());
       });
     }
 
@@ -84,12 +85,23 @@ namespace {
       print_initial("ast::MethodDeclaration");
     }
 
+    void visit(const ast::ExternalFnDeclaration& node) final {
+      print_initial(decl_str("external fn"));
+      print_proto(node.proto(), true);
+    }
+
     void visit(const ast::ExternalDeclaration& node) final {
       print_initial(decl_str("external"));
-      print_last_list("functions: ", node.prototypes(), [this](auto& proto) {
-        print_initial(colors::red("ffi fn"));
-        print_proto(proto, true);
+      print_last_list("functions: ", node.externals(), [this](auto& fn) {
+        accept_initial(*fn);
       });
+    }
+
+    void visit(const ast::ConstantDeclaration& node) final {
+      print_initial(decl_str("constant"));
+      print_member("name: ", id_str(node.name()));
+      accept_member("type hint: ", node.hint());
+      accept_last_member("initializer: ", node.initializer());
     }
 
     void visit(const ast::BindingStatement& node) final {
@@ -128,12 +140,12 @@ namespace {
 
     void visit(const ast::IntegerLiteralExpression& node) final {
       print_expr("integer literal", node);
-      print_last_member("value: ", lit_str(node.value(), std::numeric_limits<std::uint64_t>::digits10));
+      print_last_member("value: ", lit_str(node.value()));
     }
 
     void visit(const ast::FloatLiteralExpression& node) final {
       print_expr("float literal", node);
-      print_last_member("value: ", lit_str(node.value(), node.str_len()));
+      print_last_member("value: ", lit_str(node.value()));
     }
 
     void visit(const ast::BoolLiteralExpression& node) final {
@@ -143,7 +155,7 @@ namespace {
 
     void visit(const ast::CharLiteralExpression& node) final {
       print_expr("char literal", node);
-      print_member("byte value: ", lit_str(node.value(), std::numeric_limits<std::uint8_t>::digits10));
+      print_member("byte value: ", lit_str(node.value()));
       print_last_member("value as `char`: ", lit_str(static_cast<char>(node.value())));
     }
 
@@ -154,8 +166,8 @@ namespace {
     void visit(const ast::UnqualifiedIdentifierExpression& node) final {
       print_expr("unqual-id", node);
       print_member("module prefix: ",
-          node.id().prefix().has_value() && !node.id().prefix()->parts().empty()
-              ? id_str(node.id().prefix()->to_string())
+          node.id().prefix().has_value() && !(*node.id().prefix())->parts().empty()
+              ? id_str((*node.id().prefix())->to_string())
               : "n/a");
       print_last_member("id: ", id_str(node.id().name()));
     }
@@ -164,6 +176,16 @@ namespace {
       print_expr("id", node);
       print_member("module prefix: ", id_str(node.id().to_string()));
       print_last_member("id: ", id_str(node.id().name()));
+    }
+
+    void visit(const ast::StructExpression& node) final {
+      print_expr("struct-init", node);
+      accept_member("struct type: ", node.struct_type());
+      print_last_list("initializers: ", node.fields(), [this](auto& field) {
+        print_initial(colors::yellow("field"));
+        print_member("name: ", id_str(field.name()));
+        accept_last_member("initializer: ", field.init());
+      });
     }
 
     void visit(const ast::CallExpression& node) final {
@@ -309,68 +331,73 @@ namespace {
       auto rest = node.referenced().accept(this);
 
       if (node.mut()) {
-        emplace(absl::StrCat(colors::magenta("&mut"), " (", rest, ")"));
+        return_value(absl::StrCat(colors::magenta("&mut"), " (", rest, ")"));
       } else {
-        emplace(absl::StrCat(colors::magenta("&"), " (", rest, ")"));
+        return_value(absl::StrCat(colors::magenta("&"), " (", rest, ")"));
       }
     }
 
     void visit(const ast::SliceType& node) final {
       auto rest = node.sliced().accept(this);
 
-      emplace(absl::StrCat(colors::red("["), "(", rest, ")", colors::red("]")));
+      return_value(absl::StrCat(colors::red("["), "(", rest, ")", colors::red("]")));
     }
 
     void visit(const ast::PointerType& node) final {
       auto rest = node.pointed().accept(this);
 
       if (node.mut()) {
-        emplace(absl::StrCat(colors::yellow("*mut"), " (", rest, ")"));
+        return_value(absl::StrCat(colors::yellow("*mut"), " (", rest, ")"));
       } else {
-        emplace(absl::StrCat(colors::yellow("*const"), " (", rest, ")"));
+        return_value(absl::StrCat(colors::yellow("*const"), " (", rest, ")"));
       }
     }
 
     void visit(const ast::BuiltinIntegralType& node) final {
+      auto builder = absl::StrCat(colors::code_blue, node.has_sign() ? "i" : "u");
+
       if (auto width = ast::width_of(node.width())) {
-        emplace(absl::StrCat(colors::code_blue, node.has_sign() ? "i" : "u", *width, colors::code_reset));
+        absl::StrAppend(&builder, *width);
       } else {
-        emplace(absl::StrCat(colors::code_blue, node.has_sign() ? "isize" : "usize", colors::code_reset));
+        builder += "size";
       }
+
+      builder += colors::code_reset;
+      return_value(std::move(builder));
     }
 
     void visit(const ast::BuiltinFloatType& node) final {
       using ast::FloatWidth;
 
       switch (node.width()) {
-        case FloatWidth::ieee_single: emplace(colors::magenta("f32")); break;
-        case FloatWidth::ieee_double: emplace(colors::magenta("f64")); break;
-        case FloatWidth::ieee_quadruple: emplace(colors::magenta("f128")); break;
+        case FloatWidth::ieee_single: return_value(colors::magenta("f32")); break;
+        case FloatWidth::ieee_double: return_value(colors::magenta("f64")); break;
+        case FloatWidth::ieee_quadruple: return_value(colors::magenta("f128")); break;
         default:
           assert(false);
-          emplace("");
+          return_value("");
           break;
       }
     }
 
     void visit(const ast::BuiltinByteType&) final {
-      emplace(colors::red("byte"));
+      return_value(colors::red("byte"));
     }
 
     void visit(const ast::BuiltinBoolType&) final {
-      emplace(colors::red("bool"));
+      return_value(colors::red("bool"));
     }
 
     void visit(const ast::BuiltinCharType&) final {
-      emplace(colors::red("char"));
+      return_value(colors::red("char"));
     }
 
     void visit(const ast::UnqualifiedUserDefinedType& node) final {
-      emplace(absl::StrCat(colors::code_green, "unqualified `", node.id().to_string(), "`", colors::code_reset));
+      return_value(absl::StrCat(colors::code_green, "unqualified `", node.id().to_string(), "`", colors::code_reset));
     }
 
     void visit(const ast::UserDefinedType& node) final {
-      emplace(absl::StrCat(colors::code_green, "`", node.id().to_string(), "`", colors::code_reset));
+      return_value(absl::StrCat(colors::code_green, "`", node.id().to_string(), "`", colors::code_reset));
     }
 
     void visit(const ast::FnPointerType& node) final {
@@ -378,7 +405,7 @@ namespace {
         absl::StrAppend(out, "(", ptr->accept(this), ")");
       });
 
-      emplace(absl::StrCat(colors::red("fn"),
+      return_value(absl::StrCat(colors::red("fn"),
           "(",
           args,
           ") ",
@@ -389,7 +416,7 @@ namespace {
     }
 
     void visit(const ast::UnqualifiedDynInterfaceType& node) final {
-      emplace(absl::StrCat(colors::code_green,
+      return_value(absl::StrCat(colors::code_green,
           "unqualified ",
           colors::magenta("dyn"),
           " `",
@@ -399,7 +426,7 @@ namespace {
     }
 
     void visit(const ast::DynInterfaceType& node) final {
-      emplace(absl::StrCat(colors::code_green,
+      return_value(absl::StrCat(colors::code_green,
           colors::magenta("dyn"),
           " `",
           node.id().to_string(),
@@ -408,7 +435,11 @@ namespace {
     }
 
     void visit(const ast::VoidType&) final {
-      emplace(colors::bold_black("void"));
+      return_value(colors::bold_black("void"));
+    }
+
+    void visit(const ast::NilPointerType&) final {
+      return_value(colors::bold_magenta("nil-ptr"));
     }
 
   private:
@@ -418,7 +449,7 @@ namespace {
       switch (message_type) {
         case PaddingMessage::spaces: return "   ";
         case PaddingMessage::bar_spaces: return "│  ";
-        default: return "   ";
+        default: assert(false); return "   ";
       }
     }
 
@@ -463,7 +494,7 @@ namespace {
       return colors::green(name);
     }
 
-    template <typename T> static std::string lit_str(T lit, std::size_t str_len = 0) noexcept {
+    template <typename T> static std::string lit_str(T lit) noexcept {
       if constexpr (std::is_same_v<T, bool>) {
         return colors::blue(lit ? "true" : "false");
       } else if constexpr (std::is_same_v<T, char>) {
@@ -471,9 +502,7 @@ namespace {
       } else if constexpr (std::is_same_v<T, std::string_view>) {
         return colors::blue(lit);
       } else {
-        auto result = std::string(str_len, ' ');
-        std::to_chars(result.data(), result.data() + result.size(), lit);
-        return colors::blue(result);
+        return colors::blue(gal::to_digits(lit));
       }
     }
 
@@ -606,6 +635,93 @@ namespace {
     std::string padding_;
     std::string final_;
   };
+
+  class TypeStringifier final : public ast::ConstTypeVisitor<std::string> {
+  public:
+    void visit(const ast::ReferenceType& type) final {
+      if (type.mut()) {
+        return_value(absl::StrCat("&mut ", type.referenced().accept(this)));
+      } else {
+        return_value(absl::StrCat("&", type.referenced().accept(this)));
+      }
+    }
+
+    void visit(const ast::SliceType& type) final {
+      return_value(absl::StrCat("[", type.sliced().accept(this), "]"));
+    }
+
+    void visit(const ast::PointerType& type) final {
+      if (type.mut()) {
+        return_value(absl::StrCat("*mut ", type.pointed().accept(this)));
+      } else {
+        return_value(absl::StrCat("*const ", type.pointed().accept(this)));
+      }
+    }
+
+    void visit(const ast::BuiltinIntegralType& type) final {
+      if (auto width = ast::width_of(type.width())) {
+        return_value(absl::StrCat(type.has_sign() ? "i" : "u", *width));
+      } else {
+        return_value(absl::StrCat(type.has_sign() ? "i" : "u", "size"));
+      }
+    }
+
+    void visit(const ast::BuiltinFloatType& type) final {
+      switch (type.width()) {
+        case ast::FloatWidth::ieee_single: return_value("f32"); break;
+        case ast::FloatWidth::ieee_double: return_value("f64"); break;
+        case ast::FloatWidth::ieee_quadruple: return_value("f128"); break;
+        default:
+          assert("false");
+          return_value("");
+          break;
+      }
+    }
+
+    void visit(const ast::BuiltinByteType&) final {
+      return_value("byte");
+    }
+
+    void visit(const ast::BuiltinBoolType&) final {
+      return_value("bool");
+    }
+
+    void visit(const ast::BuiltinCharType&) final {
+      return_value("char");
+    }
+
+    void visit(const ast::UnqualifiedUserDefinedType& type) final {
+      return_value(type.id().to_string());
+    }
+
+    void visit(const ast::UserDefinedType& type) final {
+      return_value(type.id().to_string());
+    }
+
+    void visit(const ast::FnPointerType& type) final {
+      auto args = absl::StrJoin(type.args(), ", ", [this](auto* s, auto& arg) {
+        s->append(arg->accept(this));
+      });
+
+      return_value(absl::StrCat("fn (", args, ") -> ", type.return_type().accept(this)));
+    }
+
+    void visit(const ast::UnqualifiedDynInterfaceType& type) final {
+      return_value(absl::StrCat("dyn ", type.id().to_string()));
+    }
+
+    void visit(const ast::DynInterfaceType& type) final {
+      return_value(absl::StrCat("dyn ", type.id().to_string()));
+    }
+
+    void visit(const ast::VoidType&) final {
+      return_value("void");
+    }
+
+    void visit(const ast::NilPointerType&) final {
+      return_value("nil-ptr");
+    }
+  };
 } // namespace
 
 std::string_view gal::unary_op_string(ast::UnaryOp op) noexcept {
@@ -658,4 +774,10 @@ std::string_view gal::binary_op_string(ast::BinaryOp op) noexcept {
 
 std::string gal::pretty_print(const ast::Program& program) noexcept {
   return ASTPrinter().print(program);
+}
+
+std::string gal::to_string(const ast::Type& type) noexcept {
+  auto printer = TypeStringifier{};
+
+  return type.accept(&printer);
 }

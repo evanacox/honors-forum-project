@@ -80,16 +80,22 @@ namespace gal::ast {
       return visitor->take_result();
     }
 
-    /// Compares two types for equality
+    /// Compares two nodes for equality
     ///
-    /// \param other The other type node to compare
-    /// \return Whether the two types are equal
+    /// \param lhs The first node to compare
+    /// \param rhs The second node to compare
+    /// \return Whether the two are equal
     [[nodiscard]] friend bool operator==(const Statement& lhs, const Statement& rhs) noexcept {
-      if (lhs.type() == rhs.type()) {
-        return lhs.internal_equals(rhs);
-      }
+      return lhs.type() == rhs.type() && lhs.internal_equals(rhs);
+    }
 
-      return false;
+    /// Compares two nodes for inequality
+    ///
+    /// \param lhs The first node to compare
+    /// \param rhs The second node to compare
+    /// \return Whether the two are unequal
+    [[nodiscard]] friend bool operator!=(const Statement& lhs, const Statement& rhs) noexcept {
+      return !(lhs == rhs);
     }
 
     /// Compares two type nodes for complete equality, including source location.
@@ -293,6 +299,13 @@ namespace gal::ast {
     /// \return The assertion message
     [[nodiscard]] const StringLiteralExpression& message() const noexcept {
       return *message_;
+    }
+
+    /// Gets the message that the assertion was given
+    ///
+    /// \return The assertion message
+    [[nodiscard]] StringLiteralExpression* message_mut() noexcept {
+      return message_.get();
     }
 
   protected:

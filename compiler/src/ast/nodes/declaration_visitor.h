@@ -22,7 +22,9 @@ namespace gal::ast {
   class ClassDeclaration;
   class TypeDeclaration;
   class MethodDeclaration;
+  class ExternalFnDeclaration;
   class ExternalDeclaration;
+  class ConstantDeclaration;
 
   class DeclarationVisitorBase {
   public:
@@ -40,7 +42,11 @@ namespace gal::ast {
 
     virtual void visit(MethodDeclaration*) = 0;
 
+    virtual void visit(ExternalFnDeclaration*) = 0;
+
     virtual void visit(ExternalDeclaration*) = 0;
+
+    virtual void visit(ConstantDeclaration*) = 0;
 
     virtual ~DeclarationVisitorBase() = default;
   };
@@ -61,12 +67,16 @@ namespace gal::ast {
 
     virtual void visit(const MethodDeclaration&) = 0;
 
+    virtual void visit(const ExternalFnDeclaration&) = 0;
+
     virtual void visit(const ExternalDeclaration&) = 0;
+
+    virtual void visit(const ConstantDeclaration&) = 0;
 
     virtual ~ConstDeclarationVisitorBase() = default;
   };
 
-  template <typename T> using DeclarationVisitor = ValueVisitor<T, ConstDeclarationVisitorBase>;
+  template <typename T> using DeclarationVisitor = ValueVisitor<T, DeclarationVisitorBase>;
 
   template <typename T> using ConstDeclarationVisitor = ValueVisitor<T, ConstDeclarationVisitorBase>;
 } // namespace gal::ast

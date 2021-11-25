@@ -25,6 +25,7 @@ namespace gal::ast {
   class UnqualifiedDynInterfaceType;
   class DynInterfaceType;
   class VoidType;
+  class NilPointerType;
 
   class TypeVisitorBase {
   public:
@@ -55,6 +56,8 @@ namespace gal::ast {
     virtual void visit(DynInterfaceType*) = 0;
 
     virtual void visit(VoidType*) = 0;
+
+    virtual void visit(NilPointerType*) = 0;
 
     virtual ~TypeVisitorBase() = default;
   };
@@ -89,13 +92,34 @@ namespace gal::ast {
 
     virtual void visit(const VoidType&) = 0;
 
+    virtual void visit(const NilPointerType&) = 0;
+
     virtual ~ConstTypeVisitorBase() = default;
   };
 
-  /// Represents a type visitor that returns a value
-  ///
-  /// \tparam T Represents a
   template <typename T> using TypeVisitor = ValueVisitor<T, TypeVisitorBase>;
 
   template <typename T> using ConstTypeVisitor = ValueVisitor<T, ConstTypeVisitorBase>;
+
+  template <typename T> class QualifiedTypeVisitor : public TypeVisitor<T> {
+  public:
+    void visit(ast::UnqualifiedUserDefinedType*) final {
+      assert(false);
+    }
+
+    void visit(ast::UnqualifiedDynInterfaceType*) final {
+      assert(false);
+    }
+  };
+
+  template <typename T> class QualifiedConstTypeVisitor : public ConstTypeVisitor<T> {
+  public:
+    void visit(const ast::UnqualifiedUserDefinedType&) final {
+      assert(false);
+    }
+
+    void visit(const ast::UnqualifiedDynInterfaceType&) final {
+      assert(false);
+    }
+  };
 } // namespace gal::ast

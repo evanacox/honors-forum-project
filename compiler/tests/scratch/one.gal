@@ -1,24 +1,22 @@
 external {
     fn puts(str: *const u8) -> i32
+
+    fn abort() __noreturn -> void
 }
 
 type Hello = &mut [isize]
 
+const pi: f64 = 3.14159265
+
 struct Foo {
     bar: Baz
-}
-
-struct Point {
-    x: f64
-    y: i128
-    z: f32
-    radius: usize
-    dimension: i64
-    idk: dyn foo::Bar
+    x: i256
 }
 
 fn main() -> void {
     let binding: fn(i32, f64) -> void = nil
+
+    let x = Point { x: 64.3, y: "hello" }
 
     puts(1, 2, 3)
 
@@ -31,8 +29,4 @@ fn main() -> void {
     } else {
         lol()
     }
-
-//    for i := 5 step i.next() until i.done() {
-
-//    }
 }

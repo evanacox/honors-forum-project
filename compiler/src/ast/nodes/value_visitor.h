@@ -34,7 +34,7 @@ namespace gal::ast {
     ///
     /// \tparam Args Arguments to in-place construct the return value with
     /// \param args The values to construct the value from
-    template <typename... Args> void emplace(Args&&... args) noexcept {
+    template <typename... Args> void return_value(Args&&... args) noexcept {
       value_.emplace(std::forward<Args>(args)...);
     }
 

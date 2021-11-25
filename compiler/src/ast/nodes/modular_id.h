@@ -13,6 +13,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -93,8 +94,8 @@ namespace gal::ast {
     /// Views the module prefix the identifier was declared with
     ///
     /// \return The entity's module
-    [[nodiscard]] const std::optional<ModuleID>& prefix() const noexcept {
-      return prefix_;
+    [[nodiscard]] std::optional<const ModuleID*> prefix() const noexcept {
+      return (prefix_.has_value()) ? std::make_optional(&*prefix_) : std::nullopt;
     }
 
     /// Gets the name of the entity
@@ -109,7 +110,7 @@ namespace gal::ast {
     /// \return A string representation of the identifier
     [[nodiscard]] std::string to_string() const noexcept {
       if (prefix().has_value()) {
-        return absl::StrCat(prefix()->to_string(), "::", id_);
+        return absl::StrCat((*prefix())->to_string(), "::", id_);
       } else {
         return id_;
       }
@@ -138,14 +139,9 @@ namespace gal::ast {
     ///
     /// \param mod The module the entity is a part of
     /// \param id The name of the entity
-    explicit FullyQualifiedID(ModuleID mod, std::string id) noexcept : module_{std::move(mod)}, id_{std::move(id)} {}
-
-    /// Views the module that the entity is a part of
-    ///
-    /// \return The entity's module
-    [[nodiscard]] const ModuleID& module() const noexcept {
-      return module_;
-    }
+    explicit FullyQualifiedID(std::string module_string, std::string id) noexcept
+        : module_string_{std::move(module_string)},
+          id_{std::move(id)} {}
 
     /// Gets the name of the entity
     ///
@@ -154,11 +150,18 @@ namespace gal::ast {
       return id_;
     }
 
+    /// Gets the module prefix as a string
+    ///
+    /// \return The module prefix
+    [[nodiscard]] std::string_view module_string() const noexcept {
+      return module_string_;
+    }
+
     /// Gets a string representation of the identifier
     ///
     /// \return A string representation of the identifier
     [[nodiscard]] std::string to_string() const noexcept {
-      return absl::StrCat(module_.to_string(), "::", id_);
+      return absl::StrCat(module_string_, "::", id_);
     }
 
     /// Compares two FullyQualifiedID for equality
@@ -169,11 +172,11 @@ namespace gal::ast {
     [[nodiscard]] friend bool operator==(const FullyQualifiedID& lhs, const FullyQualifiedID& rhs) noexcept {
       // it's fairly likely that two IDs may import the same module but different things,
       // we may as well early return on that case instead of doing the expensive module cmp first
-      return lhs.name() == rhs.name() && lhs.module() == rhs.module();
+      return lhs.name() == rhs.name() && lhs.module_string() == rhs.module_string();
     }
 
   private:
-    ModuleID module_;
+    std::string module_string_;
     std::string id_;
   };
 
@@ -191,20 +194,5 @@ namespace gal::ast {
     auto module = vec.empty() ? std::nullopt : std::make_optional(ModuleID(id.from_root(), std::move(vec)));
 
     return UnqualifiedID(std::move(module), std::move(last));
-  }
-
-  /// Transforms a moduleID into a fully-qualified identifier
-  ///
-  /// \param id The module to transform
-  /// \return A fully-qualified ID
-  inline FullyQualifiedID module_into_qualified(ModuleID id) noexcept {
-    assert(!id.parts_.empty());
-    assert(id.from_root());
-
-    auto vec = std::move(id.parts_);
-    auto last = std::move(vec.back());
-    vec.pop_back();
-
-    return FullyQualifiedID(ModuleID(id.from_root(), std::move(vec)), std::move(last));
   }
 } // namespace gal::ast

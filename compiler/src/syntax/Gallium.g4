@@ -65,7 +65,7 @@ fragment STRING_LITERAL_CHARACTER
     ;
 
 STRING_LITERAL
-    : '"' STRING_LITERAL_CHARACTER '"'
+    : '"' STRING_LITERAL_CHARACTER* '"'
     ;
 
 CHAR_LITERAL
@@ -326,6 +326,11 @@ declaration
     | structDeclaration
     | typeDeclaration
     | externalDeclaration
+    | constDeclaration
+    ;
+
+constDeclaration
+    : 'const' ws IDENTIFIER ws? ':' ws? type ws? '=' ws? constantExpr
     ;
 
 externalDeclaration
@@ -521,6 +526,28 @@ primaryExpr
     : groupExpr
     | maybeGenericIdentifier
     | digitLiteral
+    | floatLiteral
+    | structInitExpr
+    | STRING_LITERAL
+    | CHAR_LITERAL
+    | BOOL_LITERAL
+    | NIL_LITERAL
+    ;
+
+structInitExpr
+    : typeWithoutRef ws? '{' ws? structInitMemberList ws? '}'
+    ;
+
+structInitMember
+    : IDENTIFIER ws? ':' ws? expr ws?
+    ;
+
+structInitMemberList
+    : structInitMember (',' ws? structInitMember)*
+    ;
+
+constantExpr
+    : digitLiteral
     | floatLiteral
     | STRING_LITERAL
     | CHAR_LITERAL

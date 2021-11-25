@@ -55,6 +55,8 @@ namespace gal::ast {
     return_expr,
     break_expr,
     continue_expr,
+    error_expr,
+    struct_expr,
   };
 
   /// Represents the different unary expression operators
@@ -101,18 +103,33 @@ namespace gal::ast {
     /// Virtual dtor so this can be `delete`ed by a `unique_ptr` or whatever
     virtual ~Expression() = default;
 
-    /// Compares two expression nodes for equality, specifically if they are
-    /// equivalent in everything **except** source location.
+    /// Compares two expression nodes for equality
     ///
     /// \param lhs The left node to compare
     /// \param rhs The right node to compare
     /// \return Whether or not the nodes are equal
     [[nodiscard]] friend bool operator==(const Expression& lhs, const Expression& rhs) noexcept {
-      // early return here if the types are different, so every `internal_equals` call doesn't
-      // have to check the type before downcasting. this also makes the check inlineable
-      // unlike if it was behind virtual dispatch, may help optimization a bit
+      if (lhs.is(ExprType::error_expr) || rhs.is(ExprType::error_expr)) {
+        return true;
+      }
+
       return lhs.type() == rhs.type() && lhs.internal_equals(rhs);
     }
+
+    /// Compares two nodes for inequality
+    ///
+    /// \param lhs The first node to compare
+    /// \param rhs The second node to compare
+    /// \return Whether the two are unequal
+    [[nodiscard]] friend bool operator!=(const Expression& lhs, const Expression& rhs) noexcept {
+      return !(lhs == rhs);
+    }
+
+    /// Compares two nodes for inequality
+    ///
+    /// \param lhs The first node to compare
+    /// \param rhs The second node to compare
+    /// \return Whether the two are unequal
 
     /// Compares two expression nodes for complete equality, including source location.
     /// Equivalent to `a == b && a.loc() == b.loc()`
@@ -304,7 +321,7 @@ namespace gal::ast {
     [[nodiscard]] std::string_view text_unquoted() const noexcept {
       const auto s = text();
 
-      return s.substr(1, s.size() - 1);
+      return s.substr(1, s.size() - 2);
     }
 
   protected:
@@ -2277,9 +2294,147 @@ namespace gal::ast {
     }
   };
 
+  /// Models an initializer for a single field, i.e `x: 32.4` in `Point { x: 32.4, y: 0.0 }`
+  class FieldInitializer {
+  public:
+    /// Creates a field initializer
+    ///
+    /// \param name The name of the field
+    /// \param init The initializer for the field
+    explicit FieldInitializer(SourceLoc loc, std::string name, std::unique_ptr<Expression> init) noexcept
+        : loc_{loc},
+          name_{std::move(name)},
+          initializer_{std::move(init)} {}
+
+    /// Copies a field initializer
+    ///
+    /// \param other The field initializer to copy
+    FieldInitializer(const FieldInitializer& other) noexcept
+        : loc_{other.loc()},
+          name_{other.name()},
+          initializer_{other.init().clone()} {}
+
+    /// Gets the location in the source of the field init
+    ///
+    /// \return The field init
+    [[nodiscard]] const ast::SourceLoc& loc() const noexcept {
+      return loc_;
+    }
+
+    /// Gets the name of the field
+    ///
+    /// \return The name of the field
+    [[nodiscard]] std::string_view name() const noexcept {
+      return name_;
+    }
+
+    /// Gets the value to initialize the field to
+    ///
+    /// \return The initializer
+    [[nodiscard]] const Expression& init() const noexcept {
+      return *initializer_;
+    }
+
+    /// Gets the value to initialize the field to
+    ///
+    /// \return The initializer
+    [[nodiscard]] Expression* init_mut() noexcept {
+      return initializer_.get();
+    }
+
+    /// Gets the owner of the value to initialize the field to
+    ///
+    /// \return The owner of the initializer
+    [[nodiscard]] std::unique_ptr<Expression>* init_owner() noexcept {
+      return &initializer_;
+    }
+
+    /// Compares two field initializers
+    ///
+    /// \param lhs The first field init
+    /// \param rhs The second field init
+    /// \return Whether they are equal
+    [[nodiscard]] friend bool operator==(const FieldInitializer& lhs, const FieldInitializer& rhs) noexcept {
+      return lhs.name() == rhs.name() && lhs.init() == rhs.init();
+    }
+
+  private:
+    SourceLoc loc_;
+    std::string name_;
+    std::unique_ptr<Expression> initializer_;
+  };
+
+  class StructExpression final : public Expression {
+  public:
+    explicit StructExpression(SourceLoc loc,
+        std::unique_ptr<ast::Type> struct_type,
+        std::vector<FieldInitializer> fields) noexcept
+        : Expression(std::move(loc), ExprType::struct_expr),
+          struct_{std::move(struct_type)},
+          fields_{std::move(fields)} {}
+
+    /// Gets the type of the struct being initialized
+    ///
+    /// \return The type of the struct being initialized
+    [[nodiscard]] const Type& struct_type() const noexcept {
+      return *struct_;
+    }
+
+    /// Gets the type of the struct being initialized
+    ///
+    /// \return The type of the struct being initialized
+    [[nodiscard]] Type* struct_type_mut() noexcept {
+      return struct_.get();
+    }
+
+    /// Gets the type of the struct being initialized
+    ///
+    /// \return The type of the struct being initialized
+    [[nodiscard]] std::unique_ptr<Type>* struct_type_owner() noexcept {
+      return &struct_;
+    }
+
+    /// Gets the list of fields being initialized by the expression
+    ///
+    /// \return The fields being initialized
+    [[nodiscard]] absl::Span<const FieldInitializer> fields() const noexcept {
+      return fields_;
+    }
+
+    /// Gets the list of fields being initialized by the expression
+    ///
+    /// \return The fields being initialized
+    [[nodiscard]] absl::Span<FieldInitializer> fields_mut() noexcept {
+      return absl::MakeSpan(fields_);
+    }
+
+  protected:
+    void internal_accept(ExpressionVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
+      auto& result = internal::debug_cast<const StructExpression&>(other);
+
+      return struct_type() == result.struct_type() && fields_ == result.fields_;
+    }
+
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
+      return std::make_unique<StructExpression>(loc(), struct_type().clone(), fields_);
+    }
+
+  private:
+    std::unique_ptr<ast::Type> struct_;
+    std::vector<FieldInitializer> fields_;
+  };
+
   class ErrorExpression final : public Expression {
   public:
-    explicit ErrorExpression() : Expression(SourceLoc{"", 0, 0, {}}, ExprType::block) {}
+    explicit ErrorExpression() : Expression(SourceLoc::nonexistent(), ExprType::error_expr) {}
 
   protected:
     void internal_accept(ExpressionVisitorBase*) final {

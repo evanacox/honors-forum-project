@@ -12,6 +12,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "antlr4-common.h"
+#include "antlr4-runtime.h"
 #include <filesystem>
 #include <memory>
 
@@ -19,7 +21,7 @@ namespace ast = gal::ast;
 
 namespace {
   std::unique_ptr<gal::DiagnosticPart> underline_for(ast::SourceLoc loc, gal::DiagnosticType type) noexcept {
-    auto pointed_out = gal::UnderlineList::PointedOut{std::move(loc), type, gal::UnderlineType::squiggly};
+    auto pointed_out = gal::UnderlineList::PointedOut{std::move(loc), "", type, gal::UnderlineType::squiggly};
 
     return std::make_unique<gal::UnderlineList>(std::vector<gal::UnderlineList::PointedOut>{std::move(pointed_out)});
   }
@@ -40,7 +42,7 @@ namespace gal {
       size_t col,
       const std::string& msg,
       std::exception_ptr) {
-    auto loc = ast::SourceLoc(token->toString(), line, col, file_);
+    auto loc = ast::SourceLoc(token->getText(), line, col, file_);
     auto diagnostics = std::vector<std::unique_ptr<gal::DiagnosticPart>>{};
     diagnostics.push_back(underline_for(std::move(loc), gal::DiagnosticType::error));
 
@@ -53,6 +55,8 @@ namespace gal {
           }));
 
       diagnostics.push_back(note(std::move(message)));
+    } else {
+      diagnostics.push_back(note(msg));
     }
 
     push_error(std::move(diagnostics));

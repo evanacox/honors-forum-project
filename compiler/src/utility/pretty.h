@@ -37,4 +37,10 @@ namespace gal {
   /// \param program The program to print
   /// \return A string containing graphviz code that can be written to a .dot file
   std::string graphviz_print(const ast::Program& program) noexcept;
+
+  /// Gets a user-viewable string representation of a type
+  ///
+  /// \param type The type to string-ify
+  /// \return A string version of the representation
+  std::string to_string(const ast::Type& type) noexcept;
 } // namespace gal

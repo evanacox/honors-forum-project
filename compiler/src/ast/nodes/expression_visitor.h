@@ -39,6 +39,7 @@ namespace gal::ast {
   class ReturnExpression;
   class BreakExpression;
   class ContinueExpression;
+  class StructExpression;
 
   class ExpressionVisitorBase {
   public:
@@ -59,6 +60,8 @@ namespace gal::ast {
     virtual void visit(UnqualifiedIdentifierExpression*) = 0;
 
     virtual void visit(IdentifierExpression*) = 0;
+
+    virtual void visit(StructExpression*) = 0;
 
     virtual void visit(CallExpression*) = 0;
 
@@ -117,6 +120,8 @@ namespace gal::ast {
 
     virtual void visit(const IdentifierExpression&) = 0;
 
+    virtual void visit(const StructExpression&) = 0;
+
     virtual void visit(const CallExpression&) = 0;
 
     virtual void visit(const MethodCallExpression&) = 0;
@@ -157,4 +162,18 @@ namespace gal::ast {
   template <typename T> using ExpressionVisitor = ValueVisitor<T, ExpressionVisitorBase>;
 
   template <typename T> using ConstExpressionVisitor = ValueVisitor<T, ConstExpressionVisitorBase>;
+
+  template <typename T> class QualifiedExpressionVisitor : public ExpressionVisitor<T> {
+  public:
+    void visit(ast::UnqualifiedIdentifierExpression*) final {
+      assert(false);
+    }
+  };
+
+  template <typename T> class QualifiedConstExpressionVisitor : public ConstExpressionVisitor<T> {
+  public:
+    void visit(const ast::UnqualifiedIdentifierExpression&) final {
+      assert(false);
+    }
+  };
 } // namespace gal::ast

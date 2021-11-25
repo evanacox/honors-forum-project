@@ -20,6 +20,7 @@
 
 using namespace std::literals;
 
+namespace ast = gal::ast;
 namespace colors = gal::colors;
 namespace fs = std::filesystem;
 
@@ -165,50 +166,95 @@ namespace gal {
       it = list_.begin();
     }
 
-    std::swap(*it, list_.front());
+    important_loc_.emplace(it->loc);
+
+    // sort so messages show up in the order they appear in the source
+    std::sort(list_.begin(), list_.end(), [](PointedOut& lhs, PointedOut& rhs) {
+      // if lines are equivalent, sort by column
+      // else, sort by the line in ascending order
+      return (lhs.loc.line() == rhs.loc.line()) ? (lhs.loc.column() < rhs.loc.column())
+                                                : (lhs.loc.line() < rhs.loc.line());
+    });
+  }
+} // namespace gal
+
+namespace {
+  struct UnderlineState {
+    std::uint64_t max_line;
+    std::string_view source;
+    std::string_view padding;
+    std::optional<std::uint64_t> previous_line;
+  };
+
+  std::pair<std::string, std::string> line_number_padding(std::uint64_t current, std::uint64_t max) noexcept {
+    auto curr_str = gal::to_digits(current);
+    auto max_str = gal::to_digits(max);
+
+    return {std::string(max_str.size() - curr_str.size(), ' '), std::string(max_str.size(), ' ')};
   }
 
-  std::string UnderlineList::internal_build(std::string_view source, std::string_view padding) const noexcept {
-    auto builder = ""s;
+  void build_list(std::string* builder, const gal::UnderlineList::PointedOut& spot, UnderlineState* state) noexcept {
+    auto& loc = spot.loc;
+    auto full_line = break_into_lines(state->source)[loc.line() - 1];
+    auto [before_line, without_line] = line_number_padding(loc.line(), state->max_line);
+    auto [start, underlined, rest] = break_up(full_line, loc);
+    auto underline = absl::StrCat(std::string(start.size(), ' '),
+        diagnostic_color(spot.type, underline_with(underlined.size(), spot.underline)));
 
-    auto& main_loc = list_.front().loc;
-    auto& relative_file = main_loc.file();
-    absl::StrAppend(&builder,
-        padding,
+    // if there are any lines between the previous and current, add a ...
+    if (state->previous_line != (loc.line() - 1) && state->previous_line.has_value()) {
+      absl::StrAppend(builder, "\n", state->padding, without_line, "...\n");
+    }
+
+    absl::StrAppend(builder,
+        state->padding,
+        without_line, // `     | `
+        " |\n",
+        state->padding, // ` 123 |   if thing {`
+        before_line,
+        loc.line(),
+        " | ",
+        start,
+        diagnostic_color(spot.type, underlined),
+        rest,
+        "\n",
+        state->padding, // `     |      ~~~~~ blah blah blah explanation`
+        without_line,
+        " | ",
+        underline,
+        diagnostic_color(spot.type, spot.message));
+
+    state->previous_line = loc.line();
+  }
+
+  void append_file_info(std::string* builder, const UnderlineState& state, const ast::SourceLoc& loc) {
+    absl::StrAppend(builder,
+        state.padding,
         ">>> ",
         colors::code_blue,
-        relative_file.string(),
+        loc.file().string(),
         ":",
-        main_loc.line(),
+        loc.line(),
         ":",
-        main_loc.column(),
+        loc.column(),
         colors::code_reset,
         "\n");
+  }
+} // namespace
 
-    for (auto& info : list_) {
-      auto& loc = info.loc;
-      auto lines = break_into_lines(source);
-      auto full_line = lines[loc.line() - 1];
-      auto line_padding = std::string(std::to_string(loc.line()).length(), ' ');
-      auto [start, underlined, rest] = break_up(full_line, loc);
-      auto underline = absl::StrCat(std::string(start.size(), ' '),
-          diagnostic_color(info.type, underline_with(underlined.size(), info.underline)));
+namespace gal {
+  std::string UnderlineList::internal_build(std::string_view source, std::string_view padding) const noexcept {
+    auto builder = ""s;
+    auto max_line = std::max_element(list_.begin(), list_.end(), [](auto& lhs, auto& rhs) {
+      return lhs.loc.line() < rhs.loc.line();
+    });
 
-      absl::StrAppend(&builder,
-          padding,
-          line_padding,
-          " |\n",
-          padding,
-          loc.line(),
-          " | ",
-          start,
-          diagnostic_color(info.type, underlined),
-          rest,
-          "\n",
-          padding,
-          line_padding,
-          " | ",
-          underline);
+    auto state = UnderlineState{max_line->loc.line(), source, padding, std::nullopt};
+
+    append_file_info(&builder, state, *important_loc_);
+
+    for (auto& spot : list_) {
+      build_list(&builder, spot, &state);
     }
 
     return builder;
@@ -236,22 +282,70 @@ namespace gal {
     return absl::StrCat(main_message.build(source, ""), "\n", rest);
   }
 
-  DiagnosticInfo diagnostic_info(std::int64_t code) noexcept {
-    static absl::flat_hash_map<std::int64_t, DiagnosticInfo> lookup{
-        {1,
-            {"invalid builtin width",
-                "integer builtin types must be of width 8/16/32/64/128, floats must have 32/64/128",
-                gal::DiagnosticType::error}},
-        {2, {"invalid char literal", "char literal was unable to be parsed", gal::DiagnosticType::error}},
-        {3, {"invalid integer literal", "integer literal was unable to be parsed", gal::DiagnosticType::error}},
-        {4, {"invalid float literal", "float literal was unable to be parsed", gal::DiagnosticType::error}},
-        {5, {"syntax error", "general syntax error in antlr4", gal::DiagnosticType::error}},
-    };
-
-    return lookup.at(code);
-  }
-
-  void report_diagnostic(std::string_view source, const Diagnostic& diagnostic) noexcept {
-    gal::raw_errs() << diagnostic.build(source) << "\n\n";
-  }
 } // namespace gal
+
+gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
+  static absl::flat_hash_map<std::int64_t, gal::DiagnosticInfo> lookup{
+      {1,
+          {"invalid builtin width",
+              "integer builtin types must be of width 8/16/32/64/128, floats must have 32/64/128",
+              gal::DiagnosticType::error}},
+      {2, {"invalid char literal", "char literal was unable to be parsed", gal::DiagnosticType::error}},
+      {3, {"invalid integer literal", "integer literal was unable to be parsed", gal::DiagnosticType::error}},
+      {4, {"invalid float literal", "float literal was unable to be parsed", gal::DiagnosticType::error}},
+      {5, {"syntax error", "general syntax error in antlr4", gal::DiagnosticType::error}},
+      {6,
+          {"duplicate declaration name",
+              "every declaration name must be unique in the module",
+              gal::DiagnosticType::error}},
+      {7,
+          {"mismatched type for binding initializer",
+              "if a binding has a type hint, the hint must match the real type of the initializer",
+              gal::DiagnosticType::error}},
+      {8,
+          {"duplicate binding name",
+              "every binding name must be unique in the same level of scope. shadowing is allowed in *different* "
+              "levels of scope, but not the same",
+              gal::DiagnosticType::error}},
+      {9,
+          {"conflicting function overloads",
+              "overloads cannot have the same parameter types, or they would be ambiguous",
+              gal::DiagnosticType::error}},
+      {10,
+          {"invalid struct-init type",
+              "the type of a struct-init expr must be a user-defined type, and not a `dyn` type",
+              gal::DiagnosticType::error}}};
+
+  return lookup.at(code);
+}
+
+void gal::report_diagnostic(std::string_view source, const gal::Diagnostic& diagnostic) noexcept {
+  gal::raw_errs() << diagnostic.build(source) << "\n\n";
+}
+
+[[nodiscard]] std::unique_ptr<gal::DiagnosticPart> gal::point_out(const ast::Node& node,
+    gal::DiagnosticType type,
+    std::string inline_message) noexcept {
+  return point_out(node.loc(), type, std::move(inline_message));
+}
+
+[[nodiscard]] std::unique_ptr<gal::DiagnosticPart> gal::point_out(const ast::SourceLoc& loc,
+    gal::DiagnosticType type,
+    std::string inline_message) noexcept {
+  auto underline = (type == gal::DiagnosticType::note) ? gal::UnderlineType::straight : gal::UnderlineType::squiggly;
+
+  return std::make_unique<gal::UnderlineList>(
+      std::vector{gal::UnderlineList::PointedOut{loc, std::move(inline_message), type, underline}});
+}
+
+gal::UnderlineList::PointedOut gal::point_out_part(const ast::Node& node,
+    gal::DiagnosticType type,
+    std::string inline_message) noexcept {
+  return gal::point_out_part(node.loc(), type, std::move(inline_message));
+}
+
+gal::UnderlineList::PointedOut gal::point_out_part(const ast::SourceLoc& loc,
+    gal::DiagnosticType type,
+    std::string inline_message) noexcept {
+  return gal::UnderlineList::PointedOut{loc, std::move(inline_message), type};
+}

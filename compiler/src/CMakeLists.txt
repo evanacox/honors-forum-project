@@ -8,15 +8,23 @@
 #                                                                             #
 ##======---------------------------------------------------------------======##
 
+set(GALLIUM_AST_FILES
+        )
+
 set(GALLIUM_CORE_FILES
         core/codegen.cc
-        core/error_reporting.cc)
+        core/error_reporting.cc
+        core/environment.cc
+        core/typechecker.cc
+        core/mangler.cc 
+        core/name_resolver.cc)
 
 set(GALLIUM_UTILITY_FILES
         utility/flags.cc
         utility/log.cc
         utility/ticket_mutex.cc
-        utility/pretty.cc)
+        utility/pretty.cc
+        utility/misc.cc)
 
 set(GALLIUM_SYNTAX_FILES
         syntax/parser.cc
@@ -44,7 +52,7 @@ target_include_directories(gallium_antlr4 SYSTEM PUBLIC
         ${GALLIUM_ANTLR4_RUNTIME_INCLUDE}
         ${GALLIUM_ANTLR4_GENERATED_DIR}/../)
 
-add_executable(gallium ./main.cc ./driver.cc ${GALLIUM_CORE_FILES} ${GALLIUM_UTILITY_FILES} ${GALLIUM_SYNTAX_FILES})
+add_executable(gallium ./main.cc ./driver.cc ${GALLIUM_AST_FILES} ${GALLIUM_CORE_FILES} ${GALLIUM_UTILITY_FILES} ${GALLIUM_SYNTAX_FILES})
 gallium_configure_target(gallium)
 target_include_directories(gallium PUBLIC ${LLVM_INCLUDE_DIRS})
 target_compile_definitions(gallium PUBLIC ${LLVM_DEFINITIONS_LIST})
