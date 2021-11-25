@@ -262,8 +262,8 @@ namespace {
       if (auto blocks = node.elif_blocks(); !blocks.empty()) {
         print_list("elif-blocks: ", blocks, [this](auto& block) {
           print_initial(colors::yellow("elif-block"));
-          accept_member("condition: ", *block.condition);
-          accept_last_member("body: ", *block.block);
+          accept_member("condition: ", block.condition());
+          accept_last_member("body: ", block.block());
         });
       } else {
         print_member("elif-blocks: n/a");
@@ -476,8 +476,8 @@ namespace {
       print_member("name: ", id_str(proto.name()));
       print_list("args: ", proto.args(), [this](auto& arg) {
         print_initial(colors::bold_yellow("arg"));
-        print_member("name: ", id_str(arg.name));
-        accept_last_member("type: ", *arg.type);
+        print_member("name: ", id_str(arg.name()));
+        accept_last_member("type: ", arg.type());
       });
       print_list("attributes: ", proto.attributes(), [this](auto& attribute) {
         print_initial(colors::cyan(attribute_to_str(attribute)));

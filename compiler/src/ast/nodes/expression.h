@@ -12,7 +12,7 @@
 
 #include "../../utility/log.h"
 #include "../../utility/misc.h"
-#include "./expression_visitor.h"
+#include "../visitors/expression_visitor.h"
 #include "./modular_id.h"
 #include "./node.h"
 #include "./type.h"
@@ -1116,7 +1116,7 @@ namespace gal::ast {
     /// Gets the expression being indexed into
     ///
     /// \return The expression being indexed into
-    [[nodiscard]] Expression* callee() noexcept {
+    [[nodiscard]] Expression* callee_mut() noexcept {
       return callee_.get();
     }
 
@@ -1137,8 +1137,8 @@ namespace gal::ast {
     /// Gets the expressions passed as arguments to the []
     ///
     /// \return The expressions passed as arguments
-    [[nodiscard]] std::vector<std::unique_ptr<Expression>>* args_mut() noexcept {
-      return &args_;
+    [[nodiscard]] absl::Span<std::unique_ptr<Expression>> args_mut() noexcept {
+      return absl::MakeSpan(args_);
     }
 
   protected:
@@ -1704,22 +1704,17 @@ namespace gal::ast {
   public:
     /// Models a single `elif` in a chain
     struct ElifBlock {
-      /// The condition of the elif block
-      std::unique_ptr<Expression> condition;
-
-      /// The block to be entered if that condition is true
-      std::unique_ptr<BlockExpression> block;
 
       explicit ElifBlock(std::unique_ptr<Expression> cond, std::unique_ptr<BlockExpression> block) noexcept
-          : condition{std::move(cond)},
-            block{std::move(block)} {}
+          : condition_{std::move(cond)},
+            block_{std::move(block)} {}
 
       /// Copies an ElifBlock by cloning both members
       ///
       /// \param other The elifblock to clone
       ElifBlock(const ElifBlock& other) noexcept
-          : condition{other.condition->clone()},
-            block{gal::static_unique_cast<BlockExpression>(other.block->clone())} {}
+          : condition_{other.condition_->clone()},
+            block_{gal::static_unique_cast<BlockExpression>(other.block_->clone())} {}
 
       /// Moves an ElifBlock
       ElifBlock(ElifBlock&&) = default;
@@ -1730,8 +1725,54 @@ namespace gal::ast {
       /// \param rhs The right block
       /// \return Whether they are equivalent
       [[nodiscard]] friend bool operator==(const ElifBlock& lhs, const ElifBlock& rhs) noexcept {
-        return *lhs.condition == *rhs.condition && *lhs.block == *rhs.block;
+        return lhs.condition() == rhs.condition() && lhs.block() == rhs.block();
       }
+
+      /// Gets the condition of the elif
+      ///
+      /// \return The condition
+      [[nodiscard]] const Expression& condition() const noexcept {
+        return *condition_;
+      }
+
+      /// Gets the condition of the elif
+      ///
+      /// \return The condition
+      [[nodiscard]] Expression* condition_mut() noexcept {
+        return condition_.get();
+      }
+
+      /// Gets the condition of the elif
+      ///
+      /// \return The condition
+      [[nodiscard]] std::unique_ptr<Expression>* condition_owner() noexcept {
+        return &condition_;
+      }
+
+      /// Gets the elif's block
+      ///
+      /// \return The block
+      [[nodiscard]] const BlockExpression& block() const noexcept {
+        return internal::debug_cast<const BlockExpression&>(*block_);
+      }
+
+      /// Gets the elif's block
+      ///
+      /// \return The block
+      [[nodiscard]] BlockExpression* block_mut() noexcept {
+        return internal::debug_cast<BlockExpression*>(block_.get());
+      }
+
+      /// Gets the elif's block
+      ///
+      /// \return The block
+      [[nodiscard]] std::unique_ptr<Expression>* block_owner() noexcept {
+        return &block_;
+      }
+
+    private:
+      std::unique_ptr<Expression> condition_;
+      std::unique_ptr<Expression> block_;
     };
 
     /// Creates an if-else block expression
@@ -1743,9 +1784,9 @@ namespace gal::ast {
     /// \param else_block The else block, if it exists
     explicit IfElseExpression(SourceLoc loc,
         std::unique_ptr<Expression> condition,
-        std::unique_ptr<BlockExpression> block,
+        std::unique_ptr<Expression> block,
         std::vector<ElifBlock> elif_blocks,
-        std::optional<std::unique_ptr<BlockExpression>> else_block) noexcept
+        std::optional<std::unique_ptr<Expression>> else_block) noexcept
         : Expression(std::move(loc), ExprType::if_else),
           condition_{std::move(condition)},
           block_{std::move(block)},
@@ -1777,20 +1818,20 @@ namespace gal::ast {
     ///
     /// \return The true block
     [[nodiscard]] const BlockExpression& block() const noexcept {
-      return *block_;
+      return internal::debug_cast<const BlockExpression&>(*block_);
     }
 
     /// Gets the block to enter if the condition is true
     ///
     /// \return The true block
     [[nodiscard]] BlockExpression* block_mut() noexcept {
-      return block_.get();
+      return internal::debug_cast<BlockExpression*>(block_.get());
     }
 
     /// Gets the owner of the block to enter if the condition is true
     ///
     /// \return The owner of the true block
-    [[nodiscard]] std::unique_ptr<BlockExpression>* block_owner() noexcept {
+    [[nodiscard]] std::unique_ptr<Expression>* block_owner() noexcept {
       return &block_;
     }
 
@@ -1812,20 +1853,28 @@ namespace gal::ast {
     ///
     /// \return The else block
     [[nodiscard]] std::optional<const BlockExpression*> else_block() const noexcept {
-      return is_evaluable() ? std::make_optional(else_block_->get()) : std::nullopt;
+      if (is_evaluable()) {
+        return internal::debug_cast<const BlockExpression*>(else_block_->get());
+      }
+
+      return std::nullopt;
     }
 
     /// Gets the else block if it exists
     ///
     /// \return The else block
     [[nodiscard]] std::optional<BlockExpression*> else_block_mut() noexcept {
-      return is_evaluable() ? std::make_optional(else_block_->get()) : std::nullopt;
+      if (is_evaluable()) {
+        return internal::debug_cast<BlockExpression*>(else_block_->get());
+      }
+
+      return std::nullopt;
     }
 
     /// Gets the owner of the else block if it exists
     ///
     /// \return The owner of the else block
-    [[nodiscard]] std::optional<std::unique_ptr<BlockExpression>*> else_block_owner() noexcept {
+    [[nodiscard]] std::optional<std::unique_ptr<Expression>*> else_block_owner() noexcept {
       return is_evaluable() ? std::make_optional(&*else_block_) : std::nullopt;
     }
 
@@ -1867,9 +1916,9 @@ namespace gal::ast {
 
   private:
     std::unique_ptr<Expression> condition_;
-    std::unique_ptr<BlockExpression> block_;
+    std::unique_ptr<Expression> block_;
     std::vector<ElifBlock> elif_blocks_;
-    std::optional<std::unique_ptr<BlockExpression>> else_block_;
+    std::optional<std::unique_ptr<Expression>> else_block_;
   };
 
   /// Maps to an unconditional loop, i.e `loop { ... }`
@@ -1879,7 +1928,7 @@ namespace gal::ast {
     ///
     /// \param loc The location in the source code
     /// \param body The body of the loop
-    explicit LoopExpression(SourceLoc loc, std::unique_ptr<BlockExpression> body) noexcept
+    explicit LoopExpression(SourceLoc loc, std::unique_ptr<Expression> body) noexcept
         : Expression(std::move(loc), ExprType::loop),
           body_{std::move(body)} {};
 
@@ -1887,20 +1936,20 @@ namespace gal::ast {
     ///
     /// \return The body of the loop
     [[nodiscard]] const BlockExpression& body() const noexcept {
-      return *body_;
+      return internal::debug_cast<const BlockExpression&>(*body_);
     }
 
     /// Gets the body of the loop
     ///
     /// \return The body of the loop
     [[nodiscard]] BlockExpression* body_mut() noexcept {
-      return body_.get();
+      return internal::debug_cast<BlockExpression*>(body_.get());
     }
 
     /// Gets the owner of the body of the loop
     ///
     /// \return The owner of the body of the loop
-    [[nodiscard]] std::unique_ptr<BlockExpression>* body_owner() noexcept {
+    [[nodiscard]] std::unique_ptr<Expression>* body_owner() noexcept {
       return &body_;
     }
 
@@ -1924,7 +1973,7 @@ namespace gal::ast {
     }
 
   private:
-    std::unique_ptr<BlockExpression> body_;
+    std::unique_ptr<Expression> body_;
   };
 
   /// Models a `while` loop
@@ -1967,20 +2016,20 @@ namespace gal::ast {
     ///
     /// \return The body of the loop
     [[nodiscard]] const BlockExpression& body() const noexcept {
-      return *body_;
+      return internal::debug_cast<const BlockExpression&>(*body_);
     }
 
     /// Gets the body of the loop
     ///
     /// \return The body of the loop
     [[nodiscard]] BlockExpression* body_mut() noexcept {
-      return body_.get();
+      return internal::debug_cast<BlockExpression*>(body_.get());
     }
 
     /// Gets the owner of the body of the loop
     ///
     /// \return The owner of the body of the loop
-    [[nodiscard]] std::unique_ptr<BlockExpression>* body_owner() noexcept {
+    [[nodiscard]] std::unique_ptr<Expression>* body_owner() noexcept {
       return &body_;
     }
 
@@ -2007,7 +2056,7 @@ namespace gal::ast {
 
   private:
     std::unique_ptr<Expression> condition_;
-    std::unique_ptr<BlockExpression> body_;
+    std::unique_ptr<Expression> body_;
   };
 
   /// Models a for loop
@@ -2100,20 +2149,20 @@ namespace gal::ast {
     ///
     /// \return The body of the loop
     [[nodiscard]] const BlockExpression& body() const noexcept {
-      return *body_;
+      return internal::debug_cast<const BlockExpression&>(*body_);
     }
 
     /// Gets the body of the loop
     ///
     /// \return The body of the loop
     [[nodiscard]] BlockExpression* body_mut() noexcept {
-      return body_.get();
+      return internal::debug_cast<BlockExpression*>(body_.get());
     }
 
     /// Gets the owner of the body of the loop
     ///
     /// \return The owner of the body of the loop
-    [[nodiscard]] std::unique_ptr<BlockExpression>* body_owner() noexcept {
+    [[nodiscard]] std::unique_ptr<Expression>* body_owner() noexcept {
       return &body_;
     }
 
@@ -2147,7 +2196,7 @@ namespace gal::ast {
     Direction direction_;
     std::unique_ptr<Expression> init_;
     std::unique_ptr<Expression> last_;
-    std::unique_ptr<BlockExpression> body_;
+    std::unique_ptr<Expression> body_;
   };
 
   /// Models a return expression

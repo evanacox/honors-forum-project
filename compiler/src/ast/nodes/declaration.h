@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "./declaration_visitor.h"
+#include "../visitors/declaration_visitor.h"
 #include "./expression.h"
 #include "./modular_id.h"
 #include "./node.h"
@@ -333,27 +333,39 @@ namespace gal::ast {
   };
 
   /// An argument is a `name: type` pair
-  struct Argument {
-    std::string name;
-    std::unique_ptr<Type> type;
-
-    Argument() = delete;
-
+  class Argument {
+  public:
     explicit Argument(std::string name, std::unique_ptr<Type> type) noexcept
-        : name{std::move(name)},
-          type{std::move(type)} {}
+        : name_{std::move(name)},
+          type_{std::move(type)} {}
 
-    Argument(const Argument& other) noexcept : name{other.name}, type{other.type->clone()} {}
+    Argument(const Argument& other) noexcept : name_{other.name_}, type_{other.type_->clone()} {}
 
     Argument(Argument&&) noexcept = default;
 
-    Argument& operator=(const Argument&) = delete;
+    [[nodiscard]] std::string_view name() const noexcept {
+      return name_;
+    }
 
-    Argument& operator=(Argument&&) = delete;
+    [[nodiscard]] const Type& type() const noexcept {
+      return *type_;
+    }
+
+    [[nodiscard]] Type* type_mut() noexcept {
+      return type_.get();
+    }
+
+    [[nodiscard]] std::unique_ptr<Type>* type_owner() noexcept {
+      return &type_;
+    }
 
     [[nodiscard]] friend bool operator==(const Argument& lhs, const Argument& rhs) noexcept {
-      return lhs.name == rhs.name && *lhs.type == *rhs.type;
+      return lhs.name() == rhs.name() && lhs.type() == rhs.type();
     }
+
+  private:
+    std::string name_;
+    std::unique_ptr<Type> type_;
   };
 
   /// Maps the 4 types of `self` that a method is able to take
@@ -459,7 +471,7 @@ namespace gal::ast {
     /// Gets a mutable ptr to the return_type of the function
     ///
     /// \return A mutable ptr to the function return_type
-    [[nodiscard]] Type* return_type_mut() const noexcept {
+    [[nodiscard]] Type* return_type_mut() noexcept {
       return return_type_.get();
     }
 
@@ -538,20 +550,20 @@ namespace gal::ast {
     ///
     /// \return The function body
     [[nodiscard]] const BlockExpression& body() const noexcept {
-      return *body_;
+      return internal::debug_cast<const BlockExpression&>(*body_);
     }
 
     /// Gets a mutable ptr to the body of the function
     ///
     /// \return A mutable ptr to the function body
     [[nodiscard]] BlockExpression* body_mut() const noexcept {
-      return body_.get();
+      return internal::debug_cast<BlockExpression*>(body_.get());
     }
 
     /// Correctly release and update the body for `*this`
     ///
     /// \param body The new body to use
-    [[nodiscard]] std::unique_ptr<BlockExpression>* body_owner() noexcept {
+    [[nodiscard]] std::unique_ptr<Expression>* body_owner() noexcept {
       return &body_;
     }
 
@@ -582,7 +594,7 @@ namespace gal::ast {
   private:
     bool external_;
     FnPrototype proto_;
-    std::unique_ptr<BlockExpression> body_;
+    std::unique_ptr<Expression> body_;
   };
 
   /// Models a full function declaration, prototype and body.
@@ -963,21 +975,21 @@ namespace gal::ast {
     /// \param externals The list of external fns
     explicit ExternalDeclaration(SourceLoc loc,
         bool exported,
-        std::vector<std::unique_ptr<ast::ExternalFnDeclaration>> externals) noexcept
+        std::vector<std::unique_ptr<ast::Declaration>> externals) noexcept
         : Declaration(std::move(loc), exported, DeclType::external_decl),
           externals_{std::move(externals)} {}
 
     /// Gets the list of external fns
     ///
     /// \return The list of external fns
-    [[nodiscard]] absl::Span<const std::unique_ptr<ast::ExternalFnDeclaration>> externals() const noexcept {
+    [[nodiscard]] absl::Span<const std::unique_ptr<ast::Declaration>> externals() const noexcept {
       return externals_;
     }
 
     /// Gets the list of external fns
     ///
     /// \return The list of external fns
-    [[nodiscard]] absl::Span<std::unique_ptr<ast::ExternalFnDeclaration>> externals_mut() noexcept {
+    [[nodiscard]] absl::Span<std::unique_ptr<ast::Declaration>> externals_mut() noexcept {
       return absl::MakeSpan(externals_);
     }
 
@@ -1001,7 +1013,7 @@ namespace gal::ast {
     }
 
   private:
-    std::vector<std::unique_ptr<ast::ExternalFnDeclaration>> externals_;
+    std::vector<std::unique_ptr<ast::Declaration>> externals_;
   };
 
   /// Models a constant, i.e `const pi: f64 = 3.14159265`
@@ -1045,6 +1057,13 @@ namespace gal::ast {
       return hint_.get();
     }
 
+    /// Gets the type hint of the constant
+    ///
+    /// \return The type hint
+    [[nodiscard]] std::unique_ptr<Type>* hint_owner() noexcept {
+      return &hint_;
+    }
+
     /// Gets the initializer of the constant
     ///
     /// \return The initializer
@@ -1057,6 +1076,13 @@ namespace gal::ast {
     /// \return The initializer
     [[nodiscard]] Expression* initializer_mut() noexcept {
       return initializer_.get();
+    }
+
+    /// Gets the initializer of the constant
+    ///
+    /// \return The initializer
+    [[nodiscard]] std::unique_ptr<Expression>* initializer_owner() noexcept {
+      return &initializer_;
     }
 
   protected:

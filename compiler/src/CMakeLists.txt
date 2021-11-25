@@ -16,7 +16,7 @@ set(GALLIUM_CORE_FILES
         core/error_reporting.cc
         core/environment.cc
         core/typechecker.cc
-        core/mangler.cc 
+        core/mangler.cc
         core/name_resolver.cc)
 
 set(GALLIUM_UTILITY_FILES

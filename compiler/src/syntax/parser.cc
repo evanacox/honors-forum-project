@@ -135,7 +135,7 @@ namespace {
     }
 
     antlrcpp::Any visitExternalDeclaration(GalliumParser::ExternalDeclarationContext* ctx) final {
-      auto prototypes = std::vector<std::unique_ptr<ast::ExternalFnDeclaration>>{};
+      auto prototypes = std::vector<std::unique_ptr<ast::Declaration>>{};
 
       for (auto* fn : ctx->fnPrototype()) {
         auto proto = std::move(visitFnPrototype(fn).as<ast::FnPrototype>());

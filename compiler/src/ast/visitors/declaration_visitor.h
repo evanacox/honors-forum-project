@@ -76,6 +76,29 @@ namespace gal::ast {
     virtual ~ConstDeclarationVisitorBase() = default;
   };
 
+  class DeclarationChildVisitor final : public DeclarationVisitorBase {
+  public:
+    void visit(ImportDeclaration* declaration) override;
+
+    void visit(ImportFromDeclaration* declaration) override;
+
+    void visit(FnDeclaration* declaration) override;
+
+    void visit(StructDeclaration* declaration) override;
+
+    void visit(ClassDeclaration* declaration) override;
+
+    void visit(TypeDeclaration* declaration) override;
+
+    void visit(MethodDeclaration* declaration) override;
+
+    void visit(ExternalFnDeclaration* declaration) override;
+
+    void visit(ExternalDeclaration* declaration) override;
+
+    void visit(ConstantDeclaration* declaration) override;
+  };
+
   template <typename T> using DeclarationVisitor = ValueVisitor<T, DeclarationVisitorBase>;
 
   template <typename T> using ConstDeclarationVisitor = ValueVisitor<T, ConstDeclarationVisitorBase>;

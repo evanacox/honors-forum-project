@@ -10,8 +10,8 @@
 
 #pragma once
 
+#include "../visitors/statement_visitor.h"
 #include "./node.h"
-#include "./statement_visitor.h"
 #include "./type.h"
 #include <string>
 
@@ -209,6 +209,13 @@ namespace gal::ast {
       return initializer_.get();
     }
 
+    /// The value given to the binding as the initializer
+    ///
+    /// \return A mutable reference to the initializer
+    [[nodiscard]] std::unique_ptr<Expression>* initializer_owner() noexcept {
+      return &initializer_;
+    }
+
     /// Gets the type hint for the binding. If it exists, a valid pointer is
     /// returned. If it doesn't, a nullopt is returned
     ///
@@ -298,14 +305,21 @@ namespace gal::ast {
     ///
     /// \return The assertion message
     [[nodiscard]] const StringLiteralExpression& message() const noexcept {
-      return *message_;
+      return internal::debug_cast<const StringLiteralExpression&>(*message_);
     }
 
     /// Gets the message that the assertion was given
     ///
     /// \return The assertion message
     [[nodiscard]] StringLiteralExpression* message_mut() noexcept {
-      return message_.get();
+      return internal::debug_cast<StringLiteralExpression*>(message_.get());
+    }
+
+    /// Gets the message that the assertion was given
+    ///
+    /// \return The assertion message
+    [[nodiscard]] std::unique_ptr<Expression>* message_owner() noexcept {
+      return &message_;
     }
 
   protected:
@@ -331,7 +345,7 @@ namespace gal::ast {
 
   private:
     std::unique_ptr<Expression> assertion_;
-    std::unique_ptr<StringLiteralExpression> message_;
+    std::unique_ptr<Expression> message_;
   };
 
   class ExpressionStatement final : public Statement {

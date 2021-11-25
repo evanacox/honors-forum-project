@@ -226,10 +226,21 @@ namespace gal {
     ///
     /// \param entity The entity to cast
     /// \return The cast result
-    template <typename T, typename U> [[nodiscard]] constexpr T& debug_cast(U& entity) noexcept {
+    template <typename T, typename U, typename = std::enable_if_t<!std::is_pointer_v<T> && !std::is_pointer_v<U>>>
+    [[nodiscard]] constexpr T& debug_cast(U& entity) noexcept {
       assert(dynamic_cast<std::remove_reference_t<T>*>(&entity) != nullptr);
 
       return static_cast<T&>(entity);
+    }
+
+    /// Cast that does correctness checking in debug mode
+    ///
+    /// \param entity The entity to cast
+    /// \return The cast result
+    template <typename T, typename U> [[nodiscard]] constexpr T debug_cast(U entity) noexcept {
+      assert(dynamic_cast<std::remove_pointer_t<T>*>(entity) != nullptr);
+
+      return static_cast<T>(entity);
     }
   } // namespace internal
 } // namespace gal

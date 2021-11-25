@@ -10,9 +10,9 @@
 
 #pragma once
 
+#include "../visitors/type_visitor.h"
 #include "./modular_id.h"
 #include "./node.h"
-#include "./type_visitor.h"
 #include "absl/types/span.h"
 #include <memory>
 #include <optional>
