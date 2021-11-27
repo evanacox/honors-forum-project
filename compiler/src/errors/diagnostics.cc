@@ -143,11 +143,13 @@ namespace gal {
   }
 
   UnderlineList::UnderlineList(std::vector<PointedOut> locs) noexcept : list_{std::move(locs)} {
+#ifndef NDEBUG
     assert(!list_.empty());
 
     for (auto& loc : list_) {
       assert(loc.loc.file() == list_.front().loc.file());
     }
+#endif
 
     // find first error if it exists
     auto it = std::find_if(list_.begin(), list_.end(), [](PointedOut& info) {

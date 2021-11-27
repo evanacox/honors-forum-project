@@ -32,7 +32,6 @@ def absl_get_nodes(val):
     for item in range(capacity):
         ctrl_t = int(ctrl[item])
         if ctrl_t >= 0:
-            print("got element of type: " + str(table["slots_"][item].dynamic_type.name))
             yield table["slots_"][item]
 
 
