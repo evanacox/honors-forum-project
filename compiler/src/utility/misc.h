@@ -264,11 +264,30 @@ namespace gal {
     };
   } // namespace internal
 
+  /// Effectively a C++17-compatible "reverse" adapter
+  ///
+  /// \param iterable The iterable object to adapt
+  /// \return An adapter that can be iterated over in a ranged-for
   template <typename T> internal::ReverseWrapper<T> reverse(T* iterable) {
     return internal::ReverseWrapper{*iterable};
   }
 
+  /// Effectively a C++17-compatible "reverse" adapter
+  ///
+  /// \param iterable The iterable object to adapt
+  /// \return An adapter that can be iterated over in a ranged-for
   template <typename T> internal::ReverseWrapper<const T> reverse(const T& iterable) {
     return internal::ReverseWrapper{iterable};
   }
+
+  /// Identity functor for use in default arguments
+  struct Identity {
+    /// Returns whatever was passed in
+    ///
+    /// \param object The object to return
+    /// \return `std::forward<...>(object)`
+    template <typename T> constexpr T&& operator()(T&& object) const noexcept {
+      return std::forward<T>(object);
+    }
+  };
 } // namespace gal

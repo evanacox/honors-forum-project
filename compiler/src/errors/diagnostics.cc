@@ -374,6 +374,15 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
               "you can only reference constant declarations and function declarations in an id-expr, not all "
               "declarations",
               gal::DiagnosticType::error}},
+      {22,
+          {"reference to declaration other than constant/function in identifier expression",
+              "you can only reference constant declarations and function declarations in an id-expr, not all "
+              "declarations",
+              gal::DiagnosticType::error}},
+      {23,
+          {"mismatched argument type in call expr",
+              "each argument in a call must match the function type being called",
+              gal::DiagnosticType::error}},
   };
 
   return lookup.at(code);

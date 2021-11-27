@@ -288,13 +288,47 @@ namespace {
       }
     }
 
+    template <typename Arg, typename Fn>
+    bool callable(absl::Span<const Arg> fn_args,
+        absl::Span<const std::unique_ptr<ast::Expression>> args_given,
+        Fn mapper = gal::Identity{}) noexcept {
+
+      auto fn_it = fn_args.begin();
+      auto given_it = args_given.begin();
+
+      for (; fn_it != fn_args.end() && given_it != args_given.end(); ++fn_it, ++given_it) {
+        auto& type = mapper(*fn_it);
+        auto& expr = **given_it;
+
+        if (!type_compatible(type, expr)) {
+          auto a = type_was_err(expr);
+          auto b = gal::point_out_part(type,
+              gal::DiagnosticType::note,
+              absl::StrCat("expected type `", gal::to_string(type), "` based on this"));
+
+          diagnostics_->report_emplace(23, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
+        }
+      }
+
+      if (fn_it != fn_args.end()) {
+        while (fn_it != fn_args.end()) {
+          auto& type = mapper(*fn_it);
+          auto b = gal::point_out_part(type,
+              gal::DiagnosticType::note,
+              absl::StrCat("expected type `", gal::to_string(type), "` based on this"));
+
+          diagnostics_->report_emplace(23, gal::into_list(gal::point_out_list(std::move(b))));
+        }
+      }
+    }
+
     void visit(ast::CallExpression* expr) final {
       for (auto& arg : expr->args_mut()) {
         Base::accept(&arg);
       }
 
       // we need to do special handling here in order to not break over function overloading n whatnot
-      if (expr->callee().is_one_of(ET::identifier, ET::identifier_local)) {
+      if (expr->callee().is(ET::identifier)) {
         //
       }
     }
