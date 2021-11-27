@@ -12,6 +12,7 @@
 
 #include "../ast/nodes/modular_id.h"
 #include "../ast/program.h"
+#include "../errors/reporter.h"
 #include "./environment.h"
 #include <memory>
 #include <string_view>
@@ -36,18 +37,18 @@ namespace gal {
     ///
     /// \param program The program to resolve symbols for
     /// \param diagnostics A place to put diagnostics for the program
-    explicit NameResolver(ast::Program* program, std::vector<Diagnostic>* diagnostics) noexcept;
+    explicit NameResolver(ast::Program* program, DiagnosticReporter* diagnostics) noexcept;
 
+    /// Checks if there's an overload set going by the name `id`
     ///
-    ///
-    /// \param id
-    /// \return
+    /// \param id The id to look up
+    /// \return An overload set, if one exists
     [[nodiscard]] std::optional<const OverloadSet*> overloads(const ast::FullyQualifiedID& id) const noexcept;
 
+    /// Gets an entity from `id`
     ///
-    ///
-    /// \param id
-    /// \return
+    /// \param id The id to look up
+    /// \return An entity, if one exists
     [[nodiscard]] std::optional<const GlobalEntity*> entity(const ast::FullyQualifiedID& id) const noexcept;
 
     /// Gets an entity from a fully-qualified ID that is specifically a type of some sort
@@ -58,11 +59,18 @@ namespace gal {
     /// \return A type node
     [[nodiscard]] std::optional<const ast::Type*> type(const ast::FullyQualifiedID& id) const noexcept;
 
+    /// Gets the struct declaration associated with `id`, if it exists
     ///
-    ///
-    /// \param id
-    /// \return
+    /// \param id The id to look up
+    /// \return A possible struct declaration
     [[nodiscard]] std::optional<const ast::StructDeclaration*> struct_type(
+        const ast::FullyQualifiedID& id) const noexcept;
+
+    /// Gets the constant declaration associated with `id`, if it exists
+    ///
+    /// \param id The id to look up
+    /// \return A possible constant declaration
+    [[nodiscard]] std::optional<const ast::ConstantDeclaration*> constant(
         const ast::FullyQualifiedID& id) const noexcept;
 
     /// "Enters" a new scope and makes that the scope to add variables to
@@ -87,7 +95,7 @@ namespace gal {
     ///
     /// \param name The name to get
     /// \return A local, if it exists
-    [[nodiscard]] std::optional<const ast::Type*> get_local(std::string_view name) const noexcept;
+    [[nodiscard]] std::optional<const ast::Type*> local(std::string_view name) const noexcept;
 
     /// Finds the environment that has `id` in it, and returns a fully-qualified id if possible
     ///

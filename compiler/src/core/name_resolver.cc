@@ -9,7 +9,10 @@
 //======---------------------------------------------------------------======//
 
 #include "./name_resolver.h"
+#include "../ast/visitors.h"
+#include "../errors/reporter.h"
 #include "../utility/misc.h"
+#include "../utility/pretty.h"
 #include "./environment.h"
 #include "absl/container/flat_hash_set.h"
 
@@ -18,7 +21,9 @@ namespace ast = gal::ast;
 namespace {
   class UnscopedResolver final : public ast::AnyVisitorBase<void> {
   public:
-    explicit UnscopedResolver(gal::NameResolver* resolver) : resolver_{resolver} {}
+    explicit UnscopedResolver(gal::NameResolver* resolver, gal::DiagnosticReporter* diagnostics)
+        : resolver_{resolver},
+          diagnostics_{diagnostics} {}
 
     void visit(ast::UnqualifiedUserDefinedType* type) final {
       if (auto qualified = resolver_->qualified_for(type->id())) {
@@ -26,8 +31,32 @@ namespace {
 
         if (auto actual_type = resolver_->type(id)) {
           replace_self((*actual_type)->clone());
+
+          return;
         }
+
+        if (auto entity = resolver_->entity(id)) {
+          auto a = gal::point_out_part(*type, gal::DiagnosticType::error, "usage was here");
+          auto b = gal::point_out_part((*entity)->decl(), gal::DiagnosticType::note, "actual entity is here");
+
+          diagnostics_->report_emplace(10, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
+        } else if (auto overloads = resolver_->overloads(id)) {
+          auto decls = (*overloads)->fns();
+          auto a = gal::point_out_part(*type, gal::DiagnosticType::error, "usage was here");
+          auto b = gal::point_out_part(decls.front().decl_base(), gal::DiagnosticType::note, "name refers to this fn");
+
+          diagnostics_->report_emplace(10, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
+        } else {
+          assert(false);
+        }
+
+        return;
       }
+
+      auto a = gal::point_out(*type, gal::DiagnosticType::error, "usage was here");
+      auto b = gal::single_message(absl::StrCat("the id given was `", type->id().to_string(), "`"));
+
+      diagnostics_->report_emplace(14, gal::into_list(std::move(a), std::move(b)));
     }
 
     void visit(ast::UnqualifiedDynInterfaceType*) final {
@@ -35,13 +64,40 @@ namespace {
     }
 
     void visit(ast::UnqualifiedIdentifierExpression* identifier) final {
+      // if it doesn't have any kind of prefix, it may be a local variable,
+      // and we just need to make a fully-qualified one
       if (auto prefix = identifier->id().prefix()) {
-        //
+        if (auto qualified = resolver_->qualified_for(identifier->id())) {
+          auto& [id, env] = *qualified;
+
+          if (auto constant = resolver_->constant(id)) {
+            replace_self(std::make_unique<ast::IdentifierExpression>(identifier->loc(), std::move(id)));
+            self_expr()->result_update((*constant)->hint().clone());
+
+            return;
+          }
+
+          if (auto entity = resolver_->entity(id)) {
+            auto a = gal::point_out_part(*identifier, gal::DiagnosticType::error, "usage was here");
+            auto b = gal::point_out_part((*entity)->decl(), gal::DiagnosticType::note, "actual entity is here");
+
+            diagnostics_->report_emplace(10, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
+          }
+        }
+
+        auto a = gal::point_out(*identifier, gal::DiagnosticType::error, "usage was here");
+        auto b = gal::single_message(absl::StrCat("the id given was `", identifier->id().to_string(), "`"));
+
+        diagnostics_->report_emplace(11, gal::into_list(std::move(a), std::move(b)));
+      } else {
+        replace_self(
+            std::make_unique<ast::LocalIdentifierExpression>(identifier->loc(), std::string{identifier->id().name()}));
       }
     }
 
   private:
     gal::NameResolver* resolver_;
+    gal::DiagnosticReporter* diagnostics_;
   };
 
   template <typename Fn>
@@ -72,8 +128,9 @@ namespace {
 } // namespace
 
 namespace gal {
-  NameResolver::NameResolver(ast::Program* program, std::vector<Diagnostic>* diagnostics) noexcept
+  NameResolver::NameResolver(ast::Program* program, gal::DiagnosticReporter* diagnostics) noexcept
       : program_{program},
+        env_{diagnostics},
         root_{{}, GlobalEnvironment(program_, diagnostics)} {
     walk_module_tree(&root_, [this](std::string_view module_name, gal::GlobalEnvironment* env) {
       fully_qualified_.emplace(std::string{module_name}, env);
@@ -83,7 +140,7 @@ namespace gal {
       }
     });
 
-    (void)0;
+    UnscopedResolver(this, diagnostics).walk_ast(program);
   }
 
   std::optional<const OverloadSet*> NameResolver::overloads(const ast::FullyQualifiedID& id) const noexcept {
@@ -110,6 +167,24 @@ namespace gal {
     return std::nullopt;
   }
 
+  std::optional<const ast::StructDeclaration*> NameResolver::struct_type(
+      const ast::FullyQualifiedID& id) const noexcept {
+    if (auto entity = this->entity(id); entity && (*entity)->decl().is(ast::DeclType::struct_decl)) {
+      return internal::debug_cast<const ast::StructDeclaration*>(&(*entity)->decl());
+    }
+
+    return std::nullopt;
+  }
+
+  std::optional<const ast::ConstantDeclaration*> NameResolver::constant(
+      const ast::FullyQualifiedID& id) const noexcept {
+    if (auto entity = this->entity(id); entity && (*entity)->decl().is(ast::DeclType::constant_decl)) {
+      return internal::debug_cast<const ast::ConstantDeclaration*>(&(*entity)->decl());
+    }
+
+    return std::nullopt;
+  }
+
   void NameResolver::enter_scope() noexcept {
     env_.enter_scope();
   }
@@ -126,7 +201,7 @@ namespace gal {
     env_.add(name, std::move(data));
   }
 
-  std::optional<const ast::Type*> NameResolver::get_local(std::string_view name) const noexcept {
+  std::optional<const ast::Type*> NameResolver::local(std::string_view name) const noexcept {
     return env_.get(name);
   }
 
@@ -167,4 +242,5 @@ namespace gal {
 
     return std::nullopt;
   }
+
 } // namespace gal

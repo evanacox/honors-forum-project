@@ -10,6 +10,7 @@
 
 #include "./pretty.h"
 #include "../ast/visitors.h"
+#include "../core/environment.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/charconv.h"
 #include "absl/strings/str_cat.h"
@@ -174,8 +175,13 @@ namespace {
 
     void visit(const ast::IdentifierExpression& node) final {
       print_expr("id", node);
-      print_member("module prefix: ", id_str(node.id().to_string()));
-      print_last_member("id: ", id_str(node.id().name()));
+      print_member("fully-qualified: ", id_str(node.id().to_string()));
+      print_last_member("name: ", id_str(node.id().name()));
+    }
+
+    void visit(const ast::LocalIdentifierExpression& node) final {
+      print_expr("local-id", node);
+      print_last_member("name: ", id_str(node.name()));
     }
 
     void visit(const ast::StructExpression& node) final {
@@ -191,6 +197,15 @@ namespace {
     void visit(const ast::CallExpression& node) final {
       print_expr("call", node);
       accept_member("callee: ", node.callee());
+      print_last_list("args: ", node.args(), [this](auto& ptr) {
+        print_initial("argument");
+        accept_last_member("value: ", *ptr);
+      });
+    }
+
+    void visit(const ast::StaticCallExpression& node) final {
+      print_expr("static-call", node);
+      print_member("fn: ", id_str(node.id().to_string()));
       print_last_list("args: ", node.args(), [this](auto& ptr) {
         print_initial("argument");
         accept_last_member("value: ", *ptr);
@@ -439,7 +454,11 @@ namespace {
     }
 
     void visit(const ast::NilPointerType&) final {
-      return_value(colors::bold_magenta("nil-ptr"));
+      return_value(colors::bold_magenta("<nil-ptr>"));
+    }
+
+    void visit(const ast::ErrorType&) final {
+      return_value(colors::bold_red("<error-type>"));
     }
 
   private:
@@ -617,11 +636,11 @@ namespace {
     template <bool Last = false> void print_expr(std::string_view name, const ast::Expression& node) noexcept {
       print_initial(expr_str(name));
 
-      if (auto type = node.result()) {
+      if (node.has_result()) {
         if constexpr (Last) {
-          accept_last_member("type of: ", **type);
+          accept_last_member("type of: ", node.result());
         } else {
-          accept_member("type of: ", **type);
+          accept_member("type of: ", node.result());
         }
       } else {
         if constexpr (Last) {
@@ -719,7 +738,11 @@ namespace {
     }
 
     void visit(const ast::NilPointerType&) final {
-      return_value("nil-ptr");
+      return_value("<nil-ptr>");
+    }
+
+    void visit(const ast::ErrorType&) final {
+      return_value("<error-type>");
     }
   };
 } // namespace

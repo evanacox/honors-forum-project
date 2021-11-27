@@ -8,7 +8,7 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./error_reporting.h"
+#include "./diagnostics.h"
 #include "../utility/flags.h"
 #include "../utility/log.h"
 #include "absl/container/flat_hash_map.h"
@@ -222,6 +222,7 @@ namespace {
         without_line,
         " | ",
         underline,
+        " ",
         diagnostic_color(spot.type, spot.message));
 
     state->previous_line = loc.line();
@@ -233,10 +234,11 @@ namespace {
         ">>> ",
         colors::code_blue,
         loc.file().string(),
-        ":",
+        " (line ",
         loc.line(),
-        ":",
+        ", column ",
         loc.column(),
+        ")",
         colors::code_reset,
         "\n");
   }
@@ -281,10 +283,23 @@ namespace gal {
 
     return absl::StrCat(main_message.build(source, ""), "\n", rest);
   }
-
 } // namespace gal
 
 gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
+  // while in theory this would be "more efficient" as an array
+  // that uses `code + 1` as an index, here's the reasons why it doesn't work that way:
+  //
+  //   1. efficiency literally does not matter on the error path whatsoever,
+  //      and even if it did, the 10-20 lookups into this table are not
+  //      the "hot" part of even the error path.
+  //
+  //   2. if I have it like this, I can see the code number for whatever error
+  //      I'm trying to find, without having to do literally anything
+  //      additional. I also have the possibility of having gaps, although I
+  //      am not taking advantage of that as of now
+  //
+  // it's just much easier on me to do it this way, and has basically zero impact on performance
+
   static absl::flat_hash_map<std::int64_t, gal::DiagnosticInfo> lookup{
       {1,
           {"invalid builtin width",
@@ -312,15 +327,54 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
               "overloads cannot have the same parameter types, or they would be ambiguous",
               gal::DiagnosticType::error}},
       {10,
-          {"invalid struct-init type",
+          {"invalid type for struct-init expression",
               "the type of a struct-init expr must be a user-defined type, and not a `dyn` type",
-              gal::DiagnosticType::error}}};
+              gal::DiagnosticType::error}},
+      {10,
+          {"invalid user-defined type",
+              "a type must be the name given to a `type`, `struct` or `class` declaration, not any type of "
+              "declaration",
+              gal::DiagnosticType::error}},
+      {11, {"unknown identifier name", "name did not resolve to a declaration", gal::DiagnosticType::error}},
+      {12,
+          {"missing initializer for struct field",
+              "a struct-init expression must initialize every field of a struct",
+              gal::DiagnosticType::error}},
+      {13,
+          {"mismatched types for struct field",
+              "a struct initializer must evaluate to the same type as the associated struct field",
+              gal::DiagnosticType::error}},
+      {14, {"unknown type name", "name did not resolve to a type", gal::DiagnosticType::error}},
+      {15, {"expected `bool` type for condition", "the condition must be of type `bool`", gal::DiagnosticType::error}},
+      {16,
+          {"mismatched types in if-expr",
+              "all branches must evaluate to the same type in an if-expr",
+              gal::DiagnosticType::error}},
+      {17, {"invalid safe cast", "cannot perform a safe cast between these types", gal::DiagnosticType::error}},
+      {18,
+          {"unknown identifier",
+              "variables must be declared before they can be used, does your variable exist?",
+              gal::DiagnosticType::error}},
+      {19,
+          {"ambiguous reference to function",
+              "you cannot reference or take the address of an overloaded function, you can only call it",
+              gal::DiagnosticType::error}},
+      {20,
+          {"mismatched return type",
+              "return expressions must return a type compatible with the function",
+              gal::DiagnosticType::error}},
+      {21,
+          {"binding cannot be nil",
+              "a binding without a type hint cannot be nil, it must be cast to a pointer type",
+              gal::DiagnosticType::error}},
+      {22,
+          {"reference to declaration other than constant/function in identifier expression",
+              "you can only reference constant declarations and function declarations in an id-expr, not all "
+              "declarations",
+              gal::DiagnosticType::error}},
+  };
 
   return lookup.at(code);
-}
-
-void gal::report_diagnostic(std::string_view source, const gal::Diagnostic& diagnostic) noexcept {
-  gal::raw_errs() << diagnostic.build(source) << "\n\n";
 }
 
 [[nodiscard]] std::unique_ptr<gal::DiagnosticPart> gal::point_out(const ast::Node& node,
@@ -332,10 +386,7 @@ void gal::report_diagnostic(std::string_view source, const gal::Diagnostic& diag
 [[nodiscard]] std::unique_ptr<gal::DiagnosticPart> gal::point_out(const ast::SourceLoc& loc,
     gal::DiagnosticType type,
     std::string inline_message) noexcept {
-  auto underline = (type == gal::DiagnosticType::note) ? gal::UnderlineType::straight : gal::UnderlineType::squiggly;
-
-  return std::make_unique<gal::UnderlineList>(
-      std::vector{gal::UnderlineList::PointedOut{loc, std::move(inline_message), type, underline}});
+  return std::make_unique<gal::UnderlineList>(std::vector{gal::point_out_part(loc, type, std::move(inline_message))});
 }
 
 gal::UnderlineList::PointedOut gal::point_out_part(const ast::Node& node,
@@ -347,5 +398,11 @@ gal::UnderlineList::PointedOut gal::point_out_part(const ast::Node& node,
 gal::UnderlineList::PointedOut gal::point_out_part(const ast::SourceLoc& loc,
     gal::DiagnosticType type,
     std::string inline_message) noexcept {
-  return gal::UnderlineList::PointedOut{loc, std::move(inline_message), type};
+  auto underline = (type == gal::DiagnosticType::note) ? gal::UnderlineType::straight : gal::UnderlineType::squiggly;
+
+  return gal::UnderlineList::PointedOut{loc, std::move(inline_message), type, underline};
+}
+
+std::unique_ptr<gal::DiagnosticPart> gal::single_message(std::string message, gal::DiagnosticType type) noexcept {
+  return std::make_unique<gal::SingleMessage>(std::move(message), type);
 }

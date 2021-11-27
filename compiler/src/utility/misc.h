@@ -242,5 +242,33 @@ namespace gal {
 
       return static_cast<T>(entity);
     }
+
+    template <typename T> class ReverseWrapper {
+    public:
+      explicit ReverseWrapper(T& i) noexcept : iterable_{i} {}
+
+      ReverseWrapper(const ReverseWrapper&) = default;
+
+      ReverseWrapper(ReverseWrapper&&) = default;
+
+      auto begin() noexcept {
+        return std::rbegin(iterable_);
+      }
+
+      auto end() noexcept {
+        return std::rend(iterable_);
+      }
+
+    private:
+      T& iterable_;
+    };
   } // namespace internal
+
+  template <typename T> internal::ReverseWrapper<T> reverse(T* iterable) {
+    return internal::ReverseWrapper{*iterable};
+  }
+
+  template <typename T> internal::ReverseWrapper<const T> reverse(const T& iterable) {
+    return internal::ReverseWrapper{iterable};
+  }
 } // namespace gal

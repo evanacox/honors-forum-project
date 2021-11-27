@@ -8,27 +8,25 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#pragma once
+#include "./reporter.h"
 
-#include "./nodes.h"
-#include "absl/types/span.h"
-#include <memory>
-#include <vector>
+namespace gal {
+  DiagnosticReporter::DiagnosticReporter(std::string_view source) noexcept : source_{source} {}
 
-namespace gal::ast {
-  class Program {
-  public:
-    explicit Program(std::vector<std::unique_ptr<Declaration>> decls) noexcept : declarations_{std::move(decls)} {}
+  void DiagnosticReporter::report(gal::Diagnostic diagnostic) noexcept {
+    internal_report(std::move(diagnostic));
+  }
 
-    [[nodiscard]] absl::Span<const std::unique_ptr<Declaration>> decls() const noexcept {
-      return declarations_;
-    }
+  void DiagnosticReporter::report_emplace(std::int64_t code,
+      std::vector<std::unique_ptr<DiagnosticPart>> parts) noexcept {
+    report(gal::Diagnostic{code, std::move(parts)});
+  }
 
-    [[nodiscard]] absl::Span<std::unique_ptr<Declaration>> decls_mut() noexcept {
-      return absl::MakeSpan(declarations_);
-    }
+  bool DiagnosticReporter::had_error() const noexcept {
+    return internal_had_error();
+  }
 
-  private:
-    std::vector<std::unique_ptr<Declaration>> declarations_;
-  };
-} // namespace gal::ast
+  std::string_view DiagnosticReporter::source() const noexcept {
+    return source_;
+  }
+} // namespace gal

@@ -25,6 +25,10 @@
 #include <variant>
 #include <vector>
 
+namespace gal {
+  class Overload;
+}
+
 namespace gal::ast {
   class Statement;
 
@@ -38,6 +42,7 @@ namespace gal::ast {
     group,
     identifier,
     identifier_unqualified,
+    identifier_local,
     block,
     call,
     method_call,
@@ -162,14 +167,14 @@ namespace gal::ast {
     /// \param types The types to check against
     /// \return Whether or not the node is of one of those types
     template <typename... Args> [[nodiscard]] bool is_one_of(Args... types) const noexcept {
-      return (is(types) && ...);
+      return (is(types) || ...);
     }
 
     /// Checks if `.result()` is safe to call
     ///
     /// \return
     [[nodiscard]] bool has_result() const noexcept {
-      return evaluates_to_ != nullptr;
+      return evaluates_to_.has_value();
     }
 
     /// Clones a node and returns a pointer to the copy
@@ -182,34 +187,19 @@ namespace gal::ast {
     /// Gets the result type of the expression, i.e the type it will evaluate to
     ///
     /// \return The type that the expression evaluates to
-    [[nodiscard]] std::optional<const Type*> result() const noexcept {
-      if (evaluates_to_.has_value()) {
-        return std::make_optional(&**evaluates_to_);
-      } else {
-        return std::nullopt;
-      }
+    [[nodiscard]] const Type& result() const noexcept {
+      assert(has_result());
+
+      return **evaluates_to_;
     }
 
     /// Gets a mutable pointer to the result type
     ///
     /// \return Mutable pointer to the result type
-    [[nodiscard]] std::optional<Type*> result_mut() noexcept {
-      if (evaluates_to_.has_value()) {
-        return std::make_optional(&**evaluates_to_);
-      } else {
-        return std::nullopt;
-      }
-    }
+    [[nodiscard]] Type* result_mut() noexcept {
+      assert(has_result());
 
-    /// Returns the current result type, if it exists
-    ///
-    /// \return The result type
-    [[nodiscard]] std::optional<std::unique_ptr<Type>*> result_owner() noexcept {
-      if (evaluates_to_.has_value()) {
-        return std::make_optional(&*evaluates_to_);
-      } else {
-        return std::nullopt;
-      }
+      return evaluates_to_->get();
     }
 
     /// Updates the result type to a new type
@@ -641,8 +631,8 @@ namespace gal::ast {
     /// \param id The fully-qualified id
     explicit IdentifierExpression(SourceLoc loc,
         FullyQualifiedID id,
-        std::vector<std::unique_ptr<Type>> generic_params,
-        std::optional<NestedGenericIDList> list) noexcept
+        std::vector<std::unique_ptr<Type>> generic_params = {},
+        std::optional<NestedGenericIDList> list = {}) noexcept
         : Expression(std::move(loc), ExprType::identifier),
           id_{std::move(id)},
           generic_params_{std::move(generic_params)},
@@ -731,6 +721,47 @@ namespace gal::ast {
     FullyQualifiedID id_;
     std::vector<std::unique_ptr<Type>> generic_params_;
     std::optional<NestedGenericIDList> nested_;
+  };
+
+  /// Models the idea of a "local" identifier, i.e one local to the function scope
+  class LocalIdentifierExpression final : public Expression {
+  public:
+    /// Creates a local identifier
+    ///
+    /// \param loc The location
+    /// \param id The fully-qualified id
+    explicit LocalIdentifierExpression(SourceLoc loc, std::string name) noexcept
+        : Expression(std::move(loc), ExprType::identifier_local),
+          name_{std::move(name)} {}
+
+    /// Gets the fully-qualified ID
+    ///
+    /// \return The ID
+    [[nodiscard]] std::string_view name() const noexcept {
+      return name_;
+    }
+
+  protected:
+    void internal_accept(ExpressionVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
+      auto& result = internal::debug_cast<const LocalIdentifierExpression&>(other);
+
+      return name() == result.name();
+    }
+
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
+      return std::make_unique<LocalIdentifierExpression>(loc(), name_);
+    }
+
+  private:
+    std::string name_;
   };
 
   /// Represents a normal identifier, e.g `a` or `foo::bar`.
@@ -835,6 +866,128 @@ namespace gal::ast {
     UnqualifiedID id_;
     std::vector<std::unique_ptr<Type>> generic_params_;
     std::optional<NestedGenericIDList> nested_;
+  };
+
+  /// Models
+  class StaticCallExpression final : public Expression {
+  public:
+    /// Creates a call expression
+    ///
+    /// \param loc The location in the source it comes from
+    /// \param callee The object / expression being called
+    /// \param args Any arguments given to the call
+    explicit StaticCallExpression(SourceLoc loc,
+        Overload* callee,
+        ast::FullyQualifiedID id,
+        std::vector<std::unique_ptr<Expression>> args,
+        std::vector<std::unique_ptr<Type>> generic_args)
+        : Expression(std::move(loc), ExprType::call),
+          id_{std::move(id)},
+          callee_{callee},
+          args_{std::move(args)},
+          generic_params_{std::move(generic_args)} {}
+
+    [[nodiscard]] const ast::FullyQualifiedID& id() const noexcept {
+      return id_;
+    }
+
+    /// Gets the object being called
+    ///
+    /// \return The object being called
+    [[nodiscard]] const Overload& callee() const noexcept {
+      return *callee_;
+    }
+
+    /// Gets the object being called
+    ///
+    /// \return The object being called
+    [[nodiscard]] Overload* callee_mut() noexcept {
+      return callee_;
+    }
+
+    /// Gets the arguments for the call
+    ///
+    /// \return The arguments to the call
+    [[nodiscard]] absl::Span<const std::unique_ptr<Expression>> args() const noexcept {
+      return args_;
+    }
+
+    /// Gets the arguments for the call
+    ///
+    /// \return The arguments to the call
+    [[nodiscard]] absl::Span<std::unique_ptr<Expression>> args_mut() noexcept {
+      return absl::MakeSpan(args_);
+    }
+
+    /// Gets the list of generic parameters
+    ///
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
+      if (!generic_params_.empty()) {
+        return absl::MakeConstSpan(generic_params_);
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the list of generic parameters
+    ///
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
+      if (!generic_params_.empty()) {
+        return absl::MakeSpan(generic_params_);
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the owner of the list of generic parameters
+    ///
+    /// \return The owner of the generic parameters
+    [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
+      if (!generic_params_.empty()) {
+        return &generic_params_;
+      }
+
+      return std::nullopt;
+    }
+
+  protected:
+    void internal_accept(ExpressionVisitorBase* visitor) final {
+      visitor->visit(this);
+    }
+
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
+      visitor->visit(*this);
+    }
+
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
+      auto& result = internal::debug_cast<const StaticCallExpression&>(other);
+      auto self_args = args();
+      auto res_args = result.args();
+
+      return &callee() == &callee()
+             && std::equal(self_args.begin(), self_args.end(), res_args.begin(), res_args.end(), gal::DerefEq<>{})
+             && std::equal(generic_params_.begin(),
+                 generic_params_.end(),
+                 result.generic_params_.begin(),
+                 result.generic_params_.end(),
+                 gal::DerefEq{});
+    }
+
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
+      return std::make_unique<StaticCallExpression>(loc(),
+          callee_,
+          id(),
+          gal::clone_span(absl::MakeConstSpan(args_)),
+          internal::clone_generics(generic_params_));
+    }
+
+  private:
+    ast::FullyQualifiedID id_;
+    Overload* callee_;
+    std::vector<std::unique_ptr<Expression>> args_;
+    std::vector<std::unique_ptr<Type>> generic_params_;
   };
 
   /// Models a call expression, contains both the callee and the call arguments
@@ -1502,6 +1655,13 @@ namespace gal::ast {
     /// \return The type the object is being casted to
     [[nodiscard]] const Type& cast_to() const noexcept {
       return *cast_to_;
+    }
+
+    /// Gets the type that the object is being casted to
+    ///
+    /// \return The type the object is being casted to
+    [[nodiscard]] Type* cast_to_mut() noexcept {
+      return cast_to_.get();
     }
 
     /// Gets the owner of the type that the object is being casted to

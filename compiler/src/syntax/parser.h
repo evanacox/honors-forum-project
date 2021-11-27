@@ -12,7 +12,7 @@
 
 #include "../ast/nodes.h"
 #include "../ast/program.h"
-#include "../core/error_reporting.h"
+#include "../errors/reporter.h"
 #include <optional>
 #include <string_view>
 #include <variant>
@@ -25,6 +25,7 @@ namespace gal {
   /// \param file The file being parsed
   /// \param text The text to parse
   /// \return A possible AST
-  std::variant<ast::Program, std::vector<gal::Diagnostic>> parse(std::filesystem::path file,
-      std::string_view text) noexcept;
+  std::optional<ast::Program> parse(std::filesystem::path file,
+      std::string_view text,
+      DiagnosticReporter* reporter) noexcept;
 } // namespace gal

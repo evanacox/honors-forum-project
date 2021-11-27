@@ -129,7 +129,7 @@ namespace gal::ast {
     /// \param types The types to check against
     /// \return Whether or not the node is of one of those types
     template <typename... Args> [[nodiscard]] bool is_one_of(Args... types) const noexcept {
-      return (is(types) && ...);
+      return (is(types) || ...);
     }
 
   protected:

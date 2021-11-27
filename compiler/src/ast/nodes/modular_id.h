@@ -75,7 +75,6 @@ namespace gal::ast {
 
   private:
     friend UnqualifiedID module_into_unqualified(ModuleID) noexcept;
-    friend FullyQualifiedID module_into_qualified(ModuleID) noexcept;
 
     bool from_root_;
     std::vector<std::string> parts_;
@@ -110,7 +109,7 @@ namespace gal::ast {
     /// \return A string representation of the identifier
     [[nodiscard]] std::string to_string() const noexcept {
       if (prefix().has_value()) {
-        return absl::StrCat((*prefix())->to_string(), "::", id_);
+        return absl::StrCat((*prefix())->to_string(), id_);
       } else {
         return id_;
       }
@@ -161,7 +160,7 @@ namespace gal::ast {
     ///
     /// \return A string representation of the identifier
     [[nodiscard]] std::string to_string() const noexcept {
-      return absl::StrCat(module_string_, "::", id_);
+      return absl::StrCat(module_string_, id_);
     }
 
     /// Compares two FullyQualifiedID for equality
@@ -191,7 +190,8 @@ namespace gal::ast {
     auto last = std::move(vec.back());
     vec.pop_back();
 
-    auto module = vec.empty() ? std::nullopt : std::make_optional(ModuleID(id.from_root(), std::move(vec)));
+    auto module =
+        vec.empty() && !id.from_root() ? std::nullopt : std::make_optional(ModuleID(id.from_root(), std::move(vec)));
 
     return UnqualifiedID(std::move(module), std::move(last));
   }

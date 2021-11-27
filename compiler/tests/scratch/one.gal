@@ -1,6 +1,6 @@
 external {
     fn puts(str: *const u8) -> i32
-
+    
     fn abort() __noreturn -> void
 }
 
@@ -8,19 +8,39 @@ type Hello = &mut [isize]
 
 const pi: f64 = 3.14159265
 
-struct Foo {
-    bar: Baz
-    x: i256
+struct Point {
+    x: f64 
+    y: f64
 }
 
 fn main() -> void {
     let binding: fn(i32, f64) -> void = nil
+    let binding = nil
 
-    let x = Point { x: 64.3, y: "hello" }
+    pi
 
-    puts(1, 2, 3)
+    let pi = 3
+
+    pi
+
+    return puts 
+
+    if 1 then 1 else 0.0 as void
+
+    let x = Point { x: 64.3, y: 0 }
+
+    let y = x
+
+    while 1 {
+        let y = 5
+
+        y
+    }
+
+  /*  puts(1, 2, 3)
 
     1 + 2 / 3 * 4 % 5
+
 
     if true {
         if false then 1 else 2 
@@ -29,4 +49,6 @@ fn main() -> void {
     } else {
         lol()
     }
+
+    */
 }

@@ -9,6 +9,7 @@
 //======---------------------------------------------------------------======//
 
 #include "./ast/program.h"
+#include "./errors/reporter.h"
 #include "absl/types/span.h"
 #include <optional>
 #include <string_view>
@@ -27,9 +28,13 @@ namespace gal {
     /// Parses a file, if it parses successfully it is added to `programs_`
     /// and a pointer is returned. Otherwise, nullopt is returned.
     ///
-    /// \param path The path to read
+    /// \param path The path of the file
+    /// \param source The source of the file
+    /// \param reporter A diagnostic reporter
     /// \return A possible program
-    [[nodiscard]] std::optional<ast::Program*> parse_file(std::string_view path) noexcept;
+    [[nodiscard]] std::optional<ast::Program*> parse_file(std::filesystem::path path,
+        std::string_view source,
+        gal::DiagnosticReporter* reporter) noexcept;
 
   private:
     std::vector<ast::Program> programs_;

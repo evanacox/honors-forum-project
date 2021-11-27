@@ -11,7 +11,7 @@
 #pragma once
 
 #include "../ast/program.h"
-#include "./error_reporting.h"
+#include "../errors/reporter.h"
 
 namespace gal {
   /// Walks through the entire program AST, and annotates each node with type information
@@ -19,6 +19,7 @@ namespace gal {
   /// types are not correct.
   ///
   /// \param program A program to be type-annotated and type-checked.
+  /// \param reporter The diagnostic reporter
   /// \return A list of errors if the program did not type-check, and nothing if it did
-  std::optional<std::vector<gal::Diagnostic>> type_check(ast::Program* program) noexcept;
+  bool type_check(ast::Program* program, gal::DiagnosticReporter* reporter) noexcept;
 } // namespace gal

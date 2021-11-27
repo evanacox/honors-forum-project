@@ -32,8 +32,8 @@ namespace {
 } // namespace
 
 namespace gal {
-  ParserErrorListener::ParserErrorListener(std::filesystem::path file) noexcept
-      : diagnostics_{},
+  ParserErrorListener::ParserErrorListener(std::filesystem::path file, gal::DiagnosticReporter* reporter) noexcept
+      : diagnostics_{reporter},
         file_{std::move(file)} {}
 
   void ParserErrorListener::syntaxError(antlr4::Recognizer*,
@@ -62,11 +62,7 @@ namespace gal {
     push_error(std::move(diagnostics));
   }
 
-  std::optional<std::vector<gal::Diagnostic>> ParserErrorListener::errors() noexcept {
-    return std::move(diagnostics_);
-  }
-
   void ParserErrorListener::push_error(std::vector<std::unique_ptr<gal::DiagnosticPart>> diagnostics) noexcept {
-    diagnostics_.emplace_back(5, std::move(diagnostics));
+    diagnostics_->report_emplace(5, std::move(diagnostics));
   }
 } // namespace gal

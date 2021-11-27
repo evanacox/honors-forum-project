@@ -14,25 +14,9 @@
 namespace ast = gal::ast;
 
 namespace {
-  const ast::FnPrototype& proto_of(gal::OverloadSet::CallableNode overload) noexcept {
-    return *std::visit(
-        [](auto* ptr) {
-          return ptr->proto_mut();
-        },
-        overload);
-  }
-
-  const ast::SourceLoc& loc_of(gal::OverloadSet::CallableNode overload) noexcept {
-    return std::visit(
-        [](auto* ptr) -> const ast::SourceLoc& {
-          return ptr->loc();
-        },
-        overload);
-  }
-
   class BuildGlobalSymbolTable final : public ast::DeclarationVisitor<void> {
   public:
-    BuildGlobalSymbolTable(ast::Program* program, std::vector<gal::Diagnostic>* diagnostics) noexcept
+    BuildGlobalSymbolTable(ast::Program* program, gal::DiagnosticReporter* diagnostics) noexcept
         : diagnostics_{diagnostics} {
       for (auto& decl : program->decls_mut()) {
         decl->accept(this);
@@ -48,7 +32,7 @@ namespace {
     }
 
     void visit(ast::FnDeclaration* declaration) final {
-      insert(declaration->proto().name(), gal::OverloadSet::CallableNode(declaration));
+      insert(declaration->proto().name(), gal::Overload(declaration));
     }
 
     void visit(ast::StructDeclaration* declaration) final {
@@ -68,7 +52,7 @@ namespace {
     }
 
     void visit(ast::ExternalFnDeclaration* declaration) final {
-      insert(declaration->proto().name(), gal::OverloadSet::CallableNode(declaration));
+      insert(declaration->proto().name(), gal::Overload(declaration));
     }
 
     void visit(ast::ExternalDeclaration* declaration) final {
@@ -92,26 +76,26 @@ namespace {
         auto old = gal::point_out_part(it->second.decl(), gal::DiagnosticType::note, "previous declaration was here");
         auto underline = gal::point_out_list(std::move(new_decl), std::move(old));
 
-        diagnostics_->emplace_back(6, gal::into_list(std::move(underline)));
+        diagnostics_->report_emplace(6, gal::into_list(std::move(underline)));
       }
     }
 
-    void insert(std::string_view name, gal::OverloadSet::CallableNode overload) noexcept {
+    void insert(std::string_view name, gal::Overload overload) noexcept {
       auto [it, _] = overloads_.emplace(name, gal::OverloadSet{name});
-      auto args = proto_of(overload).args();
+      auto args = overload.proto().args();
 
       // if any other overloads have the same arguments, overloading
       // is kind of broken. if we try to make it work based on return type
       // or whatever it's just horrible to try to reason about
       for (auto other : it->second.fns()) {
-        auto other_args = proto_of(other).args();
+        auto other_args = other.proto().args();
 
         if (std::equal(args.begin(), args.end(), other_args.begin(), other_args.end())) {
-          auto a = gal::point_out_part(loc_of(other), gal::DiagnosticType::note, "original overload is here");
-          auto b = gal::point_out_part(loc_of(overload), gal::DiagnosticType::error, "conflicting overload is here");
+          auto a = gal::point_out_part(other.loc(), gal::DiagnosticType::note, "original overload is here");
+          auto b = gal::point_out_part(overload.loc(), gal::DiagnosticType::error, "conflicting overload is here");
           auto error = gal::point_out_list(std::move(a), std::move(b));
 
-          diagnostics_->emplace_back(9, gal::into_list(std::move(error)));
+          diagnostics_->report_emplace(9, gal::into_list(std::move(error)));
 
           return;
         }
@@ -122,17 +106,17 @@ namespace {
 
     absl::flat_hash_map<std::string, gal::GlobalEntity> entities_;
     absl::flat_hash_map<std::string, gal::OverloadSet> overloads_;
-    std::vector<gal::Diagnostic>* diagnostics_ = nullptr;
+    gal::DiagnosticReporter* diagnostics_;
   };
 } // namespace
 
 namespace gal {
-  void OverloadSet::add_overload(OverloadSet::CallableNode overload) noexcept {
+  void OverloadSet::add_overload(Overload overload) noexcept {
 #ifndef NDEBUG
-    auto args = proto_of(overload).args();
+    auto args = overload.proto().args();
 
     assert(std::none_of(functions_.begin(), functions_.end(), [args](auto overload) {
-      auto other_args = proto_of(overload).args();
+      auto other_args = overload.proto().args();
 
       return std::equal(args.begin(), args.end(), other_args.begin(), other_args.end());
     }));
@@ -141,7 +125,7 @@ namespace gal {
     functions_.push_back(overload);
   }
 
-  GlobalEnvironment::GlobalEnvironment(ast::Program* program, std::vector<gal::Diagnostic>* diagnostics) noexcept {
+  GlobalEnvironment::GlobalEnvironment(ast::Program* program, gal::DiagnosticReporter* diagnostics) noexcept {
     BuildGlobalSymbolTable builder(program, diagnostics);
 
     entities_ = std::move(builder.entities_);
@@ -179,10 +163,10 @@ namespace gal {
   std::optional<const ast::Type*> Scope::get(std::string_view name) const noexcept {
     auto it = variables_.find(name);
 
-    return (it == variables_.end()) ? std::make_optional(&it->second.type()) : std::nullopt;
+    return (it != variables_.end()) ? std::make_optional(&it->second.type()) : std::nullopt;
   }
 
-  void Scope::add(std::string_view name, ScopeEntity data, std::vector<gal::Diagnostic>* diagnostics) noexcept {
+  bool Scope::add(std::string_view name, ScopeEntity data, gal::DiagnosticReporter* diagnostics) noexcept {
     // while its *probably* fine to use-after-move for `one`, may as well not risk it's not
     // a for-sure safe bet to assume that if `inserted` is false that `data` wasn't actually move-constructed
     // somewhere inside the chain of `flat_hash_map`. thus, we copy it just in case
@@ -190,12 +174,14 @@ namespace gal {
     auto [it, inserted] = variables_.emplace(std::string{name}, std::move(data));
 
     if (!inserted) {
-      auto one = gal::point_out(loc, gal::DiagnosticType::error, "second binding was here");
-      auto two = gal::point_out(it->second.loc(), gal::DiagnosticType::note, "first binding was here");
-      auto vec = gal::into_list(std::move(one), std::move(two));
+      auto a = gal::point_out_part(loc, gal::DiagnosticType::error, "second binding was here");
+      auto b = gal::point_out_part(it->second.loc(), gal::DiagnosticType::note, "first binding was here");
+      auto c = gal::point_out_list(std::move(a), std::move(b));
 
-      diagnostics->push_back(gal::Diagnostic(8, std::move(vec)));
+      diagnostics->report_emplace(8, gal::into_list(std::move(c)));
     }
+
+    return inserted;
   }
 
   bool Scope::contains(std::string_view name) const noexcept {
@@ -203,7 +189,7 @@ namespace gal {
   }
 
   std::optional<const ast::Type*> Environment::get(std::string_view name) const noexcept {
-    for (auto& scope : scopes_) {
+    for (auto& scope : gal::reverse(scopes_)) {
       if (auto type = scope.get(name)) {
         return type;
       }
@@ -243,4 +229,6 @@ namespace gal {
   absl::Span<const Scope> Environment::scopes() const noexcept {
     return scopes_;
   }
+
+  Environment::Environment(gal::DiagnosticReporter* reporter) noexcept : diagnostics_{reporter} {}
 } // namespace gal

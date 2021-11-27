@@ -714,11 +714,12 @@ namespace gal::ast {
       ///
       /// \param name The name of the field
       /// \param type The type of the field
-      explicit Field(std::string name, std::unique_ptr<Type> type) noexcept
-          : name_{std::move(name)},
+      explicit Field(ast::SourceLoc loc, std::string name, std::unique_ptr<Type> type) noexcept
+          : loc_{std::move(loc)},
+            name_{std::move(name)},
             type_{std::move(type)} {}
 
-      Field(const Field& other) noexcept : name_{other.name_}, type_{other.type_->clone()} {}
+      Field(const Field& other) noexcept : loc_{other.loc_}, name_{other.name_}, type_{other.type_->clone()} {}
 
       Field(Field&&) = default;
 
@@ -759,7 +760,12 @@ namespace gal::ast {
         return &type_;
       }
 
+      const ast::SourceLoc& loc() const noexcept {
+        return loc_;
+      }
+
     private:
+      ast::SourceLoc loc_;
       std::string name_;
       std::unique_ptr<Type> type_;
     };

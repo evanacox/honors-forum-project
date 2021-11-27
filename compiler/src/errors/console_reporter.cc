@@ -8,27 +8,24 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#pragma once
+#include "./console_reporter.h"
 
-#include "./nodes.h"
-#include "absl/types/span.h"
-#include <memory>
-#include <vector>
+namespace {
+  //
+}
 
-namespace gal::ast {
-  class Program {
-  public:
-    explicit Program(std::vector<std::unique_ptr<Declaration>> decls) noexcept : declarations_{std::move(decls)} {}
+namespace gal {
+  ConsoleReporter::ConsoleReporter(std::ostream* os, std::string_view source) noexcept
+      : gal::DiagnosticReporter{source},
+        out_{os} {}
 
-    [[nodiscard]] absl::Span<const std::unique_ptr<Declaration>> decls() const noexcept {
-      return declarations_;
-    }
+  void ConsoleReporter::internal_report(gal::Diagnostic diagnostic) noexcept {
+    error_count_ += 1;
 
-    [[nodiscard]] absl::Span<std::unique_ptr<Declaration>> decls_mut() noexcept {
-      return absl::MakeSpan(declarations_);
-    }
+    *out_ << diagnostic.build(source()) << "\n\n";
+  }
 
-  private:
-    std::vector<std::unique_ptr<Declaration>> declarations_;
-  };
-} // namespace gal::ast
+  bool ConsoleReporter::internal_had_error() const noexcept {
+    return error_count_ != 0;
+  }
+} // namespace gal

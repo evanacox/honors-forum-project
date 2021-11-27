@@ -46,3 +46,13 @@ std::string object = /* whatever */;
 do_thing(&object);
 do_other_thing(object); 
 ```
+
+# TODOs
+
+- Fix the hacky solution in `name_resolver.cc` and get an algorithm that can actually scale for a module system
+
+- Change how diagnostics work, make it so different `DiagnosticReporter`
+  objects can actually report the same `DiagnosticPart` different ways.
+
+    - Possibly another visitor hierarchy???
+

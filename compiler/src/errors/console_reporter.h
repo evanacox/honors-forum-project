@@ -10,25 +10,22 @@
 
 #pragma once
 
-#include "./nodes.h"
-#include "absl/types/span.h"
-#include <memory>
-#include <vector>
+#include "./diagnostics.h"
+#include "./reporter.h"
+#include <ostream>
 
-namespace gal::ast {
-  class Program {
+namespace gal {
+  class ConsoleReporter final : public DiagnosticReporter {
   public:
-    explicit Program(std::vector<std::unique_ptr<Declaration>> decls) noexcept : declarations_{std::move(decls)} {}
+    explicit ConsoleReporter(std::ostream* os, std::string_view source) noexcept;
 
-    [[nodiscard]] absl::Span<const std::unique_ptr<Declaration>> decls() const noexcept {
-      return declarations_;
-    }
+  protected:
+    void internal_report(gal::Diagnostic diagnostic) noexcept final;
 
-    [[nodiscard]] absl::Span<std::unique_ptr<Declaration>> decls_mut() noexcept {
-      return absl::MakeSpan(declarations_);
-    }
+    [[nodiscard]] bool internal_had_error() const noexcept final;
 
   private:
-    std::vector<std::unique_ptr<Declaration>> declarations_;
+    std::size_t error_count_ = 0;
+    std::ostream* out_;
   };
-} // namespace gal::ast
+} // namespace gal

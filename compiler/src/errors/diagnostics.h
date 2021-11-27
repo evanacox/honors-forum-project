@@ -12,10 +12,9 @@
 
 #include "../ast/nodes/node.h"
 #include "../ast/source_loc.h"
-#include <cassert>
-#include <cstdint>
+#include <memory>
 #include <optional>
-#include <ostream>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -137,12 +136,6 @@ namespace gal {
   /// \return The info for the code
   DiagnosticInfo diagnostic_info(std::int64_t code) noexcept;
 
-  /// Reports a diagnostic and puts it to stdout
-  ///
-  /// \param source The source code to base errors off of
-  /// \param diagnostic The diagnostic to show
-  void report_diagnostic(std::string_view source, const Diagnostic& diagnostic) noexcept;
-
   /// Points out a bit of source code
   ///
   /// \param node The node to point out
@@ -182,6 +175,14 @@ namespace gal {
   [[nodiscard]] gal::UnderlineList::PointedOut point_out_part(const ast::SourceLoc& loc,
       gal::DiagnosticType type,
       std::string inline_message = {}) noexcept;
+
+  /// Creates a single message diagnostic
+  ///
+  /// \param message The message
+  /// \param type The type of diagnostic
+  /// \return A diagnostic part
+  [[nodiscard]] std::unique_ptr<gal::DiagnosticPart> single_message(std::string message,
+      gal::DiagnosticType type = gal::DiagnosticType::note) noexcept;
 
   ///  Creates an UnderlineList from a list of `PointedOut`s
   ///

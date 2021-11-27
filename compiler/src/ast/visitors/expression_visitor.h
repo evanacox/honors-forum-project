@@ -22,6 +22,7 @@ namespace gal::ast {
   class UnqualifiedIdentifierExpression;
   class IdentifierExpression;
   class CallExpression;
+  class StaticCallExpression;
   class MethodCallExpression;
   class StaticMethodCallExpression;
   class IndexExpression;
@@ -40,6 +41,7 @@ namespace gal::ast {
   class BreakExpression;
   class ContinueExpression;
   class StructExpression;
+  class LocalIdentifierExpression;
 
   class ExpressionVisitorBase {
   public:
@@ -61,9 +63,13 @@ namespace gal::ast {
 
     virtual void visit(IdentifierExpression*) = 0;
 
+    virtual void visit(LocalIdentifierExpression*) = 0;
+
     virtual void visit(StructExpression*) = 0;
 
     virtual void visit(CallExpression*) = 0;
+
+    virtual void visit(StaticCallExpression*) = 0;
 
     virtual void visit(MethodCallExpression*) = 0;
 
@@ -120,9 +126,13 @@ namespace gal::ast {
 
     virtual void visit(const IdentifierExpression&) = 0;
 
+    virtual void visit(const LocalIdentifierExpression&) = 0;
+
     virtual void visit(const StructExpression&) = 0;
 
     virtual void visit(const CallExpression&) = 0;
+
+    virtual void visit(const StaticCallExpression&) = 0;
 
     virtual void visit(const MethodCallExpression&) = 0;
 

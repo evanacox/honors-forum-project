@@ -26,6 +26,7 @@ namespace gal::ast {
   class DynInterfaceType;
   class VoidType;
   class NilPointerType;
+  class ErrorType;
 
   class TypeVisitorBase {
   public:
@@ -58,6 +59,8 @@ namespace gal::ast {
     virtual void visit(VoidType*) = 0;
 
     virtual void visit(NilPointerType*) = 0;
+
+    virtual void visit(ErrorType*) = 0;
 
     virtual ~TypeVisitorBase() = default;
   };
@@ -93,6 +96,8 @@ namespace gal::ast {
     virtual void visit(const VoidType&) = 0;
 
     virtual void visit(const NilPointerType&) = 0;
+
+    virtual void visit(const ErrorType&) = 0;
 
     virtual ~ConstTypeVisitorBase() = default;
   };

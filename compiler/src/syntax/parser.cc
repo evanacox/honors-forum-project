@@ -11,7 +11,7 @@
 #include "./parser.h"
 #include "../ast/nodes.h"
 #include "../ast/program.h"
-#include "../core/error_reporting.h"
+#include "../errors/reporter.h"
 #include "../utility/misc.h"
 #include "./parse_errors.h"
 #include "absl/container/flat_hash_map.h"
@@ -48,7 +48,9 @@ namespace {
 
   class ASTGenerator final : public GalliumBaseVisitor {
   public:
-    std::variant<ast::Program, std::vector<gal::Diagnostic>> into_ast(std::string_view source,
+    explicit ASTGenerator(gal::DiagnosticReporter* reporter) noexcept : diagnostics_{reporter} {}
+
+    std::optional<ast::Program> into_ast(std::string_view source,
         std::filesystem::path path,
         GalliumParser::ParseContext* parse_tree) noexcept {
       auto decls = std::vector<std::unique_ptr<ast::Declaration>>{};
@@ -61,8 +63,8 @@ namespace {
         decls.push_back(return_value<ast::Declaration>());
       }
 
-      if (!diagnostics_.empty()) {
-        return std::move(diagnostics_);
+      if (diagnostics_->had_error()) {
+        return std::nullopt;
       } else {
         return ast::Program(std::move(decls));
       }
@@ -290,7 +292,7 @@ namespace {
       auto name = ctx->IDENTIFIER()->toString();
       auto type = return_value<ast::Type>();
 
-      return ast::StructDeclaration::Field{std::move(name), std::move(type)};
+      return ast::StructDeclaration::Field{loc_from(ctx), std::move(name), std::move(type)};
     }
 
     antlrcpp::Any visitTypeDeclaration(GalliumParser::TypeDeclarationContext* ctx) final {
@@ -1044,7 +1046,7 @@ namespace {
         vec.push_back(std::make_unique<gal::SingleMessage>(s, gal::DiagnosticType::note));
       }
 
-      diagnostics_.emplace_back(code, std::move(vec));
+      diagnostics_->report_emplace(code, std::move(vec));
     }
 
     std::unique_ptr<ast::Type> error_type(std::int64_t code,
@@ -1079,7 +1081,7 @@ namespace {
     std::unique_ptr<ast::Statement> stmt_ret_;
     std::unique_ptr<ast::Expression> expr_ret_;
     std::unique_ptr<ast::Type> type_ret_;
-    std::vector<gal::Diagnostic> diagnostics_;
+    gal::DiagnosticReporter* diagnostics_;
     std::filesystem::path path_;
     std::string_view original_;
     bool exported_ = false;
@@ -1087,10 +1089,11 @@ namespace {
 } // namespace
 
 namespace gal {
-  std::variant<ast::Program, std::vector<gal::Diagnostic>> parse(std::filesystem::path path,
-      std::string_view source_code) noexcept {
+  std::optional<ast::Program> parse(std::filesystem::path path,
+      std::string_view source_code,
+      gal::DiagnosticReporter* reporter) noexcept {
     auto input = antlr4::ANTLRInputStream(std::string{source_code});
-    auto error_handler = gal::ParserErrorListener{path};
+    auto error_handler = gal::ParserErrorListener{path, reporter};
     auto lex = GalliumLexer(&input);
     lex.removeErrorListeners();
     lex.addErrorListener(&error_handler);
@@ -1101,9 +1104,9 @@ namespace gal {
     auto* tree = parser.parse();
 
     if (parser.getNumberOfSyntaxErrors() != 0) {
-      return error_handler.errors().value();
+      return std::nullopt;
     }
 
-    return ASTGenerator().into_ast(source_code, std::move(path), tree);
+    return ASTGenerator(reporter).into_ast(source_code, std::move(path), tree);
   }
 } // namespace gal

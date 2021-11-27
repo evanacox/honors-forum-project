@@ -10,6 +10,7 @@
 
 #include "./driver.h"
 #include "./core/typechecker.h"
+#include "./errors/console_reporter.h"
 #include "./syntax/parser.h"
 #include "./utility/flags.h"
 #include "./utility/log.h"
@@ -34,37 +35,37 @@ namespace {
 
     return file_data;
   }
-
-  void report_errors(std::string_view file, absl::Span<const gal::Diagnostic> diagnostics) noexcept {
-    for (auto& diagnostic : diagnostics) {
-      gal::report_diagnostic(file, diagnostic);
-    }
-  }
 } // namespace
 
 namespace gal {
   int Driver::start(absl::Span<std::string_view> files) noexcept {
     for (auto& file : files) {
-      if (auto program = parse_file(file)) {
-        gal::raw_outs() << gal::pretty_print(**program) << '\n';
-        gal::type_check(*program);
+      auto path = fs::relative(file);
+      auto data = read_file(fs::absolute(file));
+      auto diagnostic = gal::ConsoleReporter(&gal::raw_outs(), data);
+
+      if (auto program = parse_file(path, data, &diagnostic)) {
+        auto valid = gal::type_check(*program, &diagnostic);
+
+        if (gal::flags().verbose()) {
+          gal::raw_outs() << gal::pretty_print(**program) << '\n';
+        }
+
+        gal::outs() << "is valid: " << valid;
       }
     }
 
     return 0;
   }
 
-  std::optional<ast::Program*> Driver::parse_file(std::string_view path) noexcept {
-    auto data = read_file(fs::absolute(path));
-    auto result = gal::parse(path, data);
-
-    if (auto* program = std::get_if<ast::Program>(&result)) {
-      programs_.push_back(std::move(*program));
+  std::optional<ast::Program*> Driver::parse_file(std::filesystem::path path,
+      std::string_view source,
+      gal::DiagnosticReporter* reporter) noexcept {
+    if (auto result = gal::parse(std::move(path), source, reporter)) {
+      programs_.push_back(std::move(*result));
 
       return &programs_.back();
     } else {
-      report_errors(data, std::get<std::vector<gal::Diagnostic>>(result));
-
       return std::nullopt;
     }
   }

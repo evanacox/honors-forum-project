@@ -13,7 +13,7 @@
 #include "../ast/nodes/declaration.h"
 #include "../ast/nodes/type.h"
 #include "../ast/program.h"
-#include "./error_reporting.h"
+#include "../errors/reporter.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
@@ -69,12 +69,88 @@ namespace gal {
     std::unique_ptr<ast::Type> type_; // a type, if its needed
   };
 
+  /// Represents part of an overload set
+  class Overload {
+  public:
+    /// Creates an overload
+    ///
+    /// \param decl The function that is an overload
+    explicit Overload(ast::FnDeclaration* decl) noexcept : decls_{decl} {}
+
+    /// Creates an overload
+    ///
+    /// \param decl The function that is an overload
+    explicit Overload(ast::ExternalFnDeclaration* decl) noexcept : decls_{decl} {}
+
+    /// Gets a const pointer to the declaration, with type info preserved
+    ///
+    /// \return A const pointer to the decl
+    [[nodiscard]] std::variant<const ast::FnDeclaration*, const ast::ExternalFnDeclaration*> decl() const noexcept {
+      if (auto* const* ptr = std::get_if<ast::FnDeclaration*>(&decls_)) {
+        return static_cast<const ast::FnDeclaration*>(*ptr);
+      }
+
+      auto* const* ptr = std::get_if<ast::ExternalFnDeclaration*>(&decls_);
+      assert(ptr != nullptr);
+
+      return static_cast<const ast::ExternalFnDeclaration*>(*ptr);
+    }
+
+    /// Gets a  pointer to the declaration, with type info preserved
+    ///
+    /// \return A pointer to the decl
+    [[nodiscard]] std::variant<ast::FnDeclaration*, ast::ExternalFnDeclaration*> decl_mut() noexcept {
+      return decls_;
+    }
+
+    /// Casts the pointer to the base, and returns it
+    ///
+    /// \return The base pointer
+    [[nodiscard]] const ast::Declaration& decl_base() const noexcept {
+      return std::visit(
+          [](auto* ptr) -> decltype(auto) {
+            return static_cast<const ast::Declaration&>(*ptr);
+          },
+          decls_);
+    }
+
+    /// Casts the pointer to the base, and returns it
+    ///
+    /// \return The base pointer
+    [[nodiscard]] ast::Declaration* decl_base_mut() noexcept {
+      return std::visit(
+          [](auto* ptr) {
+            return static_cast<ast::Declaration*>(ptr);
+          },
+          decls_);
+    }
+
+    /// Gets the prototype of the function regardless of what
+    /// type of function it is
+    ///
+    /// \return The prototype
+    [[nodiscard]] const ast::FnPrototype& proto() const noexcept {
+      return *std::visit(
+          [](auto* ptr) {
+            return ptr->proto_mut();
+          },
+          decls_);
+    }
+
+    /// Gets the location of the overload, regardless of type
+    ///
+    /// \return The type of the fn
+    [[nodiscard]] const ast::SourceLoc& loc() const noexcept {
+      return decl_base().loc();
+    }
+
+  private:
+    std::variant<ast::FnDeclaration*, ast::ExternalFnDeclaration*> decls_;
+  };
+
   /// Models a set of function overloads
   class OverloadSet final {
   public:
-    /// The possible nodes that can be "overloads" of the same name
-    using CallableNode = std::variant<ast::FnDeclaration*, ast::ExternalFnDeclaration*>;
-
     /// Creates an empty overload set
     ///
     /// \param name The name of the set
@@ -90,18 +166,25 @@ namespace gal {
     /// Gets the list of all possible overloads for `name`
     ///
     /// \return The list of overloads
-    [[nodiscard]] absl::Span<CallableNode> fns() noexcept {
+    [[nodiscard]] absl::Span<const Overload> fns() const noexcept {
+      return functions_;
+    }
+
+    /// Gets the list of all possible overloads for `name`
+    ///
+    /// \return The list of overloads
+    [[nodiscard]] absl::Span<Overload> fns() noexcept {
       return absl::MakeSpan(functions_);
     }
 
     /// Adds an overload to the overload set
     ///
     /// \param overload The overload to add
-    void add_overload(CallableNode overload) noexcept;
+    void add_overload(Overload overload) noexcept;
 
   private:
     std::string_view name_;
-    std::vector<CallableNode> functions_;
+    std::vector<Overload> functions_;
   };
 
   /// Models the "global environment" for a module, i.e a single file
@@ -111,7 +194,7 @@ namespace gal {
     /// a single AST
     ///
     /// \param program The AST to get the global environment from
-    explicit GlobalEnvironment(ast::Program* program, std::vector<gal::Diagnostic>* diagnostics) noexcept;
+    explicit GlobalEnvironment(ast::Program* program, gal::DiagnosticReporter* reporter) noexcept;
 
     /// Checks if `name` is in this environment at all, i.e whether any
     /// of the categories of entities contains it
@@ -206,7 +289,8 @@ namespace gal {
     /// \param name The name of the symbol
     /// \param data The data needed to add a variable
     /// \param diagnostics A diagnostics vector to add to if needed
-    void add(std::string_view name, ScopeEntity data, std::vector<gal::Diagnostic>* diagnostics) noexcept;
+    /// \return Returns whether or not it was added successfully
+    bool add(std::string_view name, ScopeEntity data, gal::DiagnosticReporter* diagnostics) noexcept;
 
   private:
     absl::flat_hash_map<std::string, ScopeEntity> variables_;
@@ -217,6 +301,11 @@ namespace gal {
   /// Holds variables, and the globally scoped variables/functions
   class Environment final {
   public:
+    /// Creates an environment
+    ///
+    /// \param reporter The diagnostic reporter to use
+    explicit Environment(gal::DiagnosticReporter* reporter) noexcept;
+
     /// Scans through all scopes, and gets the type of a name if it exists
     ///
     /// \param name The name to look for
@@ -256,6 +345,6 @@ namespace gal {
 
   private:
     std::vector<Scope> scopes_;
-    std::vector<gal::Diagnostic>* diagnostics_;
+    gal::DiagnosticReporter* diagnostics_;
   };
 } // namespace gal

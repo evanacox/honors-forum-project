@@ -154,7 +154,7 @@ namespace gal::ast {
     /// \param types The types to check against
     /// \return Whether or not the node is of one of those types
     template <typename... Args> [[nodiscard]] bool is_one_of(Args... types) const noexcept {
-      return (is(types) && ...);
+      return (is(types) || ...);
     }
 
   protected:
@@ -1034,12 +1034,12 @@ namespace gal::ast {
     explicit ErrorType() : Type(SourceLoc::nonexistent(), TypeType::error) {}
 
   protected:
-    void internal_accept(TypeVisitorBase*) final {
-      assert(false);
+    void internal_accept(TypeVisitorBase* visitor) final {
+      visitor->visit(this);
     }
 
-    void internal_accept(ConstTypeVisitorBase*) const final {
-      assert(false);
+    void internal_accept(ConstTypeVisitorBase* visitor) const final {
+      visitor->visit(*this);
     }
 
     [[nodiscard]] bool internal_equals(const Type&) const noexcept final {

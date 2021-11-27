@@ -11,9 +11,11 @@
 set(GALLIUM_AST_FILES
         )
 
+set(GALLIUM_ERRORS_FILES
+        errors/console_reporter.cc errors/diagnostics.cc errors/reporter.cc)
+
 set(GALLIUM_CORE_FILES
         core/codegen.cc
-        core/error_reporting.cc
         core/environment.cc
         core/typechecker.cc
         core/mangler.cc
@@ -28,7 +30,7 @@ set(GALLIUM_UTILITY_FILES
 
 set(GALLIUM_SYNTAX_FILES
         syntax/parser.cc
-        syntax/parse_errors.cc)
+        syntax/parse_errors.cc errors/console_reporter.h errors/reporter.h errors/diagnostics.h)
 
 set(GALLIUM_ANTLR4_GENERATED_DIR ${CMAKE_BINARY_DIR}/antlr4/generated)
 
@@ -52,7 +54,14 @@ target_include_directories(gallium_antlr4 SYSTEM PUBLIC
         ${GALLIUM_ANTLR4_RUNTIME_INCLUDE}
         ${GALLIUM_ANTLR4_GENERATED_DIR}/../)
 
-add_executable(gallium ./main.cc ./driver.cc ${GALLIUM_AST_FILES} ${GALLIUM_CORE_FILES} ${GALLIUM_UTILITY_FILES} ${GALLIUM_SYNTAX_FILES})
+add_executable(gallium
+        ./main.cc
+        ./driver.cc
+        ${GALLIUM_AST_FILES}
+        ${GALLIUM_ERRORS_FILES}
+        ${GALLIUM_CORE_FILES}
+        ${GALLIUM_UTILITY_FILES}
+        ${GALLIUM_SYNTAX_FILES})
 gallium_configure_target(gallium)
 target_include_directories(gallium PUBLIC ${LLVM_INCLUDE_DIRS})
 target_compile_definitions(gallium PUBLIC ${LLVM_DEFINITIONS_LIST})
