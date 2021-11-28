@@ -1,5 +1,0 @@
-_Atomic(int) x = 0;
-
-int main() {
-    
-}
