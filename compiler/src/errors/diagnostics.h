@@ -188,9 +188,16 @@ namespace gal {
   ///
   /// \param args The list of `PointedOut`s
   /// \return An `UnderlineList`
+  std::unique_ptr<gal::DiagnosticPart> point_out_list(std::vector<gal::UnderlineList::PointedOut> list) noexcept;
+
+  ///  Creates an UnderlineList from a list of `PointedOut`s
+  ///
+  /// \param args The list of `PointedOut`s
+  /// \return An `UnderlineList`
   template <typename... Args> std::unique_ptr<gal::DiagnosticPart> point_out_list(Args&&... args) noexcept {
     auto list = gal::into_list(std::forward<Args>(args)...);
 
-    return std::make_unique<gal::UnderlineList>(std::move(list));
+    return gal::point_out_list(std::move(list));
   }
+
 } // namespace gal

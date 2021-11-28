@@ -320,20 +320,14 @@ namespace {
     antlrcpp::Any visitBindingStatement(GalliumParser::BindingStatementContext* ctx) final {
       auto name = ctx->IDENTIFIER()->toString();
       auto initializer = parse_expr(ctx->expr());
-
-      if (ctx->type() != nullptr) {
-        visitType(ctx->type());
-
-        RETURN(std::make_unique<ast::BindingStatement>(loc_from(ctx),
-            std::move(name),
-            std::move(initializer),
-            return_value<ast::Type>()));
-      }
+      auto mut = ctx->var != nullptr;
+      auto type = (ctx->type() != nullptr) ? std::make_optional(parse_type(ctx->type())) : std::nullopt;
 
       RETURN(std::make_unique<ast::BindingStatement>(loc_from(ctx),
           std::move(name),
+          mut,
           std::move(initializer),
-          std::nullopt));
+          std::move(type)));
     }
 
     antlrcpp::Any visitExprStatement(GalliumParser::ExprStatementContext* ctx) final {

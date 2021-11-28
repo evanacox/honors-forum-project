@@ -241,13 +241,23 @@ namespace gal {
     ///
     /// \param loc The location in the source of it
     /// \param ptr A pointer to the entity's type
-    explicit ScopeEntity(ast::SourceLoc loc, ast::Type* ptr) noexcept : loc_{std::move(loc)}, type_{ptr} {}
+    explicit ScopeEntity(ast::SourceLoc loc, ast::Type* ptr, bool mut) noexcept
+        : loc_{std::move(loc)},
+          type_{ptr},
+          mut_{mut} {}
 
     /// Gets the location where the entity was declared
     ///
     /// \return The location
     [[nodiscard]] const ast::SourceLoc& loc() const noexcept {
       return loc_;
+    }
+
+    /// Checks if the entity is mutable or not
+    ///
+    /// \return Whether or not it's mutable
+    [[nodiscard]] bool mut() const noexcept {
+      return mut_;
     }
 
     /// Gets the type of the entity
@@ -267,6 +277,7 @@ namespace gal {
   private:
     ast::SourceLoc loc_;
     ast::Type* type_;
+    bool mut_;
   };
 
   /// Represents a single level of scope

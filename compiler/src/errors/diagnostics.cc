@@ -225,7 +225,11 @@ namespace {
         " | ",
         underline,
         " ",
-        diagnostic_color(spot.type, spot.message));
+        diagnostic_color(spot.type, spot.message),
+        "\n",
+        state->padding,
+        without_line,
+        " |");
 
     state->previous_line = loc.line();
   }
@@ -383,6 +387,11 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
           {"mismatched argument type in call expr",
               "each argument in a call must match the function type being called",
               gal::DiagnosticType::error}},
+      {24,
+          {"too many arguments for function call",
+              "extra arguments cannot be given, you can only pass the exact number the function accepts. no more, no "
+              "less.",
+              gal::DiagnosticType::error}},
   };
 
   return lookup.at(code);
@@ -412,6 +421,10 @@ gal::UnderlineList::PointedOut gal::point_out_part(const ast::SourceLoc& loc,
   auto underline = (type == gal::DiagnosticType::note) ? gal::UnderlineType::straight : gal::UnderlineType::squiggly;
 
   return gal::UnderlineList::PointedOut{loc, std::move(inline_message), type, underline};
+}
+
+std::unique_ptr<gal::DiagnosticPart> gal::point_out_list(std::vector<gal::UnderlineList::PointedOut> list) noexcept {
+  return std::make_unique<gal::UnderlineList>(std::move(list));
 }
 
 std::unique_ptr<gal::DiagnosticPart> gal::single_message(std::string message, gal::DiagnosticType type) noexcept {

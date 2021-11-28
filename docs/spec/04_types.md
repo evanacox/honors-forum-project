@@ -1,3 +1,10 @@
+---
+layout: default
+title: Gallium Types
+nav_order: 3
+parent: Specification
+---
+
 # Types & Type Conversions
 
 ## "Unutterable" Types

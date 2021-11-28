@@ -5,14 +5,15 @@ nav_order: 1
 parent: Specification
 ---
 
+> Note: This is the IDEAL, the FINAL PRODUCT.
+
 # Gallium
 Gallium is what you get when you start with C++, throw in some Rust-style syntax, and use 40 years of hindsight to make better decisions on defaults. 
-
 
 ~~~ 
 import core::traits::Integral
 
-pub fn sum<T: Integral>(array: &[T]) -> T {
+export fn sum<T: Integral>(array: &[T]) -> T {
   let result = 0 as T 
 
   for n in array {

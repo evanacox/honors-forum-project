@@ -7,6 +7,3 @@ parent: Compiler Design
 
 # Overall Architecture
 
-~~~ cpp
-// test
-~~~

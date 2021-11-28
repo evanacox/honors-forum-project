@@ -153,7 +153,8 @@ namespace {
         }
       }
 
-      resolver_.add_local(stmt->name(), gal::ScopeEntity{stmt->loc(), stmt->initializer_mut()->result_mut()});
+      resolver_.add_local(stmt->name(),
+          gal::ScopeEntity{stmt->loc(), stmt->initializer_mut()->result_mut(), stmt->mut()});
     }
 
     void visit(ast::ExpressionStatement* stmt) final {
@@ -290,13 +291,14 @@ namespace {
 
     template <typename Arg, typename Fn>
     bool callable(absl::Span<const Arg> fn_args,
-        absl::Span<const std::unique_ptr<ast::Expression>> args_given,
+        absl::Span<const std::unique_ptr<ast::Expression>> given_args,
         Fn mapper = gal::Identity{}) noexcept {
 
       auto fn_it = fn_args.begin();
-      auto given_it = args_given.begin();
+      auto given_it = given_args.begin();
+      auto had_failure = false;
 
-      for (; fn_it != fn_args.end() && given_it != args_given.end(); ++fn_it, ++given_it) {
+      for (; fn_it != fn_args.end() && given_it != given_args.end(); ++fn_it, ++given_it) {
         auto& type = mapper(*fn_it);
         auto& expr = **given_it;
 
@@ -307,6 +309,8 @@ namespace {
               absl::StrCat("expected type `", gal::to_string(type), "` based on this"));
 
           diagnostics_->report_emplace(23, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
+
+          had_failure = true;
         }
       }
 
@@ -318,8 +322,22 @@ namespace {
               absl::StrCat("expected type `", gal::to_string(type), "` based on this"));
 
           diagnostics_->report_emplace(23, gal::into_list(gal::point_out_list(std::move(b))));
+
+          had_failure = true;
         }
+      } else if (given_it != given_args.end()) {
+        auto vec = std::vector<gal::UnderlineList::PointedOut>{};
+
+        while (given_it != given_args.end()) {
+          vec.push_back(gal::point_out_part(**given_it, gal::DiagnosticType::note));
+        }
+
+        diagnostics_->report_emplace(24, gal::into_list(gal::point_out_list(std::move(vec))));
+
+        had_failure = true;
       }
+
+      return !had_failure;
     }
 
     void visit(ast::CallExpression* expr) final {
@@ -353,7 +371,10 @@ namespace {
 
     void visit(ast::UnaryExpression*) final {}
 
-    void visit(ast::BinaryExpression*) final {}
+    void visit(ast::BinaryExpression*) final {
+      // TODO: model lvalues vs. rvalues
+      // TODO: remember: IMMUTABILITY AND := !!!!
+    }
 
     void visit(ast::CastExpression* expr) final {
       visit_children(expr);
@@ -505,7 +526,7 @@ namespace {
           auto a = type_was_err(ret_val);
           auto b = gal::point_out_part(*expected_,
               gal::DiagnosticType::note,
-              absl::StrCat("expected type `", gal::to_string(*expected_), "` based on return type"));
+              absl::StrCat("expected type `", gal::to_string(*expected_), "` based on function signature"));
 
           diagnostics_->report_emplace(20, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
         }

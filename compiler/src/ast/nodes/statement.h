@@ -177,14 +177,17 @@ namespace gal::ast {
     /// Initializes a Binding statement
     ///
     /// \param name The name given to the binding
+    /// \param modifyable Whether or not the binding is able to be mutated
     /// \param initializer The initializer expression
     /// \param hint The type hint, i.e the `: T` part in `let x: T = foo`
     explicit BindingStatement(SourceLoc loc,
         std::string name,
+        bool modifyable,
         std::unique_ptr<Expression> initializer,
         std::optional<std::unique_ptr<Type>> hint) noexcept
         : Statement(std::move(loc), StmtType::binding),
           name_{std::move(name)},
+          mut_{modifyable},
           initializer_{std::move(initializer)},
           hint_{std::move(hint)} {}
 
@@ -193,6 +196,13 @@ namespace gal::ast {
     /// \return The name given to the value
     [[nodiscard]] std::string_view name() const noexcept {
       return name_;
+    }
+
+    /// Gets the name of the binding
+    ///
+    /// \return The name given to the value
+    [[nodiscard]] bool mut() const noexcept {
+      return mut_;
     }
 
     /// The value given to the binding as the initializer
@@ -262,6 +272,7 @@ namespace gal::ast {
 
   private:
     std::string name_;
+    bool mut_; // why did C++ have to make "mutable" a keyword?
     std::unique_ptr<Expression> initializer_;
     std::optional<std::unique_ptr<Type>> hint_;
   };

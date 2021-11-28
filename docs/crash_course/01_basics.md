@@ -1,29 +1,36 @@
 ---
 layout: default
-title: Programming Languages Aren't Magic
+title: Programming Languages Aren't Magic (How Humans Program Computers)
 nav_order: 1
-parent: Language Design
+parent: Compilers Crash Course
+usemathjax: true
 ---
 
 # Programming Languages Aren't Magic
-When you write code, how do you write it? Probably by typing 
-source code into an editor and hitting a "run" button, or by
-running some commands in a terminal that make your code run. 
+When humans program, we are almost always are writing in what's called
+a *programming language*. This is exactly what it sounds like: a 
+language used for programming. But why? Why can't we just program in English
+and tell the computer exactly what we want?
 
-Maybe you've written some Java code like the following:
+## Programming Languages
+If you've programmed, consider the following Java code:
 
-~~~ java
-public static int multiply(int x, int y) {
-  return x * y;
+~~~ cs
+public static int f(int x) {
+  return (x * 2) + 6;
 }
 ~~~
 
-Or, maybe you learned Python and wrote something like this:
+Or equivalent Python code:
 
 ~~~ python
-def multiply(x, y):
-  return x * y
+def f(x):
+  return (x * 2) + 6
 ~~~
+
+If you haven't, maybe you just wrote this into a calculator and somehow the calculator understood it (calculators are computers too!):
+
+$$ f(x) = 2x + 6 $$
 
 Whatever the case is, you were writing a glorified text file,
 and *somehow*, the computer understood what it was and what to do with it.
@@ -31,11 +38,13 @@ and *somehow*, the computer understood what it was and what to do with it.
 But how?
 
 ## Computers Understand Instructions
-Unfortunately, it's not as simple as "the computer understands what `x * y` means," because it actually doesn't! What your computer *actually* understands looks more akin to this:
+Unfortunately, it's not as simple as "the computer understands what `(x * 2) + 6` means," because it actually doesn't! What your computer *actually* understands looks more akin to this:
 
 ~~~ nasm
-137 248 15 175 198 195
+72 141 68 63 6 195
 ~~~
+
+> Yes, this is actually the machine code for a function returning `(x * 2) + 6` on Intel/AMD CPUs, I promise I didn't just make up those numbers.
 
 Those numbers correspond to specific *machine instructions*, which are the operations that computers can actually perform. These are very low level, and must contain every precise detail of what needs to happen at the *machine* level. 
 

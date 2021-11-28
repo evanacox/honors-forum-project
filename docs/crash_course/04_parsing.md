@@ -2,7 +2,7 @@
 layout: default
 title: "Parsing: The Art of Understanding Text Files"
 nav_order: 3
-parent: Language Design
+parent: Compilers Crash Course
 usemathjax: true
 ---
 
@@ -135,3 +135,10 @@ class Employee {
 This can be mapped into an AST just like the math expression examples can. 
 
 ![Java code AST](../assets/images/ast-3-smaller.png)
+
+While it's a *much* more complex AST than the ones for the simple math expressions
+we were considering earlier, it still models the same idea: it's a rigid hierarchical
+structure that is being used to model an entire program (or in this case, an entire class).
+
+Real production-grade compilers usually cram a huge amount of information into their ASTs, but at
+the end of the day, it's still the same fundamental concept.
