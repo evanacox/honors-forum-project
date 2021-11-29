@@ -62,21 +62,25 @@ namespace {
     return std::make_unique<ast::FnPointerType>(std::move(loc), std::move(args), proto.return_type().clone());
   }
 
-  gal::UnderlineList::PointedOut type_was(const ast::Expression& expr, gal::DiagnosticType type) noexcept {
+  GALLIUM_COLD std::unique_ptr<ast::Type> error_type() noexcept {
+    return std::make_unique<ast::ErrorType>();
+  }
+
+  gal::PointedOut type_was(const ast::Expression& expr, gal::DiagnosticType type) noexcept {
     auto msg = absl::StrCat("real type was `", gal::to_string(expr.result()), "`");
 
     return gal::point_out_part(expr, type, std::move(msg));
   }
 
-  gal::UnderlineList::PointedOut type_was_err(const ast::Expression& expr) noexcept {
+  gal::PointedOut type_was_err(const ast::Expression& expr) noexcept {
     return type_was(expr, gal::DiagnosticType::error);
   }
 
-  gal::UnderlineList::PointedOut type_was_note(const ast::Expression& expr) noexcept {
+  gal::PointedOut type_was_note(const ast::Expression& expr) noexcept {
     return type_was(expr, gal::DiagnosticType::note);
   }
 
-  gal::UnderlineList::PointedOut expected_type(const ast::Type& type) noexcept {
+  gal::PointedOut expected_type(const ast::Type& type) noexcept {
     auto msg = absl::StrCat("expected type `", gal::to_string(type), "`");
 
     return gal::point_out_part(type, gal::DiagnosticType::note, std::move(msg));
@@ -215,7 +219,7 @@ namespace {
 
       diagnostics_->report_emplace(18, gal::into_list(std::move(a)));
 
-      update_return(expr, std::make_unique<ast::ErrorType>());
+      update_return(expr, error_type());
     }
 
     void visit(ast::IdentifierExpression* expr) final {
@@ -233,7 +237,7 @@ namespace {
 
         diagnostics_->report_emplace(22, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
 
-        update_return(expr, std::make_unique<ast::ErrorType>());
+        update_return(expr, error_type());
       }
     }
 
@@ -247,7 +251,7 @@ namespace {
 
         diagnostics_->report_emplace(10, gal::into_list(std::move(error)));
 
-        return update_return(expr, std::make_unique<ast::ErrorType>());
+        return update_return(expr, error_type());
       }
 
       auto& type = gal::internal::debug_cast<const ast::UserDefinedType&>(expr->struct_type());
@@ -255,7 +259,7 @@ namespace {
       if (auto decl = resolver_.struct_type(type.id())) {
         for (auto& s_field : (*decl)->fields()) {
           auto init_fields = expr->fields();
-          auto init_field = absl::c_find_if(init_fields, [&](auto& field) {
+          auto init_field = absl::c_find_if(init_fields, [&](const ast::FieldInitializer& field) {
             return field.name() == s_field.name();
           });
 
@@ -285,7 +289,7 @@ namespace {
 
         update_return(expr, expr->struct_type().clone());
       } else {
-        update_return(expr, std::make_unique<ast::ErrorType>());
+        update_return(expr, error_type());
       }
     }
 
@@ -315,29 +319,70 @@ namespace {
       }
 
       if (fn_it != fn_args.end()) {
+        had_failure = true;
+
         while (fn_it != fn_args.end()) {
           auto& type = mapper(*fn_it);
           auto b = gal::point_out_part(type,
               gal::DiagnosticType::note,
               absl::StrCat("expected type `", gal::to_string(type), "` based on this"));
 
-          diagnostics_->report_emplace(23, gal::into_list(gal::point_out_list(std::move(b))));
-
-          had_failure = true;
+          diagnostics_->report_emplace(25, gal::into_list(gal::point_out_list(std::move(b))));
         }
       } else if (given_it != given_args.end()) {
-        auto vec = std::vector<gal::UnderlineList::PointedOut>{};
+        had_failure = true;
+
+        auto vec = std::vector<gal::PointedOut>{};
 
         while (given_it != given_args.end()) {
           vec.push_back(gal::point_out_part(**given_it, gal::DiagnosticType::note));
         }
 
         diagnostics_->report_emplace(24, gal::into_list(gal::point_out_list(std::move(vec))));
-
-        had_failure = true;
       }
 
       return !had_failure;
+    }
+
+    GALLIUM_COLD void report_ambiguous(const ast::Expression& expr,
+        const gal::OverloadSet& set,
+        absl::Span<const std::unique_ptr<ast::Expression>> args) noexcept {
+      auto vec = std::vector<gal::PointedOut>{};
+      auto mapper = [](const gal::ast::Argument& arg) -> decltype(auto) {
+        return arg.type();
+      };
+
+      for (auto& overload : set.fns()) {
+        if (callable(overload.proto().args(), args, mapper)) {
+          vec.push_back(gal::point_out_part(overload.decl_base(), gal::DiagnosticType::note, "candidate is here"));
+        }
+      }
+
+      vec.push_back(gal::point_out_part(expr, gal::DiagnosticType::error, "ambiguous call was here"));
+      diagnostics_->report_emplace(27, gal::into_list(gal::point_out_list(std::move(vec))));
+    }
+
+    std::optional<const gal::Overload*> select_overload(const ast::Expression& expr,
+        const gal::OverloadSet& set,
+        absl::Span<const std::unique_ptr<ast::Expression>> args) noexcept {
+      const auto* ptr = static_cast<const gal::Overload*>(nullptr);
+      auto mapper = [](const gal::ast::Argument& arg) -> decltype(auto) {
+        return arg.type();
+      };
+
+      for (auto& overload : set.fns()) {
+        if (callable(overload.proto().args(), args, mapper)) {
+          if (ptr != nullptr) {
+            report_ambiguous(expr, set, args);
+
+            return ptr;
+          }
+
+          ptr = &overload;
+        }
+      }
+
+      return (ptr != nullptr) ? std::make_optional(ptr) : std::nullopt;
     }
 
     void visit(ast::CallExpression* expr) final {
@@ -347,8 +392,29 @@ namespace {
 
       // we need to do special handling here in order to not break over function overloading n whatnot
       if (expr->callee().is(ET::identifier)) {
-        //
+        auto& identifier = gal::internal::debug_cast<const ast::IdentifierExpression&>(expr->callee());
+
+        if (auto overloads = resolver_.overloads(identifier.id())) {
+          if (auto overload = select_overload(*expr, **overloads, expr->args())) {
+            replace_self(ast::StaticCallExpression::from_call(identifier.id(), **overload, expr));
+
+            return update_return(self_expr(), fn_pointer_for(expr->loc(), (*overload)->proto()));
+          } else {
+            return update_return(expr, error_type());
+          }
+        }
+
+        auto a = gal::point_out(*expr, gal::DiagnosticType::error, "usage was here");
+        diagnostics_->report_emplace(28, gal::into_list(std::move(a)));
+
+        return update_return(expr, error_type());
       }
+
+      if (expr->callee().is(ET::identifier_local)) {
+        assert(false);
+      }
+
+      Base::accept(expr->callee_owner());
     }
 
     void visit(ast::StaticCallExpression*) final {
@@ -376,6 +442,20 @@ namespace {
       // TODO: remember: IMMUTABILITY AND := !!!!
     }
 
+    GALLIUM_COLD void cast_error(ast::CastExpression* expr, std::string_view msg, std::string_view help = "") noexcept {
+      auto a = gal::point_out(*expr, gal::DiagnosticType::error);
+      auto b = gal::single_message(std::string{msg});
+      auto vec = gal::into_list(std::move(a), std::move(b));
+
+      if (!help.empty()) {
+        vec.push_back(gal::single_message(std::string{help}));
+      }
+
+      diagnostics_->report_emplace(17, std::move(vec));
+
+      return update_return(expr, error_type());
+    }
+
     void visit(ast::CastExpression* expr) final {
       visit_children(expr);
 
@@ -401,30 +481,15 @@ namespace {
                     TT::builtin_float)) {
               return update_return(expr, expr->cast_to().clone());
             } else {
-              auto a = gal::point_out(*expr, gal::DiagnosticType::error);
-              auto b = gal::single_message("builtins can only be cast to other builtin types");
-
-              diagnostics_->report_emplace(17, gal::into_list(std::move(a), std::move(b)));
-
-              return update_return(expr, std::make_unique<ast::ErrorType>());
+              return cast_error(expr, "builtins can only be cast to other builtin types");
             }
           }
           case TT::builtin_void: {
-            auto a = gal::point_out(*expr, gal::DiagnosticType::error);
-            auto b = gal::single_message("cannot cast anything to `void`");
-
-            diagnostics_->report_emplace(17, gal::into_list(std::move(a), std::move(b)));
-
-            return update_return(expr, std::make_unique<ast::ErrorType>());
+            return cast_error(expr, "cannot cast anything to `void`");
           }
           case TT::dyn_interface: [[fallthrough]];
           case TT::user_defined: {
-            auto a = gal::point_out(*expr, gal::DiagnosticType::error);
-            auto b = gal::single_message("cannot cast between user-defined types");
-
-            diagnostics_->report_emplace(17, gal::into_list(std::move(a)));
-
-            return update_return(expr, std::make_unique<ast::ErrorType>());
+            return cast_error(expr, "cannot cast between user-defined types");
           }
           case TT::fn_pointer: {
             if (result.is(TT::nil_pointer) || type_compatible(result, mut_byte_ptr)
@@ -432,13 +497,9 @@ namespace {
               return update_return(expr, expr->cast_to().clone());
             }
 
-            auto a = gal::point_out(*expr, gal::DiagnosticType::error);
-            auto b = gal::single_message("cannot cast any type besides a `byte` pointer to a fn pointer");
-            auto c = gal::single_message("help: try casting to `*const byte` first");
-
-            diagnostics_->report_emplace(17, gal::into_list(std::move(a), std::move(b), std::move(c)));
-
-            return update_return(expr, std::make_unique<ast::ErrorType>());
+            return cast_error(expr,
+                "cannot cast any type besides a `byte` pointer to a fn pointer",
+                "help: try casting to `*const byte` first");
           }
           case TT::nil_pointer: [[fallthrough]];
           case TT::user_defined_unqualified: [[fallthrough]];
@@ -470,7 +531,7 @@ namespace {
 
         diagnostics_->report_emplace(16, gal::into_list(gal::point_out_list(std::move(a), std::move(b), std::move(c))));
 
-        update_return(expr, std::make_unique<ast::ErrorType>());
+        update_return(expr, error_type());
       } else {
         update_return(expr, expr->true_branch().result().clone());
       }
@@ -497,13 +558,17 @@ namespace {
     }
 
     void visit(ast::LoopExpression* expr) final {
+      in_loop_ = true;
       visit_children(expr);
+      in_loop_ = false;
 
       update_return(expr, void_type(expr->loc()));
     }
 
     void visit(ast::WhileExpression* expr) final {
+      in_loop_ = true;
       visit_children(expr);
+      in_loop_ = false;
 
       if (!bool_compatible(expr->condition())) {
         auto a = gal::point_out_list(type_was_err(expr->condition()));
@@ -514,13 +579,23 @@ namespace {
       update_return(expr, void_type(expr->loc()));
     }
 
-    void visit(ast::ForExpression*) final {}
+    void visit(ast::ForExpression* expr) final {
+      in_loop_ = true;
+      visit_children(expr);
+      in_loop_ = false;
+    }
 
     void visit(ast::ReturnExpression* expr) final {
       visit_children(expr);
 
       if (auto value = expr->value()) {
         auto& ret_val = **value;
+
+        if (expected_ == nullptr) {
+          auto a = gal::point_out(*expr, gal::DiagnosticType::error, "return was here");
+
+          diagnostics_->report_emplace(25, gal::into_list(std::move(a)));
+        }
 
         if (expected_ != nullptr && !type_compatible(*expected_, ret_val)) {
           auto a = type_was_err(ret_val);
@@ -542,6 +617,12 @@ namespace {
     void visit(ast::BreakExpression* expr) final {
       visit_children(expr);
 
+      if (!in_loop_) {
+        auto a = gal::point_out(*expr, gal::DiagnosticType::error, "break was here");
+
+        diagnostics_->report_emplace(26, gal::into_list(std::move(a)));
+      }
+
       if (auto value = expr->value()) {
         // while it won't actually *evaluate* to that, may as well
         // make it **possible** to use it like it does in something like `if-then`
@@ -552,6 +633,12 @@ namespace {
     }
 
     void visit(ast::ContinueExpression* expr) final {
+      if (!in_loop_) {
+        auto a = gal::point_out(*expr, gal::DiagnosticType::error, "break was here");
+
+        diagnostics_->report_emplace(26, gal::into_list(std::move(a)));
+      }
+
       update_return(expr, void_type(expr->loc()));
     }
 
@@ -583,11 +670,6 @@ namespace {
 
     void visit(ast::ErrorType*) final {
       assert(false);
-    }
-
-  private:
-    [[nodiscard]] bool matches(const ast::Type& type) noexcept {
-      return (expected_ == nullptr) || (*expected_ == type);
     }
 
 #define GALLIUM_X_COMPATIBLE(name)                                                                                     \
@@ -654,7 +736,7 @@ namespace {
 
           diagnostics_->report_emplace(19, gal::into_list(std::move(a), std::move(b)));
 
-          update_return(expr, std::make_unique<ast::ErrorType>());
+          update_return(expr, error_type());
           return true;
         }
       }
@@ -670,10 +752,11 @@ namespace {
     }
 
     ast::Type* expected_ = nullptr;
-    bool constant_only_ = false;
     ast::Program* program_;
     gal::DiagnosticReporter* diagnostics_;
     gal::NameResolver resolver_;
+    bool constant_only_ = false;
+    bool in_loop_ = false;
   }; // namespace
 } // namespace
 

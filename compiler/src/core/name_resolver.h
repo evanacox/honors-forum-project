@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "../ast/nodes/modular_id.h"
+#include "../ast/modular_id.h"
 #include "../ast/program.h"
 #include "../errors/reporter.h"
 #include "./environment.h"

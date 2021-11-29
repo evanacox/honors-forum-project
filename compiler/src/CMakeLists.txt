@@ -9,7 +9,10 @@
 ##======---------------------------------------------------------------======##
 
 set(GALLIUM_AST_FILES
-        )
+        ast/nodes/declaration.cc
+        ast/nodes/expression.cc
+        ast/nodes/statement.cc
+        ast/nodes/type.cc)
 
 set(GALLIUM_ERRORS_FILES
         errors/console_reporter.cc errors/diagnostics.cc errors/reporter.cc)

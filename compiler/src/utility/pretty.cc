@@ -30,7 +30,7 @@ namespace {
       final_ = "";
 
       print_initial("program");
-      print_last_list("declarations: ", program.decls(), [this](auto& ptr) {
+      print_last_list("declarations: ", program.decls(), [this](const std::unique_ptr<ast::Declaration>& ptr) {
         accept_initial(*ptr);
       });
 
@@ -47,7 +47,7 @@ namespace {
     void visit(const ast::ImportFromDeclaration& node) final {
       print_initial(colors::bold_red("import-from decl"));
       print_member("exported: ", lit_str(node.exported()));
-      print_last_list("entities", node.imported_entities(), [this](auto& entity) {
+      print_last_list("entities", node.imported_entities(), [this](const ast::FullyQualifiedID& entity) {
         print_initial(entity.to_string());
       });
     }
@@ -63,7 +63,7 @@ namespace {
     void visit(const ast::StructDeclaration& node) final {
       print_initial(colors::bold_red("struct decl"));
       print_member("name: ", id_str(node.name()));
-      print_last_list("members: ", node.fields(), [this](auto& field) {
+      print_last_list("members: ", node.fields(), [this](const ast::Field& field) {
         print_initial(colors::yellow("field"));
         print_member("name: ", id_str(field.name()));
         accept_last_member("type: ", field.type());
@@ -93,7 +93,7 @@ namespace {
 
     void visit(const ast::ExternalDeclaration& node) final {
       print_initial(decl_str("external"));
-      print_last_list("functions: ", node.externals(), [this](auto& fn) {
+      print_last_list("functions: ", node.externals(), [this](const std::unique_ptr<ast::Declaration>& fn) {
         accept_initial(*fn);
       });
     }
@@ -187,7 +187,7 @@ namespace {
     void visit(const ast::StructExpression& node) final {
       print_expr("struct-init", node);
       accept_member("struct type: ", node.struct_type());
-      print_last_list("initializers: ", node.fields(), [this](auto& field) {
+      print_last_list("initializers: ", node.fields(), [this](const ast::FieldInitializer& field) {
         print_initial(colors::yellow("field"));
         print_member("name: ", id_str(field.name()));
         accept_last_member("initializer: ", field.init());
@@ -197,7 +197,7 @@ namespace {
     void visit(const ast::CallExpression& node) final {
       print_expr("call", node);
       accept_member("callee: ", node.callee());
-      print_last_list("args: ", node.args(), [this](auto& ptr) {
+      print_last_list("args: ", node.args(), [this](const std::unique_ptr<ast::Expression>& ptr) {
         print_initial("argument");
         accept_last_member("value: ", *ptr);
       });
@@ -206,7 +206,7 @@ namespace {
     void visit(const ast::StaticCallExpression& node) final {
       print_expr("static-call", node);
       print_member("fn: ", id_str(node.id().to_string()));
-      print_last_list("args: ", node.args(), [this](auto& ptr) {
+      print_last_list("args: ", node.args(), [this](const std::unique_ptr<ast::Expression>& ptr) {
         print_initial("argument");
         accept_last_member("value: ", *ptr);
       });
@@ -225,7 +225,7 @@ namespace {
     void visit(const ast::IndexExpression& node) final {
       print_expr("index", node);
       accept_member("callee: ", node.callee());
-      print_last_list("args: ", node.args(), [this](auto& ptr) {
+      print_last_list("args: ", node.args(), [this](const std::unique_ptr<ast::Expression>& ptr) {
         print_initial("index argument");
         accept_last_member("value: ", *ptr);
       });
@@ -275,7 +275,7 @@ namespace {
       accept_member("body: ", node.block());
 
       if (auto blocks = node.elif_blocks(); !blocks.empty()) {
-        print_list("elif-blocks: ", blocks, [this](auto& block) {
+        print_list("elif-blocks: ", blocks, [this](const ast::ElifBlock& block) {
           print_initial(colors::yellow("elif-block"));
           accept_member("condition: ", block.condition());
           accept_last_member("body: ", block.block());
@@ -293,7 +293,7 @@ namespace {
 
     void visit(const ast::BlockExpression& node) final {
       print_expr("block", node);
-      print_last_list("stmts: ", node.statements(), [this](auto& ptr) {
+      print_last_list("stmts: ", node.statements(), [this](const std::unique_ptr<ast::Statement>& ptr) {
         accept_initial(*ptr);
       });
     }
@@ -312,8 +312,7 @@ namespace {
     void visit(const ast::ForExpression& node) final {
       print_expr("for", node);
       print_member("loop var name: ", node.loop_variable());
-      print_member("loop direction: ",
-          node.loop_direction() == gal::ast::ForExpression::Direction::up_to ? "up-to" : "down-to");
+      print_member("loop direction: ", node.loop_direction() == gal::ast::ForDirection::up_to ? "up-to" : "down-to");
       accept_member("loop initializer: ", node.init());
       accept_last_member("body: ", node.body());
     }
@@ -416,7 +415,7 @@ namespace {
     }
 
     void visit(const ast::FnPointerType& node) final {
-      auto args = absl::StrJoin(node.args(), ", ", [this](auto* out, auto& ptr) {
+      auto args = absl::StrJoin(node.args(), ", ", [this](std::string* out, const std::unique_ptr<ast::Type>& ptr) {
         absl::StrAppend(out, "(", ptr->accept(this), ")");
       });
 
@@ -493,12 +492,12 @@ namespace {
 
     void print_proto(const ast::FnPrototype& proto, bool last) noexcept {
       print_member("name: ", id_str(proto.name()));
-      print_list("args: ", proto.args(), [this](auto& arg) {
+      print_list("args: ", proto.args(), [this](const ast::Argument& arg) {
         print_initial(colors::bold_yellow("arg"));
         print_member("name: ", id_str(arg.name()));
         accept_last_member("type: ", arg.type());
       });
-      print_list("attributes: ", proto.attributes(), [this](auto& attribute) {
+      print_list("attributes: ", proto.attributes(), [this](const ast::Attribute& attribute) {
         print_initial(colors::cyan(attribute_to_str(attribute)));
       });
 
@@ -718,7 +717,7 @@ namespace {
     }
 
     void visit(const ast::FnPointerType& type) final {
-      auto args = absl::StrJoin(type.args(), ", ", [this](auto* s, auto& arg) {
+      auto args = absl::StrJoin(type.args(), ", ", [this](std::string* s, const std::unique_ptr<ast::Type>& arg) {
         s->append(arg->accept(this));
       });
 

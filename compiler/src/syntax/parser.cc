@@ -277,10 +277,10 @@ namespace {
 
     antlrcpp::Any visitStructDeclaration(GalliumParser::StructDeclarationContext* ctx) final {
       auto name = ctx->IDENTIFIER()->toString();
-      auto fields = std::vector<ast::StructDeclaration::Field>{};
+      auto fields = std::vector<ast::Field>{};
 
       for (auto* member : ctx->structMember()) {
-        fields.push_back(std::move(visitStructMember(member).as<ast::StructDeclaration::Field>()));
+        fields.push_back(std::move(visitStructMember(member).as<ast::Field>()));
       }
 
       RETURN(std::make_unique<ast::StructDeclaration>(loc_from(ctx), exported_, std::move(name), std::move(fields)));
@@ -292,7 +292,7 @@ namespace {
       auto name = ctx->IDENTIFIER()->toString();
       auto type = return_value<ast::Type>();
 
-      return ast::StructDeclaration::Field{loc_from(ctx), std::move(name), std::move(type)};
+      return ast::Field{loc_from(ctx), std::move(name), std::move(type)};
     }
 
     antlrcpp::Any visitTypeDeclaration(GalliumParser::TypeDeclarationContext* ctx) final {
@@ -395,7 +395,7 @@ namespace {
       auto cond = parse_expr(ctx->expr());
       auto body = parse_block(ctx->blockExpression());
 
-      return {ast::IfElseExpression::ElifBlock{std::move(cond), std::move(body)}};
+      return {ast::ElifBlock{std::move(cond), std::move(body)}};
     }
 
     antlrcpp::Any visitElseBlock(GalliumParser::ElseBlockContext* ctx) final {
@@ -413,8 +413,8 @@ namespace {
         auto initializer = parse_expr(ctx->expr(0));
         auto until = parse_expr(ctx->expr(1));
         auto body = parse_block(ctx->blockExpression());
-        auto direction = (ctx->direction->getType() == GalliumParser::TO) ? ast::ForExpression::Direction::up_to
-                                                                          : ast::ForExpression::Direction::down_to;
+        auto direction =
+            (ctx->direction->getType() == GalliumParser::TO) ? ast::ForDirection::up_to : ast::ForDirection::down_to;
 
         RETURN(std::make_unique<ast::ForExpression>(loc_from(ctx),
             std::move(loop_var),
@@ -825,11 +825,11 @@ namespace {
       return std::nullopt;
     }
 
-    std::vector<ast::IfElseExpression::ElifBlock> parse_elifs(GalliumParser::IfExprContext* ctx) noexcept {
-      auto elifs = std::vector<ast::IfElseExpression::ElifBlock>{};
+    std::vector<ast::ElifBlock> parse_elifs(GalliumParser::IfExprContext* ctx) noexcept {
+      auto elifs = std::vector<ast::ElifBlock>{};
 
       for (auto* elif : ctx->elifBlock()) {
-        auto elif_block = std::move(visitElifBlock(elif).as<ast::IfElseExpression::ElifBlock>());
+        auto elif_block = std::move(visitElifBlock(elif).as<ast::ElifBlock>());
 
         elifs.push_back(std::move(elif_block));
       }
@@ -1029,7 +1029,7 @@ namespace {
     }
 
     void push_error(std::int64_t code,
-        std::vector<gal::UnderlineList::PointedOut> locs,
+        std::vector<gal::PointedOut> locs,
         absl::Span<const std::string> notes = {}) noexcept {
       auto underline = std::make_unique<gal::UnderlineList>(std::move(locs));
       auto vec = std::vector<std::unique_ptr<gal::DiagnosticPart>>{};

@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include "./value_visitor.h"
+
 namespace gal::ast {
   class ReferenceType;
   class SliceType;

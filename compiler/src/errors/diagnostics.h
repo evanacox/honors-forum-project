@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "../ast/nodes/node.h"
+#include "../ast/nodes/ast_node.h"
 #include "../ast/source_loc.h"
 #include <memory>
 #include <optional>
@@ -72,18 +72,23 @@ namespace gal {
     std::int64_t code_ = -1;
   };
 
+  /// Models a point to underline
+  struct PointedOut {
+    /// The location to underline
+    ast::SourceLoc loc;
+    /// An inline message to display
+    std::string message = {};
+    /// The type of diagnostic
+    DiagnosticType type = DiagnosticType::error;
+    /// The type of underline
+    UnderlineType underline = UnderlineType::squiggly;
+  };
+
   /// Deals with **only** the underline/source code point-out
   /// part of a message. Correctly pretty-prints a set of
   /// underlines
   class UnderlineList final : public DiagnosticPart {
   public:
-    struct PointedOut {
-      ast::SourceLoc loc;
-      std::string message = {};
-      DiagnosticType type = DiagnosticType::error;
-      UnderlineType underline = UnderlineType::squiggly;
-    };
-
     /// Initializes the UnderlineList
     ///
     /// \param locs The spots in the source code to underline. Must all be in the same file, and must not be empty
@@ -162,7 +167,7 @@ namespace gal {
   /// \param type The type of point-out for it to be
   /// \param inline_message A message to put with the underline
   /// \return A point-out
-  [[nodiscard]] gal::UnderlineList::PointedOut point_out_part(const ast::Node& node,
+  [[nodiscard]] gal::PointedOut point_out_part(const ast::Node& node,
       gal::DiagnosticType type,
       std::string inline_message = {}) noexcept;
 
@@ -172,7 +177,7 @@ namespace gal {
   /// \param type The type of point-out for it to be
   /// \param inline_message A message to put with the underline
   /// \return A point-out
-  [[nodiscard]] gal::UnderlineList::PointedOut point_out_part(const ast::SourceLoc& loc,
+  [[nodiscard]] gal::PointedOut point_out_part(const ast::SourceLoc& loc,
       gal::DiagnosticType type,
       std::string inline_message = {}) noexcept;
 
@@ -188,7 +193,7 @@ namespace gal {
   ///
   /// \param args The list of `PointedOut`s
   /// \return An `UnderlineList`
-  std::unique_ptr<gal::DiagnosticPart> point_out_list(std::vector<gal::UnderlineList::PointedOut> list) noexcept;
+  std::unique_ptr<gal::DiagnosticPart> point_out_list(std::vector<gal::PointedOut> list) noexcept;
 
   ///  Creates an UnderlineList from a list of `PointedOut`s
   ///
@@ -199,5 +204,4 @@ namespace gal {
 
     return gal::point_out_list(std::move(list));
   }
-
 } // namespace gal

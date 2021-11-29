@@ -12,9 +12,9 @@
 
 #include "../../utility/log.h"
 #include "../../utility/misc.h"
+#include "../modular_id.h"
 #include "../visitors/expression_visitor.h"
-#include "./modular_id.h"
-#include "./node.h"
+#include "./ast_node.h"
 #include "./type.h"
 #include "absl/types/span.h"
 #include <limits>
@@ -22,7 +22,6 @@
 #include <optional>
 #include <string>
 #include <utility>
-#include <variant>
 #include <vector>
 
 namespace gal {
@@ -45,6 +44,7 @@ namespace gal::ast {
     identifier_local,
     block,
     call,
+    static_call,
     method_call,
     static_method_call,
     index,
@@ -172,7 +172,7 @@ namespace gal::ast {
 
     /// Checks if `.result()` is safe to call
     ///
-    /// \return
+    /// \return Whether or not `result` is safe to use
     [[nodiscard]] bool has_result() const noexcept {
       return evaluates_to_.has_value();
     }
@@ -181,7 +181,13 @@ namespace gal::ast {
     ///
     /// \return The clone of the node
     [[nodiscard]] std::unique_ptr<Expression> clone() const noexcept {
-      return internal_clone();
+      auto node = internal_clone();
+
+      if (node->has_result()) {
+        node->result_update(node->result().clone());
+      }
+
+      return node;
     }
 
     /// Gets the result type of the expression, i.e the type it will evaluate to
@@ -315,23 +321,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const StringLiteralExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return text() == result.text();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<StringLiteralExpression>(loc(), std::string{text()});
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::string text_;
@@ -355,23 +351,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const IntegerLiteralExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return value() == result.value();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<IntegerLiteralExpression>(loc(), value());
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::uint64_t literal_;
@@ -408,26 +394,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const FloatLiteralExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      // TODO: is this reasonable? should there be an epsilon of some sort?
-      gal::outs() << "FloatLiteralExpression::internal_equals: epsilon???";
-
-      return value() == result.value() && str_len() == result.str_len();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<FloatLiteralExpression>(loc(), value(), str_len());
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     double literal_;
@@ -453,23 +426,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const BoolLiteralExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return value() == result.value();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<BoolLiteralExpression>(loc(), value());
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     bool literal_;
@@ -494,23 +457,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const CharLiteralExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return value() == result.value();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<CharLiteralExpression>(loc(), value());
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::uint8_t literal_;
@@ -525,24 +478,13 @@ namespace gal::ast {
     explicit NilLiteralExpression(SourceLoc loc) noexcept : Expression(std::move(loc), ExprType::nil_lit) {}
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      // doing this for the side effect that it checks the validity in debug mode
-      (void)internal::debug_cast<const NilLiteralExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return true;
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<NilLiteralExpression>(loc());
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
   };
 
   /// Represents a single portion of the id list
@@ -569,10 +511,7 @@ namespace gal::ast {
     /// \param lhs The first ID
     /// \param rhs The second ID
     /// \return Whether or not they're equal
-    [[nodiscard]] friend bool operator==(const NestedGenericID& lhs, const NestedGenericID& rhs) noexcept {
-      return lhs.name == rhs.name
-             && std::equal(lhs.ids.begin(), lhs.ids.end(), rhs.ids.begin(), rhs.ids.end(), gal::DerefEq{});
-    }
+    friend bool operator==(const NestedGenericID& lhs, const NestedGenericID& rhs) noexcept;
   };
 
   /// Models the **nested** and possibly-generic identifiers
@@ -610,12 +549,7 @@ namespace gal::ast {
     /// \param lhs The first list to compare
     /// \param rhs The second list to compare
     /// \return Whether the ID lists are equal
-    [[nodiscard]] friend bool operator==(const NestedGenericIDList& lhs, const NestedGenericIDList& rhs) noexcept {
-      auto lhs_ids = lhs.ids();
-      auto rhs_ids = rhs.ids();
-
-      return std::equal(lhs_ids.begin(), lhs_ids.end(), rhs_ids.begin(), rhs_ids.end());
-    }
+    friend bool operator==(const NestedGenericIDList& lhs, const NestedGenericIDList& rhs) noexcept;
 
   private:
     std::vector<NestedGenericID> ids_;
@@ -693,29 +627,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const IdentifierExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return id() == result.id()
-             && std::equal(generic_params_.begin(),
-                 generic_params_.end(),
-                 result.generic_params_.begin(),
-                 result.generic_params_.end(),
-                 gal::DerefEq{})
-             && gal::unwrapping_equal(nested(), result.nested(), gal::DerefEq{});
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<IdentifierExpression>(loc(), id(), internal::clone_generics(generic_params_), nested_);
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     FullyQualifiedID id_;
@@ -742,23 +660,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const LocalIdentifierExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return name() == result.name();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<LocalIdentifierExpression>(loc(), name_);
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::string name_;
@@ -835,38 +743,39 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const UnqualifiedIdentifierExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return id() == result.id()
-             && std::equal(generic_params_.begin(),
-                 generic_params_.end(),
-                 result.generic_params_.begin(),
-                 result.generic_params_.end(),
-                 gal::DerefEq{})
-             && gal::unwrapping_equal(nested(), result.nested(), gal::DerefEq{});
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<UnqualifiedIdentifierExpression>(loc(),
-          id(),
-          internal::clone_generics(generic_params_),
-          nested_);
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     UnqualifiedID id_;
     std::vector<std::unique_ptr<Type>> generic_params_;
     std::optional<NestedGenericIDList> nested_;
   };
+
+  namespace internal {
+    struct CopyOverloadWithoutDefinition {
+    public:
+      explicit CopyOverloadWithoutDefinition(const Overload& overload);
+
+      CopyOverloadWithoutDefinition(const CopyOverloadWithoutDefinition&);
+
+      CopyOverloadWithoutDefinition(CopyOverloadWithoutDefinition&&) noexcept = default;
+
+      ~CopyOverloadWithoutDefinition();
+
+      [[nodiscard]] const Overload& overload() const noexcept {
+        return *overload_;
+      }
+
+    private:
+      std::unique_ptr<Overload> overload_;
+    };
+  } // namespace internal
 
   /// Models
   class StaticCallExpression final : public Expression {
@@ -877,16 +786,19 @@ namespace gal::ast {
     /// \param callee The object / expression being called
     /// \param args Any arguments given to the call
     explicit StaticCallExpression(SourceLoc loc,
-        Overload* callee,
+        const Overload& callee,
         ast::FullyQualifiedID id,
         std::vector<std::unique_ptr<Expression>> args,
         std::vector<std::unique_ptr<Type>> generic_args)
-        : Expression(std::move(loc), ExprType::call),
+        : Expression(std::move(loc), ExprType::static_call),
           id_{std::move(id)},
           callee_{callee},
           args_{std::move(args)},
           generic_params_{std::move(generic_args)} {}
 
+    /// Gets the ID being called
+    ///
+    /// \return The ID being called
     [[nodiscard]] const ast::FullyQualifiedID& id() const noexcept {
       return id_;
     }
@@ -895,14 +807,7 @@ namespace gal::ast {
     ///
     /// \return The object being called
     [[nodiscard]] const Overload& callee() const noexcept {
-      return *callee_;
-    }
-
-    /// Gets the object being called
-    ///
-    /// \return The object being called
-    [[nodiscard]] Overload* callee_mut() noexcept {
-      return callee_;
+      return callee_.overload();
     }
 
     /// Gets the arguments for the call
@@ -952,40 +857,28 @@ namespace gal::ast {
       return std::nullopt;
     }
 
+    /// Steals from a regular call to more efficiently "qualify" a call
+    ///
+    /// \param id The ID of the new call
+    /// \param overload The overload
+    /// \param call The call to steal from
+    /// \return A static call
+    static std::unique_ptr<StaticCallExpression> from_call(const ast::FullyQualifiedID& id,
+        const Overload& overload,
+        class CallExpression* call) noexcept;
+
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const StaticCallExpression&>(other);
-      auto self_args = args();
-      auto res_args = result.args();
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return &callee() == &callee()
-             && std::equal(self_args.begin(), self_args.end(), res_args.begin(), res_args.end(), gal::DerefEq<>{})
-             && std::equal(generic_params_.begin(),
-                 generic_params_.end(),
-                 result.generic_params_.begin(),
-                 result.generic_params_.end(),
-                 gal::DerefEq{});
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<StaticCallExpression>(loc(),
-          callee_,
-          id(),
-          gal::clone_span(absl::MakeConstSpan(args_)),
-          internal::clone_generics(generic_params_));
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     ast::FullyQualifiedID id_;
-    Overload* callee_;
+    internal::CopyOverloadWithoutDefinition callee_;
     std::vector<std::unique_ptr<Expression>> args_;
     std::vector<std::unique_ptr<Type>> generic_params_;
   };
@@ -1076,36 +969,17 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const CallExpression&>(other);
-      auto self_args = args();
-      auto res_args = result.args();
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return callee() == result.callee()
-             && std::equal(self_args.begin(), self_args.end(), res_args.begin(), res_args.end(), gal::DerefEq<>{})
-             && std::equal(generic_params_.begin(),
-                 generic_params_.end(),
-                 result.generic_params_.begin(),
-                 result.generic_params_.end(),
-                 gal::DerefEq{});
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<CallExpression>(loc(),
-          callee().clone(),
-          gal::clone_span(absl::MakeConstSpan(args_)),
-          internal::clone_generics(generic_params_));
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
+    friend class StaticCallExpression;
+
     std::unique_ptr<Expression> callee_;
     std::vector<std::unique_ptr<Expression>> args_;
     std::vector<std::unique_ptr<Type>> generic_params_;
@@ -1125,7 +999,7 @@ namespace gal::ast {
         std::string method_name,
         std::vector<std::unique_ptr<Expression>> args,
         std::vector<std::unique_ptr<Type>> generic_params)
-        : Expression(std::move(loc), ExprType::call),
+        : Expression(std::move(loc), ExprType::method_call),
           object_{std::move(object)},
           method_name_{std::move(method_name)},
           args_{std::move(args)},
@@ -1207,35 +1081,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const MethodCallExpression&>(other);
-      auto self_args = args();
-      auto res_args = result.args();
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return object() == result.object() && method_name() == result.method_name()
-             && std::equal(self_args.begin(), self_args.end(), res_args.begin(), res_args.end(), gal::DerefEq<>{})
-             && std::equal(generic_params_.begin(),
-                 generic_params_.end(),
-                 result.generic_params_.begin(),
-                 result.generic_params_.end(),
-                 gal::DerefEq{});
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<MethodCallExpression>(loc(),
-          object().clone(),
-          std::string{method_name()},
-          gal::clone_span(absl::MakeConstSpan(args_)),
-          internal::clone_generics(generic_params_));
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Expression> object_;
@@ -1295,32 +1147,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const IndexExpression&>(other);
-      auto self_args = args();
-      auto other_args = result.args();
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return callee() == result.callee()
-             && std::equal(self_args.begin(),
-                 self_args.end(),
-                 other_args.begin(),
-                 other_args.end(),
-                 [](auto& lhs, auto& rhs) {
-                   return *lhs == *rhs;
-                 });
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<IndexExpression>(loc(), callee().clone(), gal::clone_span(absl::MakeConstSpan(args_)));
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Expression> callee_;
@@ -1369,23 +1202,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& expression) const noexcept final {
-      auto& result = internal::debug_cast<const FieldAccessExpression&>(expression);
+    [[nodiscard]] bool internal_equals(const Expression& expression) const noexcept final;
 
-      return object() == result.object() && field_name() == result.field_name();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<FieldAccessExpression>(loc(), object().clone(), std::string{field_name()});
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Expression> object_;
@@ -1425,23 +1248,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const GroupExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return expr() == result.expr();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<GroupExpression>(loc(), expr().clone());
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Expression> grouped_;
@@ -1489,23 +1302,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const UnaryExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return op() == result.op() && expr() == result.expr();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<UnaryExpression>(loc(), op(), expr().clone());
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Expression> expr_;
@@ -1580,23 +1383,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const BinaryExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return op() == result.op() && lhs() == result.lhs() && rhs() == result.rhs();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<BinaryExpression>(loc(), op(), lhs().clone(), rhs().clone());
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Expression> lhs_;
@@ -1672,23 +1465,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const CastExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return unsafe() == result.unsafe() && castee() == result.castee() && cast_to() == result.cast_to();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<CastExpression>(loc(), unsafe(), castee().clone(), cast_to().clone());
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     bool unsafe_;
@@ -1703,9 +1486,7 @@ namespace gal::ast {
     ///
     /// \param loc The location in the source
     /// \param statements The list of statements inside the block
-    explicit BlockExpression(SourceLoc loc, std::vector<std::unique_ptr<Statement>> statements) noexcept
-        : Expression(std::move(loc), ExprType::block),
-          statements_{std::move(statements)} {}
+    explicit BlockExpression(SourceLoc loc, std::vector<std::unique_ptr<Statement>> statements) noexcept;
 
     /// Gets the statement list for the block
     ///
@@ -1722,27 +1503,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const BlockExpression&>(other);
-      auto stmts = statements();
-      auto other_stmts = result.statements();
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return std::equal(stmts.begin(), stmts.end(), other_stmts.begin(), other_stmts.end(), [](auto& lhs, auto& rhs) {
-        return *lhs == *rhs;
-      });
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<BlockExpression>(loc(), gal::clone_span(statements()));
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::vector<std::unique_ptr<Statement>> statements_;
@@ -1830,111 +1597,93 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const IfThenExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return condition() == result.condition()        //
-             && true_branch() == result.true_branch() //
-             && false_branch() == result.false_branch();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<IfThenExpression>(loc(),
-          condition().clone(),
-          true_branch().clone(),
-          false_branch().clone());
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Expression> condition_;
     std::unique_ptr<Expression> true_branch_;
     std::unique_ptr<Expression> false_branch_;
   };
+  /// Models a single `elif` in a chain
+  struct ElifBlock {
+
+    explicit ElifBlock(std::unique_ptr<Expression> cond, std::unique_ptr<BlockExpression> block) noexcept
+        : condition_{std::move(cond)},
+          block_{std::move(block)} {}
+
+    /// Copies an ElifBlock by cloning both members
+    ///
+    /// \param other The elifblock to clone
+    ElifBlock(const ElifBlock& other) noexcept;
+
+    /// Moves an ElifBlock
+    ElifBlock(ElifBlock&&) = default;
+
+    /// Checks two blocks for equivalency
+    ///
+    /// \param lhs The left block
+    /// \param rhs The right block
+    /// \return Whether they are equivalent
+    [[nodiscard]] friend bool operator==(const ElifBlock& lhs, const ElifBlock& rhs) noexcept {
+      return lhs.condition() == rhs.condition() && lhs.block() == rhs.block();
+    }
+
+    /// Gets the condition of the elif
+    ///
+    /// \return The condition
+    [[nodiscard]] const Expression& condition() const noexcept {
+      return *condition_;
+    }
+
+    /// Gets the condition of the elif
+    ///
+    /// \return The condition
+    [[nodiscard]] Expression* condition_mut() noexcept {
+      return condition_.get();
+    }
+
+    /// Gets the condition of the elif
+    ///
+    /// \return The condition
+    [[nodiscard]] std::unique_ptr<Expression>* condition_owner() noexcept {
+      return &condition_;
+    }
+
+    /// Gets the elif's block
+    ///
+    /// \return The block
+    [[nodiscard]] const BlockExpression& block() const noexcept {
+      return internal::debug_cast<const BlockExpression&>(*block_);
+    }
+
+    /// Gets the elif's block
+    ///
+    /// \return The block
+    [[nodiscard]] BlockExpression* block_mut() noexcept {
+      return internal::debug_cast<BlockExpression*>(block_.get());
+    }
+
+    /// Gets the elif's block
+    ///
+    /// \return The block
+    [[nodiscard]] std::unique_ptr<Expression>* block_owner() noexcept {
+      return &block_;
+    }
+
+  private:
+    std::unique_ptr<Expression> condition_;
+    std::unique_ptr<Expression> block_;
+  };
 
   /// Models an if-elif-else chain
   class IfElseExpression final : public Expression {
   public:
-    /// Models a single `elif` in a chain
-    struct ElifBlock {
-
-      explicit ElifBlock(std::unique_ptr<Expression> cond, std::unique_ptr<BlockExpression> block) noexcept
-          : condition_{std::move(cond)},
-            block_{std::move(block)} {}
-
-      /// Copies an ElifBlock by cloning both members
-      ///
-      /// \param other The elifblock to clone
-      ElifBlock(const ElifBlock& other) noexcept
-          : condition_{other.condition_->clone()},
-            block_{gal::static_unique_cast<BlockExpression>(other.block_->clone())} {}
-
-      /// Moves an ElifBlock
-      ElifBlock(ElifBlock&&) = default;
-
-      /// Checks two blocks for equivalency
-      ///
-      /// \param lhs The left block
-      /// \param rhs The right block
-      /// \return Whether they are equivalent
-      [[nodiscard]] friend bool operator==(const ElifBlock& lhs, const ElifBlock& rhs) noexcept {
-        return lhs.condition() == rhs.condition() && lhs.block() == rhs.block();
-      }
-
-      /// Gets the condition of the elif
-      ///
-      /// \return The condition
-      [[nodiscard]] const Expression& condition() const noexcept {
-        return *condition_;
-      }
-
-      /// Gets the condition of the elif
-      ///
-      /// \return The condition
-      [[nodiscard]] Expression* condition_mut() noexcept {
-        return condition_.get();
-      }
-
-      /// Gets the condition of the elif
-      ///
-      /// \return The condition
-      [[nodiscard]] std::unique_ptr<Expression>* condition_owner() noexcept {
-        return &condition_;
-      }
-
-      /// Gets the elif's block
-      ///
-      /// \return The block
-      [[nodiscard]] const BlockExpression& block() const noexcept {
-        return internal::debug_cast<const BlockExpression&>(*block_);
-      }
-
-      /// Gets the elif's block
-      ///
-      /// \return The block
-      [[nodiscard]] BlockExpression* block_mut() noexcept {
-        return internal::debug_cast<BlockExpression*>(block_.get());
-      }
-
-      /// Gets the elif's block
-      ///
-      /// \return The block
-      [[nodiscard]] std::unique_ptr<Expression>* block_owner() noexcept {
-        return &block_;
-      }
-
-    private:
-      std::unique_ptr<Expression> condition_;
-      std::unique_ptr<Expression> block_;
-    };
-
     /// Creates an if-else block expression
     ///
     /// \param loc The location in the source code
@@ -2047,32 +1796,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const IfElseExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      auto elifs = elif_blocks();
-      auto other_elifs = result.elif_blocks();
-
-      return condition() == result.condition() && block() == result.block()
-             && std::equal(elifs.begin(), elifs.end(), other_elifs.begin(), other_elifs.end())
-             && gal::unwrapping_equal(else_block(), result.else_block());
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<IfElseExpression>(loc(),
-          condition().clone(),
-          gal::static_unique_cast<BlockExpression>(block().clone()),
-          elif_blocks_,
-          gal::clone_if(else_block_));
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Expression> condition_;
@@ -2114,23 +1844,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const LoopExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return body() == result.body();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<LoopExpression>(loc(), gal::static_unique_cast<BlockExpression>(body().clone()));
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Expression> body_;
@@ -2194,40 +1914,28 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const WhileExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return condition() == result.condition() && body() == result.body();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<WhileExpression>(loc(),
-          condition().clone(),
-          gal::static_unique_cast<BlockExpression>(body().clone()));
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Expression> condition_;
     std::unique_ptr<Expression> body_;
   };
 
+  /// The possible directions of the for-loop
+  enum class ForDirection {
+    up_to,
+    down_to,
+  };
+
   /// Models a for loop
   class ForExpression final : public Expression {
   public:
-    /// The possible directions of the for-loop
-    enum class Direction {
-      up_to,
-      down_to,
-    };
-
     /// Creates a for-loop
     ///
     /// \param loc The source location
@@ -2238,7 +1946,7 @@ namespace gal::ast {
     /// \param body The body of the loop
     explicit ForExpression(SourceLoc loc,
         std::string loop_variable,
-        Direction direction,
+        ForDirection direction,
         std::unique_ptr<Expression> init,
         std::unique_ptr<Expression> last,
         std::unique_ptr<BlockExpression> body) noexcept
@@ -2259,7 +1967,7 @@ namespace gal::ast {
     /// Gets the direction that the loop variable will be incremented/decremented
     ///
     /// \return The direction of the loop
-    [[nodiscard]] Direction loop_direction() const noexcept {
+    [[nodiscard]] ForDirection loop_direction() const noexcept {
       return direction_;
     }
 
@@ -2327,33 +2035,17 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const ForExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return loop_variable() == result.loop_variable() && loop_direction() == result.loop_direction()
-             && init() == result.init() && last() == result.last() && body() == result.body();
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<ForExpression>(loc(),
-          loop_variable_,
-          loop_direction(),
-          init().clone(),
-          last().clone(),
-          gal::static_unique_cast<BlockExpression>(body().clone()));
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::string loop_variable_;
-    Direction direction_;
+    ForDirection direction_;
     std::unique_ptr<Expression> init_;
     std::unique_ptr<Expression> last_;
     std::unique_ptr<Expression> body_;
@@ -2392,26 +2084,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const ReturnExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return gal::unwrapping_equal(value(), result.value());
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      auto val = value();
-      auto new_value = val.has_value() ? std::make_optional((*val)->clone()) : std::nullopt;
-
-      return std::make_unique<ReturnExpression>(loc(), std::move(new_value));
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::optional<std::unique_ptr<Expression>> value_;
@@ -2450,26 +2129,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const BreakExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return gal::unwrapping_equal(value(), result.value());
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      auto val = value();
-      auto new_value = val.has_value() ? std::make_optional((*val)->clone()) : std::nullopt;
-
-      return std::make_unique<ReturnExpression>(loc(), std::move(new_value));
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::optional<std::unique_ptr<Expression>> value_;
@@ -2484,23 +2150,13 @@ namespace gal::ast {
     explicit ContinueExpression(SourceLoc loc) noexcept : Expression(std::move(loc), ExprType::continue_expr) {}
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      (void)internal::debug_cast<const ReturnExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return true;
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<ContinueExpression>(loc());
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
   };
 
   /// Models an initializer for a single field, i.e `x: 32.4` in `Point { x: 32.4, y: 0.0 }`
@@ -2563,9 +2219,7 @@ namespace gal::ast {
     /// \param lhs The first field init
     /// \param rhs The second field init
     /// \return Whether they are equal
-    [[nodiscard]] friend bool operator==(const FieldInitializer& lhs, const FieldInitializer& rhs) noexcept {
-      return lhs.name() == rhs.name() && lhs.init() == rhs.init();
-    }
+    friend bool operator==(const FieldInitializer& lhs, const FieldInitializer& rhs) noexcept;
 
   private:
     SourceLoc loc_;
@@ -2573,8 +2227,14 @@ namespace gal::ast {
     std::unique_ptr<Expression> initializer_;
   };
 
+  /// Models a struct-init expression
   class StructExpression final : public Expression {
   public:
+    /// Creates a struct-init expr
+    ///
+    /// \param loc The location of the expr
+    /// \param struct_type The type of the expr
+    /// \param fields The fields being initialized
     explicit StructExpression(SourceLoc loc,
         std::unique_ptr<ast::Type> struct_type,
         std::vector<FieldInitializer> fields) noexcept
@@ -2618,23 +2278,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(ExpressionVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(ExpressionVisitorBase* visitor) final;
 
-    void internal_accept(ConstExpressionVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final {
-      auto& result = internal::debug_cast<const StructExpression&>(other);
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
 
-      return struct_type() == result.struct_type() && fields_ == result.fields_;
-    }
-
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<StructExpression>(loc(), struct_type().clone(), fields_);
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<ast::Type> struct_;
@@ -2646,20 +2296,12 @@ namespace gal::ast {
     explicit ErrorExpression() : Expression(SourceLoc::nonexistent(), ExprType::error_expr) {}
 
   protected:
-    void internal_accept(ExpressionVisitorBase*) final {
-      assert(false);
-    }
+    void internal_accept(ExpressionVisitorBase*) final;
 
-    void internal_accept(ConstExpressionVisitorBase*) const final {
-      assert(false);
-    }
+    void internal_accept(ConstExpressionVisitorBase*) const final;
 
-    [[nodiscard]] bool internal_equals(const Expression&) const noexcept final {
-      return true;
-    }
+    [[nodiscard]] bool internal_equals(const Expression&) const noexcept final;
 
-    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final {
-      return std::make_unique<ErrorExpression>();
-    }
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
   };
 } // namespace gal::ast

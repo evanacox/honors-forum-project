@@ -70,9 +70,14 @@ namespace {
         if (auto qualified = resolver_->qualified_for(identifier->id())) {
           auto& [id, env] = *qualified;
 
-          if (auto constant = resolver_->constant(id)) {
+          if (auto _ = resolver_->constant(id)) {
             replace_self(std::make_unique<ast::IdentifierExpression>(identifier->loc(), std::move(id)));
-            self_expr()->result_update((*constant)->hint().clone());
+
+            return;
+          }
+
+          if (auto _ = resolver_->overloads(id)) {
+            replace_self(std::make_unique<ast::IdentifierExpression>(identifier->loc(), std::move(id)));
 
             return;
           }

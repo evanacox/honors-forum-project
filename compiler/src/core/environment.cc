@@ -199,7 +199,7 @@ namespace gal {
   }
 
   bool Environment::contains(std::string_view name) const noexcept {
-    return std::any_of(scopes_.begin(), scopes_.end(), [name](auto& scope) {
+    return std::any_of(scopes_.begin(), scopes_.end(), [name](const gal::Scope& scope) {
       return scope.contains(name);
     });
   }

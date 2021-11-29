@@ -10,9 +10,9 @@
 
 #pragma once
 
+#include "../modular_id.h"
 #include "../visitors/type_visitor.h"
-#include "./modular_id.h"
-#include "./node.h"
+#include "./ast_node.h"
 #include "absl/types/span.h"
 #include <memory>
 #include <optional>
@@ -20,7 +20,7 @@
 
 namespace gal::ast {
   namespace internal {
-    // dirty hack because i'm lazy and don't want to clean up after i moved this fn
+    // dirty hack because I'm lazy and don't want to clean up after I moved this fn
     using gal::internal::debug_cast;
   } // namespace internal
 
@@ -239,24 +239,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-  protected:
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      auto& result = internal::debug_cast<const ReferenceType&>(other);
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return mut() == result.mut() && referenced() == result.referenced();
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<ReferenceType>(loc(), mut(), referenced().clone());
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
 
   private:
     bool mutable_;
@@ -296,22 +285,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      auto& result = internal::debug_cast<const SliceType&>(other);
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-      return sliced() == result.sliced();
-    }
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<SliceType>(loc(), sliced().clone());
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Type> sliced_;
@@ -359,23 +339,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      auto& result = internal::debug_cast<const PointerType&>(other);
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return mut() == result.mut() && pointed() == result.pointed();
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<PointerType>(loc(), mut(), pointed().clone());
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
 
   private:
     bool mutable_;
@@ -413,23 +383,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      auto& result = internal::debug_cast<const BuiltinIntegralType&>(other);
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return width() == result.width() && has_sign() == result.has_sign();
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<BuiltinIntegralType>(loc(), has_sign(), width());
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
 
   private:
     IntegerWidth size_;
@@ -475,23 +435,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      auto& result = internal::debug_cast<const BuiltinFloatType&>(other);
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return width() == result.width();
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<BuiltinFloatType>(loc(), width());
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
 
   private:
     FloatWidth size_;
@@ -506,23 +456,13 @@ namespace gal::ast {
     explicit BuiltinBoolType(SourceLoc loc) noexcept : Type(std::move(loc), TypeType::builtin_bool) {}
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      (void)internal::debug_cast<const BuiltinBoolType&>(other);
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return true;
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<BuiltinBoolType>(loc());
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
   };
 
   /// Represents the builtin `byte` type
@@ -534,23 +474,13 @@ namespace gal::ast {
     explicit BuiltinByteType(SourceLoc loc) noexcept : Type(std::move(loc), TypeType::builtin_byte) {}
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      (void)internal::debug_cast<const BuiltinByteType&>(other);
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return true;
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<BuiltinByteType>(loc());
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
   };
 
   class BuiltinCharType final : public Type {
@@ -561,23 +491,13 @@ namespace gal::ast {
     explicit BuiltinCharType(SourceLoc loc) noexcept : Type(std::move(loc), TypeType::builtin_char) {}
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      (void)internal::debug_cast<const BuiltinCharType&>(other);
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return true;
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<BuiltinCharType>(loc());
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
   };
 
   /// Models an unqualified UDT
@@ -636,24 +556,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      auto& result = internal::debug_cast<const UnqualifiedUserDefinedType&>(other);
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return id() == result.id()
-             && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<UnqualifiedUserDefinedType>(loc(), id(), std::vector<std::unique_ptr<Type>>{});
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
 
   private:
     UnqualifiedID id_;
@@ -716,24 +625,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      auto& result = internal::debug_cast<const UserDefinedType&>(other);
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return id() == result.id()
-             && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<UserDefinedType>(loc(), id(), internal::clone_generics(generic_params_));
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
 
   private:
     FullyQualifiedID name_;
@@ -792,26 +690,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      auto& result = internal::debug_cast<const FnPointerType&>(other);
-      auto self_args = args();
-      auto other_args = result.args();
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return return_type() == result.return_type()
-             && std::equal(self_args.begin(), self_args.end(), other_args.begin(), other_args.end(), gal::DerefEq{});
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<FnPointerType>(loc(), gal::clone_span(absl::MakeConstSpan(args_)), return_type().clone());
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
 
   private:
     std::vector<std::unique_ptr<Type>> args_;
@@ -874,24 +759,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      auto& result = internal::debug_cast<const DynInterfaceType&>(other);
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return id() == result.id()
-             && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<UserDefinedType>(loc(), id(), internal::clone_generics(generic_params_));
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
 
   private:
     FullyQualifiedID name_;
@@ -954,24 +828,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      auto& result = internal::debug_cast<const UnqualifiedDynInterfaceType&>(other);
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return id() == result.id()
-             && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<UnqualifiedDynInterfaceType>(loc(), id(), internal::clone_generics(generic_params_));
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
 
   private:
     UnqualifiedID id_;
@@ -988,23 +851,13 @@ namespace gal::ast {
     explicit VoidType(SourceLoc loc) noexcept : Type(std::move(loc), TypeType::builtin_void) {}
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final {
-      (void)internal::debug_cast<const VoidType&>(other);
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
 
-      return true;
-    }
-
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<VoidType>(loc());
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
   };
 
   class NilPointerType final : public Type {
@@ -1012,21 +865,13 @@ namespace gal::ast {
     explicit NilPointerType(SourceLoc loc) : Type(std::move(loc), TypeType::nil_pointer) {}
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type&) const noexcept final {
-      return true;
-    }
+    [[nodiscard]] bool internal_equals(const Type&) const noexcept final;
 
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<NilPointerType>(loc());
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
   };
 
   class ErrorType final : public Type {
@@ -1034,20 +879,12 @@ namespace gal::ast {
     explicit ErrorType() : Type(SourceLoc::nonexistent(), TypeType::error) {}
 
   protected:
-    void internal_accept(TypeVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(TypeVisitorBase* visitor) final;
 
-    void internal_accept(ConstTypeVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Type&) const noexcept final {
-      return true;
-    }
+    [[nodiscard]] bool internal_equals(const Type&) const noexcept final;
 
-    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final {
-      return std::make_unique<ErrorType>();
-    }
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
   };
 } // namespace gal::ast

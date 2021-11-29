@@ -19,6 +19,14 @@
 #include <optional>
 #include <variant>
 
+#if defined(__GNUC__) || defined(__clang__)
+#define GALLIUM_COLD [[gnu::cold]]
+#define GALLIUM_LIKELY(exp) __builtin_expect((exp), true)
+#define GALLIUM_UNLIKELY(exp) __builtin_expect((exp), false)
+#else
+#define GALLIUM_COLD
+#endif
+
 namespace gal {
   /// Casts a unique pointer of `U` into a unique pointer of `T`.
   ///

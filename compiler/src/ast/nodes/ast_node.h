@@ -44,13 +44,15 @@ namespace gal::ast {
     ///
     /// \return The mangled name of the function
     [[nodiscard]] std::string_view mangled_name() const noexcept {
+      assert(!mangled_.empty());
+
       return mangled_;
     }
 
     /// Sets the mangled name of a function
     ///
     /// \param mangled_name The mangled name of the function
-    void set_mangled(std::string mangled_name) noexcept {
+    void mangle(std::string mangled_name) noexcept {
       mangled_ = std::move(mangled_name);
     }
 

@@ -21,9 +21,9 @@ namespace ast = gal::ast;
 
 namespace {
   std::unique_ptr<gal::DiagnosticPart> underline_for(ast::SourceLoc loc, gal::DiagnosticType type) noexcept {
-    auto pointed_out = gal::UnderlineList::PointedOut{std::move(loc), "", type, gal::UnderlineType::squiggly};
+    auto pointed_out = gal::PointedOut{std::move(loc), "", type, gal::UnderlineType::squiggly};
 
-    return std::make_unique<gal::UnderlineList>(std::vector<gal::UnderlineList::PointedOut>{std::move(pointed_out)});
+    return std::make_unique<gal::UnderlineList>(std::vector<gal::PointedOut>{std::move(pointed_out)});
   }
 
   std::unique_ptr<gal::DiagnosticPart> note(std::string message) noexcept {

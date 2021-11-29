@@ -10,10 +10,10 @@
 
 #pragma once
 
+#include "../modular_id.h"
 #include "../visitors/declaration_visitor.h"
+#include "./ast_node.h"
 #include "./expression.h"
-#include "./modular_id.h"
-#include "./node.h"
 #include "./statement.h"
 #include "./type.h"
 #include <memory>
@@ -237,23 +237,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(DeclarationVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(DeclarationVisitorBase* visitor) final;
 
-    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
-      auto& result = internal::debug_cast<const ImportDeclaration&>(other);
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final;
 
-      return exported() == result.exported() && mod() == result.mod() && alias() == result.alias();
-    }
-
-    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
-      return std::make_unique<ImportDeclaration>(loc(), exported(), mod(), alias_);
-    }
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final;
 
   private:
     ModuleID mod_;
@@ -283,26 +273,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(DeclarationVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(DeclarationVisitorBase* visitor) final;
 
-    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
-      auto& result = internal::debug_cast<const ImportFromDeclaration&>(other);
-      auto self_entities = imported_entities();
-      auto other_entities = result.imported_entities();
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final;
 
-      return exported() == result.exported()
-             && std::equal(self_entities.begin(), self_entities.end(), other_entities.begin(), other_entities.end());
-    }
-
-    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
-      return std::make_unique<ImportFromDeclaration>(loc(), exported(), entities_);
-    }
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final;
 
   private:
     std::vector<FullyQualifiedID> entities_;
@@ -335,30 +312,53 @@ namespace gal::ast {
   /// An argument is a `name: type` pair
   class Argument {
   public:
+    /// Creates an argument
+    ///
+    /// \param name The name given
+    /// \param type The type of the argument
     explicit Argument(std::string name, std::unique_ptr<Type> type) noexcept
         : name_{std::move(name)},
           type_{std::move(type)} {}
 
+    /// Properly copies an argument
     Argument(const Argument& other) noexcept : name_{other.name_}, type_{other.type_->clone()} {}
 
+    /// Moves an argument
     Argument(Argument&&) noexcept = default;
 
+    /// Gets the name of the argument
+    //
+    /// \return The name
     [[nodiscard]] std::string_view name() const noexcept {
       return name_;
     }
 
+    /// Gets the type of the argument
+    ///
+    /// \return The type of the argument
     [[nodiscard]] const Type& type() const noexcept {
       return *type_;
     }
 
+    /// Gets the type of the argument
+    ///
+    /// \return The type of the argument
     [[nodiscard]] Type* type_mut() noexcept {
       return type_.get();
     }
 
+    /// Gets the type of the argument
+    ///
+    /// \return The type of the argument
     [[nodiscard]] std::unique_ptr<Type>* type_owner() noexcept {
       return &type_;
     }
 
+    /// Compares two arguments
+    ///
+    /// \param lhs The left argument
+    /// \param rhs The right argument
+    /// \return Whether or not they're equal
     [[nodiscard]] friend bool operator==(const Argument& lhs, const Argument& rhs) noexcept {
       return lhs.name() == rhs.name() && lhs.type() == rhs.type();
     }
@@ -487,14 +487,7 @@ namespace gal::ast {
     /// \param lhs The first prototype
     /// \param rhs The second prototype
     /// \return Whether or not they are equal
-    [[nodiscard]] friend bool operator==(const FnPrototype& lhs, const FnPrototype& rhs) noexcept {
-      auto lhs_args = lhs.args();
-      auto rhs_args = rhs.args();
-
-      return lhs.name() == rhs.name() && lhs.self() == rhs.self()
-             && std::equal(lhs_args.begin(), lhs_args.end(), rhs_args.begin(), rhs_args.end())
-             && lhs.return_type() == rhs.return_type();
-    }
+    friend bool operator==(const FnPrototype& lhs, const FnPrototype& rhs) noexcept;
 
   private:
     std::string name_;
@@ -568,28 +561,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(DeclarationVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(DeclarationVisitorBase* visitor) final;
 
-    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
-      auto& result = internal::debug_cast<const FnDeclaration&>(other);
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final;
 
-      return exported() == result.exported() && external() == result.external() && proto() == result.proto()
-             && body() == result.body();
-    }
-
-    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
-      return std::make_unique<FnDeclaration>(loc(),
-          exported(),
-          external(),
-          proto_,
-          gal::static_unique_cast<BlockExpression>(body().clone()));
-    }
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final;
 
   private:
     bool external_;
@@ -652,26 +630,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(DeclarationVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(DeclarationVisitorBase* visitor) final;
 
-    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
-      auto& result = internal::debug_cast<const MethodDeclaration&>(other);
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final;
 
-      return exported() == result.exported() && proto() == result.proto() && body() == result.body();
-    }
-
-    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
-      return std::make_unique<MethodDeclaration>(loc(),
-          exported(),
-          proto_,
-          gal::static_unique_cast<BlockExpression>(body().clone()));
-    }
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final;
 
   private:
     FnPrototype proto_;
@@ -703,73 +668,75 @@ namespace gal::ast {
       return std::make_unique<ErrorDeclaration>();
     }
   };
+  /// Models a single field in a struct
+  class Field {
+  public:
+    /// Creates a field
+    ///
+    /// \param name The name of the field
+    /// \param type The type of the field
+    explicit Field(ast::SourceLoc loc, std::string name, std::unique_ptr<Type> type) noexcept
+        : loc_{std::move(loc)},
+          name_{std::move(name)},
+          type_{std::move(type)} {}
+
+    Field(const Field& other) noexcept : loc_{other.loc_}, name_{other.name_}, type_{other.type_->clone()} {}
+
+    Field(Field&&) = default;
+
+    /// Compares two fields for equality
+    ///
+    /// \param lhs The left field
+    /// \param rhs The right field
+    /// \return Whether they are equal
+    [[nodiscard]] friend bool operator==(const Field& lhs, const Field& rhs) noexcept {
+      return lhs.name() == rhs.name() && lhs.type() == rhs.type();
+    }
+
+    /// Gets the name of the field
+    ///
+    /// \return The name of the field
+    [[nodiscard]] std::string_view name() const noexcept {
+      return name_;
+    }
+
+    /// Gets the type of the field
+    ///
+    /// \return The type of the field
+    [[nodiscard]] const Type& type() const noexcept {
+      return *type_;
+    }
+
+    /// Gets the type of the field
+    ///
+    /// \return The type of the field
+    [[nodiscard]] Type* type_mut() noexcept {
+      return type_.get();
+    }
+
+    /// Gets the type of the field
+    ///
+    /// \return The type of the field
+    [[nodiscard]] std::unique_ptr<Type>* type_owner() noexcept {
+      return &type_;
+    }
+
+    /// Gets the location of the field
+    ///
+    /// \return The location
+    [[nodiscard]] const ast::SourceLoc& loc() const noexcept {
+      return loc_;
+    }
+
+  private:
+    ast::SourceLoc loc_;
+    std::string name_;
+    std::unique_ptr<Type> type_;
+  };
 
   /// Models a `struct` declaration in Gallium
   class StructDeclaration final : public Declaration {
   public:
-    /// Models a single field in a struct
-    class Field {
-    public:
-      /// Creates a field
-      ///
-      /// \param name The name of the field
-      /// \param type The type of the field
-      explicit Field(ast::SourceLoc loc, std::string name, std::unique_ptr<Type> type) noexcept
-          : loc_{std::move(loc)},
-            name_{std::move(name)},
-            type_{std::move(type)} {}
-
-      Field(const Field& other) noexcept : loc_{other.loc_}, name_{other.name_}, type_{other.type_->clone()} {}
-
-      Field(Field&&) = default;
-
-      /// Compares two fields for equality
-      ///
-      /// \param lhs The left field
-      /// \param rhs The right field
-      /// \return Whether they are equal
-      [[nodiscard]] friend bool operator==(const Field& lhs, const Field& rhs) noexcept {
-        return lhs.name() == rhs.name() && lhs.type() == rhs.type();
-      }
-
-      /// Gets the name of the field
-      ///
-      /// \return The name of the field
-      [[nodiscard]] std::string_view name() const noexcept {
-        return name_;
-      }
-
-      /// Gets the type of the field
-      ///
-      /// \return The type of the field
-      [[nodiscard]] const Type& type() const noexcept {
-        return *type_;
-      }
-
-      /// Gets the type of the field
-      ///
-      /// \return The type of the field
-      [[nodiscard]] Type* type_mut() noexcept {
-        return type_.get();
-      }
-
-      /// Gets the type of the field
-      ///
-      /// \return The type of the field
-      [[nodiscard]] std::unique_ptr<Type>* type_owner() noexcept {
-        return &type_;
-      }
-
-      const ast::SourceLoc& loc() const noexcept {
-        return loc_;
-      }
-
-    private:
-      ast::SourceLoc loc_;
-      std::string name_;
-      std::unique_ptr<Type> type_;
-    };
-
     /// Creates a struct declaration
     ///
     /// \param loc The location in the source
@@ -803,26 +770,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(DeclarationVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(DeclarationVisitorBase* visitor) final;
 
-    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
-      auto& result = internal::debug_cast<const StructDeclaration&>(other);
-      auto self_fields = fields();
-      auto other_fields = result.fields();
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final;
 
-      return exported() == result.exported() && name() == result.name()
-             && std::equal(self_fields.begin(), self_fields.end(), other_fields.begin(), other_fields.end());
-    }
-
-    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
-      return std::make_unique<StructDeclaration>(loc(), exported(), name_, fields_);
-    }
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final;
 
   private:
     std::string name_;
@@ -835,25 +789,13 @@ namespace gal::ast {
     //
 
   protected:
-    void internal_accept(DeclarationVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(DeclarationVisitorBase* visitor) final;
 
-    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Declaration&) const noexcept final {
-      assert(false);
+    [[nodiscard]] bool internal_equals(const Declaration&) const noexcept final;
 
-      return false;
-    }
-
-    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
-      assert(false);
-
-      return std::make_unique<ErrorDeclaration>();
-    }
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final;
   };
 
   /// Models a type alias declaration
@@ -899,23 +841,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(DeclarationVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(DeclarationVisitorBase* visitor) final;
 
-    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
-      auto& result = internal::debug_cast<const TypeDeclaration&>(other);
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final;
 
-      return name() == result.name() && aliased() == result.aliased();
-    }
-
-    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
-      return std::make_unique<TypeDeclaration>(loc(), exported(), name_, aliased().clone());
-    }
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final;
 
   private:
     std::string name_;
@@ -949,23 +881,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(DeclarationVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(DeclarationVisitorBase* visitor) final;
 
-    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
-      auto& result = internal::debug_cast<const ast::ExternalFnDeclaration&>(other);
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final;
 
-      return proto() == result.proto();
-    }
-
-    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
-      return std::make_unique<ast::ExternalFnDeclaration>(loc(), exported(), proto());
-    }
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final;
 
   private:
     ast::FnPrototype proto_;
@@ -1000,23 +922,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(DeclarationVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(DeclarationVisitorBase* visitor) final;
 
-    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
-      auto& result = internal::debug_cast<const ExternalDeclaration&>(other);
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final;
 
-      return externals_ == result.externals_;
-    }
-
-    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
-      return std::make_unique<ExternalDeclaration>(loc(), exported(), gal::clone_span(externals()));
-    }
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final;
 
   private:
     std::vector<std::unique_ptr<ast::Declaration>> externals_;
@@ -1092,23 +1004,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(DeclarationVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(DeclarationVisitorBase* visitor) final;
 
-    void internal_accept(ConstDeclarationVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstDeclarationVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
-      auto& result = internal::debug_cast<const ConstantDeclaration&>(other);
+    [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final;
 
-      return name() == result.name() && hint() == result.hint() && initializer() == result.initializer();
-    }
-
-    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final {
-      return std::make_unique<ConstantDeclaration>(loc(), exported(), name_, hint().clone(), initializer().clone());
-    }
+    [[nodiscard]] std::unique_ptr<Declaration> internal_clone() const noexcept final;
 
   private:
     std::string name_;

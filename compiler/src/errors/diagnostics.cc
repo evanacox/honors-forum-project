@@ -195,7 +195,7 @@ namespace {
     return {std::string(max_str.size() - curr_str.size(), ' '), std::string(max_str.size(), ' ')};
   }
 
-  void build_list(std::string* builder, const gal::UnderlineList::PointedOut& spot, UnderlineState* state) noexcept {
+  void build_list(std::string* builder, const gal::PointedOut& spot, UnderlineState* state) noexcept {
     auto& loc = spot.loc;
     auto full_line = break_into_lines(state->source)[loc.line() - 1];
     auto [before_line, without_line] = line_number_padding(loc.line(), state->max_line);
@@ -253,7 +253,7 @@ namespace {
 namespace gal {
   std::string UnderlineList::internal_build(std::string_view source, std::string_view padding) const noexcept {
     auto builder = ""s;
-    auto max_line = std::max_element(list_.begin(), list_.end(), [](auto& lhs, auto& rhs) {
+    auto max_line = std::max_element(list_.begin(), list_.end(), [](const PointedOut& lhs, const PointedOut& rhs) {
       return lhs.loc.line() < rhs.loc.line();
     });
 
@@ -392,6 +392,21 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
               "extra arguments cannot be given, you can only pass the exact number the function accepts. no more, no "
               "less.",
               gal::DiagnosticType::error}},
+      {24,
+          {"too few arguments for function call",
+              "every non-defaulted argument in a function must have a value provided",
+              gal::DiagnosticType::error}},
+      {25, {"return outside of function", "cannot return outside of a function", gal::DiagnosticType::error}},
+      {26,
+          {"break/continue outside of loop", "cannot break or continue outside of a loop", gal::DiagnosticType::error}},
+      {27,
+          {"ambiguous overloaded function call",
+              "call to overloaded function was ambiguous as to which function to call",
+              gal::DiagnosticType::error}},
+      {28,
+          {"cannot call non-function entity",
+              "you can only call functions, not anything else",
+              gal::DiagnosticType::error}},
   };
 
   return lookup.at(code);
@@ -409,21 +424,21 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
   return std::make_unique<gal::UnderlineList>(std::vector{gal::point_out_part(loc, type, std::move(inline_message))});
 }
 
-gal::UnderlineList::PointedOut gal::point_out_part(const ast::Node& node,
+gal::PointedOut gal::point_out_part(const ast::Node& node,
     gal::DiagnosticType type,
     std::string inline_message) noexcept {
   return gal::point_out_part(node.loc(), type, std::move(inline_message));
 }
 
-gal::UnderlineList::PointedOut gal::point_out_part(const ast::SourceLoc& loc,
+gal::PointedOut gal::point_out_part(const ast::SourceLoc& loc,
     gal::DiagnosticType type,
     std::string inline_message) noexcept {
   auto underline = (type == gal::DiagnosticType::note) ? gal::UnderlineType::straight : gal::UnderlineType::squiggly;
 
-  return gal::UnderlineList::PointedOut{loc, std::move(inline_message), type, underline};
+  return gal::PointedOut{loc, std::move(inline_message), type, underline};
 }
 
-std::unique_ptr<gal::DiagnosticPart> gal::point_out_list(std::vector<gal::UnderlineList::PointedOut> list) noexcept {
+std::unique_ptr<gal::DiagnosticPart> gal::point_out_list(std::vector<gal::PointedOut> list) noexcept {
   return std::make_unique<gal::UnderlineList>(std::move(list));
 }
 

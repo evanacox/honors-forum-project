@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "../utility/misc.h"
 #include "./diagnostics.h"
 #include <cstddef>
 
@@ -20,13 +21,13 @@ namespace gal {
     /// Reports a diagnostic by some method
     ///
     /// \param diagnostic The diagnostic to report
-    void report(gal::Diagnostic diagnostic) noexcept;
+    GALLIUM_COLD void report(gal::Diagnostic diagnostic) noexcept;
 
     /// Reports a diagnostic, but just constructs in-place
     ///
     /// \param code The error code
     /// \param parts Parts of the diagnostic message
-    void report_emplace(std::int64_t code, std::vector<std::unique_ptr<DiagnosticPart>> parts) noexcept;
+    GALLIUM_COLD void report_emplace(std::int64_t code, std::vector<std::unique_ptr<DiagnosticPart>> parts) noexcept;
 
     /// Checks if an **error** (not just a diagnostic) had been reported so far
     ///

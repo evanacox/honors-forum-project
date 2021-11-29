@@ -11,7 +11,8 @@
 #pragma once
 
 #include "../visitors/statement_visitor.h"
-#include "./node.h"
+#include "./ast_node.h"
+#include "./expression.h"
 #include "./type.h"
 #include <string>
 
@@ -251,24 +252,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(StatementVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(StatementVisitorBase* visitor) final;
 
-    void internal_accept(ConstStatementVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstStatementVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Statement& other) const noexcept final {
-      auto& result = internal::debug_cast<const BindingStatement&>(other);
+    [[nodiscard]] bool internal_equals(const Statement& other) const noexcept final;
 
-      return name() == result.name() && gal::unwrapping_equal(hint(), result.hint(), gal::DerefEq{})
-             && initializer() == result.initializer();
-    }
-
-    [[nodiscard]] std::unique_ptr<Statement> internal_clone() const noexcept final {
-      return std::make_unique<BindingStatement>(loc(), name_, initializer().clone(), gal::clone_if(hint_));
-    }
+    [[nodiscard]] std::unique_ptr<Statement> internal_clone() const noexcept final;
 
   private:
     std::string name_;
@@ -334,25 +324,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(StatementVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(StatementVisitorBase* visitor) final;
 
-    void internal_accept(ConstStatementVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstStatementVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Statement& other) const noexcept final {
-      auto& result = internal::debug_cast<const AssertStatement&>(other);
+    [[nodiscard]] bool internal_equals(const Statement& other) const noexcept final;
 
-      return assertion() == result.assertion() && message() == result.message();
-    }
-
-    [[nodiscard]] std::unique_ptr<Statement> internal_clone() const noexcept final {
-      return std::make_unique<AssertStatement>(loc(),
-          assertion().clone(),
-          gal::static_unique_cast<StringLiteralExpression>(message().clone()));
-    }
+    [[nodiscard]] std::unique_ptr<Statement> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Expression> assertion_;
@@ -391,23 +369,13 @@ namespace gal::ast {
     }
 
   protected:
-    void internal_accept(StatementVisitorBase* visitor) final {
-      visitor->visit(this);
-    }
+    void internal_accept(StatementVisitorBase* visitor) final;
 
-    void internal_accept(ConstStatementVisitorBase* visitor) const final {
-      visitor->visit(*this);
-    }
+    void internal_accept(ConstStatementVisitorBase* visitor) const final;
 
-    [[nodiscard]] bool internal_equals(const Statement& other) const noexcept final {
-      auto& result = internal::debug_cast<const ExpressionStatement&>(other);
+    [[nodiscard]] bool internal_equals(const Statement& other) const noexcept final;
 
-      return expr() == result.expr();
-    }
-
-    [[nodiscard]] std::unique_ptr<Statement> internal_clone() const noexcept final {
-      return std::make_unique<ExpressionStatement>(loc(), expr().clone());
-    }
+    [[nodiscard]] std::unique_ptr<Statement> internal_clone() const noexcept final;
 
   private:
     std::unique_ptr<Expression> expr_;
