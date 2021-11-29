@@ -25,6 +25,15 @@ namespace colors = gal::colors;
 namespace fs = std::filesystem;
 
 namespace {
+  std::string diagnostic_color(gal::DiagnosticType type, std::string_view text) noexcept {
+    switch (type) {
+      case gal::DiagnosticType::error: return colors::bold_red(text);
+      case gal::DiagnosticType::note: return colors::bold_cyan(text);
+      case gal::DiagnosticType::warning: return colors::bold_yellow(text);
+      default: assert(false); return "";
+    }
+  }
+
   absl::Span<const std::string_view> break_into_lines(std::string_view source) noexcept {
     // uses the **address** of the source location, since it should always be the same string
     static absl::flat_hash_map<const void*, std::vector<std::string_view>> line_lookup;
@@ -36,6 +45,8 @@ namespace {
     auto lines = std::vector<std::string_view>{absl::StrSplit(source, absl::ByAnyChar("\r\n"))};
 
     std::transform(lines.begin(), lines.end(), lines.begin(), [](std::string_view s) {
+      // we can't use StripWhitespace just because we need to
+      // preserve any whitespace **besides** the \rs and \ns
       s = absl::StripPrefix(s, "\n");
       s = absl::StripPrefix(s, "\r\n");
       s = absl::StripSuffix(s, "\n");
@@ -61,7 +72,7 @@ namespace {
         break;
       case gal::DiagnosticType::note:
         assert(code == -1);
-        absl::StrAppend(&builder, gal::colors::bold_magenta("note "));
+        absl::StrAppend(&builder, gal::colors::bold_cyan("note "));
         break;
     }
 
@@ -92,15 +103,6 @@ namespace {
       return header_colored(type, code);
     } else {
       return header_uncolored(type, code);
-    }
-  }
-
-  std::string diagnostic_color(gal::DiagnosticType type, std::string_view text) noexcept {
-    switch (type) {
-      case gal::DiagnosticType::error: return colors::red(text);
-      case gal::DiagnosticType::note: return colors::magenta(text);
-      case gal::DiagnosticType::warning: return colors::yellow(text);
-      default: assert(false); return "";
     }
   }
 
@@ -203,7 +205,7 @@ namespace {
     auto underline = absl::StrCat(std::string(start.size(), ' '),
         diagnostic_color(spot.type, underline_with(underlined.size(), spot.underline)));
 
-    // if there are any lines between the previous and current, add a ...
+    // if there are any lines between the previous and current, add a .... otherwise, do a |
     if (state->previous_line != (loc.line() - 1) && state->previous_line.has_value()) {
       absl::StrAppend(builder, "\n", state->padding, without_line, "...\n");
     }
@@ -225,11 +227,7 @@ namespace {
         " | ",
         underline,
         " ",
-        diagnostic_color(spot.type, spot.message),
-        "\n",
-        state->padding,
-        without_line,
-        " |");
+        diagnostic_color(spot.type, spot.message));
 
     state->previous_line = loc.line();
   }
@@ -238,7 +236,7 @@ namespace {
     absl::StrAppend(builder,
         state.padding,
         ">>> ",
-        colors::code_blue,
+        colors::code_green,
         loc.file().string(),
         " (line ",
         loc.line(),
@@ -264,6 +262,8 @@ namespace gal {
     for (auto& spot : list_) {
       build_list(&builder, spot, &state);
     }
+
+    absl::StrAppend(&builder, "\n", state.padding, line_number_padding(0, state.max_line).second, " |");
 
     return builder;
   }
@@ -389,23 +389,26 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
               gal::DiagnosticType::error}},
       {24,
           {"too many arguments for function call",
-              "extra arguments cannot be given, you can only pass the exact number the function accepts. no more, no "
-              "less.",
+              "extra arguments cannot be given, you can only pass the exact number the function accepts.",
               gal::DiagnosticType::error}},
-      {24,
+      {25,
           {"too few arguments for function call",
               "every non-defaulted argument in a function must have a value provided",
               gal::DiagnosticType::error}},
-      {25, {"return outside of function", "cannot return outside of a function", gal::DiagnosticType::error}},
-      {26,
-          {"break/continue outside of loop", "cannot break or continue outside of a loop", gal::DiagnosticType::error}},
+      {26, {"return outside of function", "cannot return outside of a function", gal::DiagnosticType::error}},
       {27,
+          {"break/continue outside of loop", "cannot break or continue outside of a loop", gal::DiagnosticType::error}},
+      {28,
           {"ambiguous overloaded function call",
               "call to overloaded function was ambiguous as to which function to call",
               gal::DiagnosticType::error}},
-      {28,
+      {29,
           {"cannot call non-function entity",
               "you can only call functions, not anything else",
+              gal::DiagnosticType::error}},
+      {30,
+          {"cannot call expression",
+              "expressions of any type other than fn pointers cannot be called",
               gal::DiagnosticType::error}},
   };
 
@@ -444,4 +447,8 @@ std::unique_ptr<gal::DiagnosticPart> gal::point_out_list(std::vector<gal::Pointe
 
 std::unique_ptr<gal::DiagnosticPart> gal::single_message(std::string message, gal::DiagnosticType type) noexcept {
   return std::make_unique<gal::SingleMessage>(std::move(message), type);
+}
+
+std::string_view gal::make_plural(std::uint64_t count, std::string_view text) noexcept {
+  return (count == 1) ? text.substr(0, text.size() - 1) : text;
 }

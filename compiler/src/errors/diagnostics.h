@@ -195,6 +195,13 @@ namespace gal {
   /// \return An `UnderlineList`
   std::unique_ptr<gal::DiagnosticPart> point_out_list(std::vector<gal::PointedOut> list) noexcept;
 
+  /// Makes a string plural depending on the count
+  ///
+  /// \param count The number of units `text` is describing
+  /// \param text The word describing `count`, must be plural
+  /// \return A plural or singular string
+  std::string_view make_plural(std::uint64_t count, std::string_view text) noexcept;
+
   ///  Creates an UnderlineList from a list of `PointedOut`s
   ///
   /// \param args The list of `PointedOut`s

@@ -42,6 +42,7 @@ namespace gal::ast {
   class ContinueExpression;
   class StructExpression;
   class LocalIdentifierExpression;
+  class ImplicitConversionExpression;
 
   class ExpressionVisitorBase {
   public:
@@ -104,6 +105,8 @@ namespace gal::ast {
     virtual void visit(BreakExpression*) = 0;
 
     virtual void visit(ContinueExpression*) = 0;
+
+    virtual void visit(ImplicitConversionExpression*) = 0;
   };
 
   class ConstExpressionVisitorBase {
@@ -167,6 +170,8 @@ namespace gal::ast {
     virtual void visit(const BreakExpression&) = 0;
 
     virtual void visit(const ContinueExpression&) = 0;
+
+    virtual void visit(const ImplicitConversionExpression&) = 0;
   };
 
   template <typename T> using ExpressionVisitor = ValueVisitor<T, ExpressionVisitorBase>;

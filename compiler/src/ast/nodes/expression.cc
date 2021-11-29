@@ -673,4 +673,22 @@ namespace gal::ast {
   ElifBlock::ElifBlock(const ElifBlock& other) noexcept
       : condition_{other.condition_->clone()},
         block_{gal::static_unique_cast<BlockExpression>(other.block_->clone())} {}
+
+  void ImplicitConversionExpression::internal_accept(ExpressionVisitorBase* visitor) {
+    visitor->visit(this);
+  }
+
+  void ImplicitConversionExpression::internal_accept(ConstExpressionVisitorBase* visitor) const {
+    visitor->visit(*this);
+  }
+
+  bool ImplicitConversionExpression::internal_equals(const Expression& other) const noexcept {
+    auto& result = internal::debug_cast<const ImplicitConversionExpression&>(other);
+
+    return expr() == result.expr() && cast_to() == result.cast_to();
+  }
+
+  std::unique_ptr<Expression> ImplicitConversionExpression::internal_clone() const noexcept {
+    return std::make_unique<ImplicitConversionExpression>(expr().clone(), cast_to().clone());
+  }
 } // namespace gal::ast

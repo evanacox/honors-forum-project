@@ -62,6 +62,7 @@ namespace gal::ast {
     continue_expr,
     error_expr,
     struct_expr,
+    implicit,
   };
 
   /// Represents the different unary expression operators
@@ -2289,6 +2290,74 @@ namespace gal::ast {
   private:
     std::unique_ptr<ast::Type> struct_;
     std::vector<FieldInitializer> fields_;
+  };
+
+  /// Models an implicit conversion that the compiler generated
+  class ImplicitConversionExpression final : public Expression {
+  public:
+    /// Creates an implicit conversion
+    ///
+    /// \param expr An expression being converted
+    /// \param convert_to The type to convert it to
+    explicit ImplicitConversionExpression(std::unique_ptr<Expression> expr, std::unique_ptr<Type> convert_to) noexcept
+        : Expression(expr->loc(), ExprType::implicit),
+          expr_{std::move(expr)},
+          cast_to_{std::move(convert_to)} {}
+
+    /// Gets the expression being converted
+    ///
+    /// \return The expression being converted
+    [[nodiscard]] const ast::Expression& expr() const noexcept {
+      return *expr_;
+    }
+
+    /// Gets the expression being converted
+    ///
+    /// \return The expression being converted
+    [[nodiscard]] ast::Expression* expr_mut() noexcept {
+      return expr_.get();
+    }
+
+    /// Gets the expression being converted
+    ///
+    /// \return The expression being converted
+    [[nodiscard]] std::unique_ptr<ast::Expression>* expr_owner() noexcept {
+      return &expr_;
+    }
+
+    /// Gets the type being converted to
+    ///
+    /// \return The type being converted to
+    [[nodiscard]] const ast::Type& cast_to() const noexcept {
+      return *cast_to_;
+    }
+
+    /// Gets the type being converted to
+    ///
+    /// \return The type being converted to
+    [[nodiscard]] ast::Type* cast_to_mut() noexcept {
+      return cast_to_.get();
+    }
+
+    /// Gets the type being converted to
+    ///
+    /// \return The type being converted to
+    [[nodiscard]] std::unique_ptr<ast::Type>* cast_to_owner() noexcept {
+      return &cast_to_;
+    }
+
+  protected:
+    void internal_accept(ExpressionVisitorBase* visitor) final;
+
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
+
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
+
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
+
+  private:
+    std::unique_ptr<Expression> expr_;
+    std::unique_ptr<Type> cast_to_;
   };
 
   class ErrorExpression final : public Expression {

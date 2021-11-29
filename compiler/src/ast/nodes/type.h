@@ -41,6 +41,8 @@ namespace gal::ast {
     dyn_interface,
     error,
     nil_pointer,
+    unsized_integer,
+    unsized_float,
   };
 
   /// Abstract base type for all "Type" AST nodes
@@ -860,8 +862,12 @@ namespace gal::ast {
     [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
   };
 
+  /// Represents the type of a nil literal
   class NilPointerType final : public Type {
   public:
+    /// Creates a nil pointer type
+    ///
+    /// \param loc The location of the literal
     explicit NilPointerType(SourceLoc loc) : Type(std::move(loc), TypeType::nil_pointer) {}
 
   protected:
@@ -872,6 +878,29 @@ namespace gal::ast {
     [[nodiscard]] bool internal_equals(const Type&) const noexcept final;
 
     [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
+  };
+
+  /// Represents the type of an integer literal
+  class UnsizedIntegerType final : public Type {
+  public:
+    /// Creates an unsized integer type
+    ///
+    /// \param loc The location of the literal
+    explicit UnsizedIntegerType(SourceLoc loc, std::uint64_t value)
+        : Type(std::move(loc), TypeType::unsized_integer),
+          value_{value} {}
+
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final;
+
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
+
+    [[nodiscard]] bool internal_equals(const Type&) const noexcept final;
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
+
+  private:
+    std::uint64_t value_;
   };
 
   class ErrorType final : public Type {

@@ -124,7 +124,7 @@ namespace gal {
   }                                                                                                                    \
                                                                                                                        \
   inline std::string bold_##color(std::string_view message) {                                                          \
-    return absl::StrCat(code_##color, message, code_reset);                                                            \
+    return absl::StrCat(code_bold_##color, message, code_reset);                                                       \
   }
 
     COLOR_FUNC(black)

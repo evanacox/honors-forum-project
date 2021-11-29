@@ -31,15 +31,20 @@ fn main() -> void {
 
     let y = x
 
-    while 1 {
+    while true {
         let y = 5
 
         y
     }
 
-  /*  puts(1, 2, 3)
+    ::puts(1, 2, 3)
+    puts("Hello")
 
-    1 + 2 / 3 * 4 % 5
+    binding(1, 0)
+
+    // ::puts(5 as *const u8)
+
+  /*  1 + 2 / 3 * 4 % 5
 
 
     if true {

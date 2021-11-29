@@ -255,6 +255,11 @@ namespace gal::ast {
 
     void visit(ContinueExpression*) override {}
 
+    void visit(ast::ImplicitConversionExpression* expression) override {
+      accept(expression->expr_owner());
+      accept(expression->cast_to_owner());
+    }
+
     void visit(BindingStatement* statement) override {
       if (auto hint = statement->hint_owner()) {
         accept(*hint);

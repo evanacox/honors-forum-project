@@ -288,6 +288,16 @@ namespace gal {
     return internal::ReverseWrapper{iterable};
   }
 
+  struct Deref {
+    /// Returns whatever was passed in, but dereference-d
+    ///
+    /// \param object The object to deref
+    /// \return `std::forward<...>(*object)`
+    template <typename T> constexpr decltype(auto) operator()(T&& object) const noexcept {
+      return *object;
+    }
+  };
+
   /// Identity functor for use in default arguments
   struct Identity {
     /// Returns whatever was passed in
