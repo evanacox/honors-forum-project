@@ -66,8 +66,9 @@ add_executable(gallium
         ${GALLIUM_UTILITY_FILES}
         ${GALLIUM_SYNTAX_FILES})
 gallium_configure_target(gallium)
-target_include_directories(gallium PUBLIC ${LLVM_INCLUDE_DIRS})
-target_compile_definitions(gallium PUBLIC ${LLVM_DEFINITIONS_LIST})
+target_include_directories(gallium SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
+target_compile_definitions(gallium PUBLIC ${GALLIUM_LLVM_DEFINITIONS_LIST})
+target_link_directories(gallium PRIVATE ${LLVM_LIBRARY_DIRS})
 target_link_libraries(gallium PRIVATE
         ${GALLIUM_LLVM_LIBS}
         gallium_antlr4

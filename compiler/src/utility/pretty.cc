@@ -242,6 +242,13 @@ namespace {
       accept_last_member("expr: ", node.expr());
     }
 
+    void visit(const ast::ArrayExpression& node) final {
+      print_expr("array", node);
+      print_last_list("elements", node.elements(), [this](const std::unique_ptr<ast::Expression>& elem) {
+        accept_initial(*elem);
+      });
+    }
+
     void visit(const ast::UnaryExpression& node) final {
       print_expr("unary", node);
       print_member("op: ", colors::red(gal::unary_op_string(node.op())));
@@ -260,6 +267,12 @@ namespace {
       print_member("unsafe: ", lit_str(node.unsafe()));
       accept_member("casting to: ", node.cast_to());
       accept_last_member("castee: ", node.castee());
+    }
+
+    void visit(const ast::ImplicitConversionExpression& node) final {
+      print_expr("implicit-conv", node);
+      accept_member("expr: ", node.expr());
+      accept_last_member("converted to: ", node.cast_to());
     }
 
     void visit(const ast::IfThenExpression& node) final {
@@ -458,6 +471,21 @@ namespace {
 
     void visit(const ast::ErrorType&) final {
       return_value(colors::bold_red("<error-type>"));
+    }
+
+    void visit(const ast::UnsizedIntegerType& type) final {
+      return_value(colors::bold_green(absl::StrCat("<unsized integer (val = ", type.value(), ")>")));
+    }
+
+    void visit(const ast::ArrayType& type) final {
+      auto rest = type.element_type().accept(this);
+
+      return_value(absl::StrCat(colors::red("["),
+          "(",
+          rest,
+          ") ; ",
+          colors::blue(gal::to_digits(type.size())),
+          colors::red("]")));
     }
 
   private:
@@ -668,6 +696,10 @@ namespace {
       return_value(absl::StrCat("[", type.sliced().accept(this), "]"));
     }
 
+    void visit(const ast::ArrayType& type) final {
+      return_value(absl::StrCat("[", type.element_type().accept(this), "; ", type.size(), "]"));
+    }
+
     void visit(const ast::PointerType& type) final {
       if (type.mut()) {
         return_value(absl::StrCat("*mut ", type.pointed().accept(this)));
@@ -742,6 +774,10 @@ namespace {
 
     void visit(const ast::ErrorType&) final {
       return_value("<error-type>");
+    }
+
+    void visit(const ast::UnsizedIntegerType&) final {
+      return_value("<integer literal>");
     }
   };
 } // namespace

@@ -63,6 +63,7 @@ namespace gal::ast {
     error_expr,
     struct_expr,
     implicit,
+    array,
   };
 
   /// Represents the different unary expression operators
@@ -2372,5 +2373,43 @@ namespace gal::ast {
     [[nodiscard]] bool internal_equals(const Expression&) const noexcept final;
 
     [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
+  };
+
+  /// Models an array expression
+  class ArrayExpression final : public Expression {
+  public:
+    /// Creates an array expression
+    ///
+    /// \param loc The location in the source
+    /// \param elements The list of elements in the array
+    explicit ArrayExpression(ast::SourceLoc loc, std::vector<std::unique_ptr<ast::Expression>> elements) noexcept
+        : Expression(std::move(loc), ExprType::array),
+          elements_{std::move(elements)} {}
+
+    /// Gets the elements of the array
+    ///
+    /// \return The elements of the array
+    [[nodiscard]] absl::Span<const std::unique_ptr<ast::Expression>> elements() const noexcept {
+      return elements_;
+    }
+
+    /// Gets the elements of the array
+    ///
+    /// \return The elements of the array
+    [[nodiscard]] absl::Span<std::unique_ptr<ast::Expression>> elements_mut() noexcept {
+      return absl::MakeSpan(elements_);
+    }
+
+  protected:
+    void internal_accept(ExpressionVisitorBase* visitor) final;
+
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
+
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
+
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
+
+  private:
+    std::vector<std::unique_ptr<ast::Expression>> elements_;
   };
 } // namespace gal::ast

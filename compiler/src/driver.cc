@@ -15,6 +15,10 @@
 #include "./utility/flags.h"
 #include "./utility/log.h"
 #include "./utility/pretty.h"
+#include "llvm/Support/Host.h"
+#include "llvm/Support/TargetRegistry.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Target/TargetMachine.h"
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -39,13 +43,31 @@ namespace {
 
 namespace gal {
   int Driver::start(absl::Span<std::string_view> files) noexcept {
+    auto triple = llvm::sys::getDefaultTargetTriple();
+    llvm::InitializeAllTargetInfos();
+    llvm::InitializeAllTargets();
+    llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmParsers();
+    llvm::InitializeAllAsmPrinters();
+
+    auto err = std::string{};
+    auto* target = llvm::TargetRegistry::lookupTarget(triple, err);
+
+    if (target == nullptr) {
+      gal::errs() << "fatal error while selecting LLVM triple: '" << err << "'";
+
+      return 1;
+    }
+
+    auto* machine = target->createTargetMachine(triple, "generic", "", llvm::TargetOptions{}, {});
+
     for (auto& file : files) {
       auto path = fs::relative(file);
       auto data = read_file(fs::absolute(file));
       auto diagnostic = gal::ConsoleReporter(&gal::raw_outs(), data);
 
       if (auto program = parse_file(path, data, &diagnostic)) {
-        auto valid = gal::type_check(*program, &diagnostic);
+        auto valid = gal::type_check(*program, *machine, &diagnostic);
 
         if (gal::flags().verbose()) {
           gal::raw_outs() << gal::pretty_print(**program) << '\n';

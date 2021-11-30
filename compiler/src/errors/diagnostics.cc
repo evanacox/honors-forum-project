@@ -124,7 +124,8 @@ namespace {
   [[nodiscard]] LineParts break_up(std::string_view line, const gal::ast::SourceLoc& loc) noexcept {
     auto start = line.substr(0, loc.column() - 1);
     auto underlined = line.substr(loc.column() - 1, loc.length());
-    auto rest = line.substr(loc.column() + loc.length() - 1);
+    auto rest_pos = loc.column() + loc.length() - 1;
+    auto rest = (rest_pos >= line.size()) ? "" : line.substr(rest_pos);
 
     return {start, underlined, rest};
   }
@@ -205,9 +206,11 @@ namespace {
     auto underline = absl::StrCat(std::string(start.size(), ' '),
         diagnostic_color(spot.type, underline_with(underlined.size(), spot.underline)));
 
-    // if there are any lines between the previous and current, add a .... otherwise, do a |
+    // if there are any lines between the previous and current, add a .... otherwise
     if (state->previous_line != (loc.line() - 1) && state->previous_line.has_value()) {
       absl::StrAppend(builder, "\n", state->padding, without_line, "...\n");
+    } else if (state->previous_line.has_value()) {
+      absl::StrAppend(builder, "\n");
     }
 
     absl::StrAppend(builder,
@@ -378,11 +381,6 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
               "you can only reference constant declarations and function declarations in an id-expr, not all "
               "declarations",
               gal::DiagnosticType::error}},
-      {22,
-          {"reference to declaration other than constant/function in identifier expression",
-              "you can only reference constant declarations and function declarations in an id-expr, not all "
-              "declarations",
-              gal::DiagnosticType::error}},
       {23,
           {"mismatched argument type in call expr",
               "each argument in a call must match the function type being called",
@@ -409,6 +407,29 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
       {30,
           {"cannot call expression",
               "expressions of any type other than fn pointers cannot be called",
+              gal::DiagnosticType::error}},
+      {31,
+          {"mismatched return type",
+              "the body of a function must evaluate to a type compatible with the function",
+              gal::DiagnosticType::error}},
+      {32,
+          {"integer literal out of bounds of type",
+              "the integer literal given cannot fit inside the bounds of the type",
+              gal::DiagnosticType::error}},
+      {33, {"invalid array length", "unable to parse length of array type", gal::DiagnosticType::error}},
+      {34,
+          {"array elements must all be the same type", "arrays can only contain one type", gal::DiagnosticType::error}},
+      {35,
+          {"unknown field on type",
+              "the field is not found on the type or any implemented interface",
+              gal::DiagnosticType::error}},
+      {36,
+          {"break with value outside of `loop` expression",
+              "cannot `break` with a value inside of `while` or `for` loops, only `loop` loops",
+              gal::DiagnosticType::error}},
+      {37,
+          {"multiple breaks with incompatible break values",
+              "cannot `break` with different types in the same loop, must be different types",
               gal::DiagnosticType::error}},
   };
 

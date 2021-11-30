@@ -16,6 +16,7 @@
 #include "./environment.h"
 #include "./name_resolver.h"
 #include "absl/container/flat_hash_map.h"
+#include "llvm/Target/TargetMachine.h"
 #include <stack>
 #include <vector>
 
@@ -27,10 +28,6 @@ namespace {
   using ET = ast::ExprType;
   using TT = ast::TypeType;
   using ST = ast::StmtType;
-
-  std::unique_ptr<ast::Type> int_type(ast::SourceLoc loc, int width) noexcept {
-    return std::make_unique<ast::BuiltinIntegralType>(std::move(loc), true, static_cast<ast::IntegerWidth>(width));
-  }
 
   std::unique_ptr<ast::Type> uint_type(ast::SourceLoc loc, int width) noexcept {
     return std::make_unique<ast::BuiltinIntegralType>(std::move(loc), false, static_cast<ast::IntegerWidth>(width));
@@ -87,15 +84,25 @@ namespace {
     return gal::point_out_part(type, gal::DiagnosticType::note, std::move(msg));
   }
 
+  static ast::PointerType mut_byte_ptr{ast::SourceLoc::nonexistent(), true, byte_type(ast::SourceLoc::nonexistent())};
+
+  static ast::PointerType byte_ptr{ast::SourceLoc::nonexistent(), false, byte_type(ast::SourceLoc::nonexistent())};
+
+  static ast::BuiltinIntegralType default_int{ast::SourceLoc::nonexistent(), true, static_cast<ast::IntegerWidth>(64)};
+
   class TypeChecker final : public ast::AnyVisitorBase<void, ast::Type*> {
     using Expr = ast::ExpressionVisitor<ast::Type*>;
     using Base = ast::AnyVisitorBase<void, ast::Type*>;
 
   public:
-    explicit TypeChecker(ast::Program* program, gal::DiagnosticReporter* reporter) noexcept
+    explicit TypeChecker(ast::Program* program,
+        const llvm::TargetMachine& machine,
+        gal::DiagnosticReporter* reporter) noexcept
         : program_{program},
           diagnostics_{reporter},
-          resolver_{program_, diagnostics_} {}
+          resolver_{program_, diagnostics_},
+          machine_{machine},
+          layout_{machine.createDataLayout()} {}
 
     bool type_check() noexcept {
       if (diagnostics_->had_error()) {
@@ -111,10 +118,53 @@ namespace {
 
     void visit(ast::ImportFromDeclaration*) final {}
 
-    void visit(ast::FnDeclaration* declaration) final {
-      expected_ = declaration->proto_mut()->return_type_mut();
+    void visit(ast::FnDeclaration* decl) final {
+      resolver_.enter_scope();
+      expected_ = decl->proto_mut()->return_type_mut();
 
-      declaration->body_mut()->accept(this);
+      for (auto& arg : decl->proto_mut()->args_mut()) {
+        resolver_.add_local(arg.name(), gal::ScopeEntity{arg.loc(), arg.type_mut(), false});
+      }
+
+      visit_children(decl);
+      resolver_.leave_scope();
+
+      // we can safely ignore any checks if it's void
+      if (expected_->is(TT::builtin_void)) {
+        return;
+      }
+
+      // if we can do an implicit conversion on the **last** block member to fix type errors
+      // we do it here, and then early return
+      if (!type_identical(*expected_, decl->body()) && !decl->body().statements().empty()) {
+        if (auto& back = decl->body_mut()->statements_mut().back(); back->is(ST::expr)) {
+          auto* expr = internal::debug_cast<ast::ExpressionStatement*>(back.get());
+
+          if (convert_compatible(*expected_, expr->expr_owner())) {
+            return Expr::return_value(expr->expr_mut()->result_mut());
+          }
+        }
+      }
+
+      auto a = gal::point_out_part(*expected_, gal::DiagnosticType::note, "return type was here");
+      auto list = gal::into_list(std::move(a));
+
+      if (decl->body().statements().empty()) {
+        list.push_back(type_was_err(decl->body()));
+
+      } else {
+        auto& front = *decl->body().statements().back();
+
+        if (front.is(ST::expr)) {
+          auto& expr_stmt = internal::debug_cast<const ast::ExpressionStatement&>(front);
+
+          list.push_back(type_was_err(expr_stmt.expr()));
+        } else {
+          list.push_back(gal::point_out_part(front.loc(), gal::DiagnosticType::note, "type was `void`"));
+        }
+      }
+
+      diagnostics_->report_emplace(31, gal::into_list(gal::point_out_list(std::move(list))));
     }
 
     void visit(ast::StructDeclaration* decl) final {
@@ -142,7 +192,7 @@ namespace {
       auto& expr_type = stmt->initializer().result();
 
       if (auto hint = stmt->hint()) {
-        if (!type_compatible(**hint, expr_type)) {
+        if (!convert_compatible(**hint, stmt->initializer_owner())) {
           auto a = type_was_err(stmt->initializer());
           auto b = expected_type(**hint);
           auto c = gal::point_out_list(std::move(a), std::move(b));
@@ -160,6 +210,8 @@ namespace {
           diagnostics_->report_emplace(21, gal::into_list(std::move(a), std::move(b)));
         }
 
+        make_integer_lit_default(stmt->initializer_owner());
+
         resolver_.add_local(stmt->name(),
             gal::ScopeEntity{stmt->loc(), stmt->initializer_mut()->result_mut(), stmt->mut()});
       }
@@ -167,6 +219,8 @@ namespace {
 
     void visit(ast::ExpressionStatement* stmt) final {
       visit_children(stmt);
+
+      make_integer_lit_default(stmt->expr_owner());
     }
 
     void visit(ast::AssertStatement* stmt) final {
@@ -178,7 +232,7 @@ namespace {
     }
 
     void visit(ast::IntegerLiteralExpression* expr) final {
-      update_return(expr, int_type(expr->loc(), 64));
+      update_return(expr, std::make_unique<ast::UnsizedIntegerType>(expr->loc(), expr->value()));
     }
 
     void visit(ast::FloatLiteralExpression* expr) final {
@@ -262,8 +316,8 @@ namespace {
 
       if (auto decl = resolver_.struct_type(type.id())) {
         for (auto& s_field : (*decl)->fields()) {
-          auto init_fields = expr->fields();
-          auto init_field = absl::c_find_if(init_fields, [&](const ast::FieldInitializer& field) {
+          auto init_fields = expr->fields_mut();
+          auto init_field = absl::c_find_if(init_fields, [&](ast::FieldInitializer& field) {
             return field.name() == s_field.name();
           });
 
@@ -278,7 +332,7 @@ namespace {
             break;
           }
 
-          if (!type_compatible(s_field.type(), init_field->init())) {
+          if (!convert_compatible(s_field.type(), init_field->init_owner())) {
             auto a = gal::point_out_part(init_field->init(),
                 gal::DiagnosticType::error,
                 absl::StrCat("expr evaluated to `", gal::to_string(init_field->init().result()), "`"));
@@ -297,12 +351,42 @@ namespace {
       }
     }
 
+    void visit(ast::ArrayExpression* expr) final {
+      visit_children(expr);
+
+      auto elements = expr->elements_mut();
+      auto it = std::find_if(elements.begin() + 1, elements.end(), [&](const std::unique_ptr<ast::Expression>& expr) {
+        return expr->result() != elements.front()->result();
+      });
+
+      // array is guaranteed by the syntax to be larger than 0
+      if (it == elements.end()) {
+        if (elements.front()->result().is(TT::unsized_integer)) {
+          for (auto& element : elements) {
+            implicit_convert(default_int, &element, &element);
+          }
+        }
+
+        update_return(expr,
+            std::make_unique<ast::ArrayType>(expr->loc(), elements.size(), elements.front()->result().clone()));
+      } else {
+        auto a = type_was_err(*elements.front());
+        auto b = type_was_note(**it);
+
+        diagnostics_->report_emplace(34, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
+
+        update_return(expr, error_type());
+      }
+    }
+
     void visit(ast::CallExpression* expr) final {
+      // have to do weird stuff with ownership here, since we
+      // aren't using the visit_children API
+      auto* self = Base::self_expr_owner();
+
       for (auto& arg : expr->args_mut()) {
         Base::accept(&arg);
       }
-
-      auto args = expr->args();
 
       // if it's not an identifier, it could be an identifier-local that gets translated to an identifier
       if (!expr->callee().is(ET::identifier)) {
@@ -314,10 +398,10 @@ namespace {
         auto& identifier = internal::debug_cast<const ast::IdentifierExpression&>(expr->callee());
 
         if (auto overloads = resolver_.overloads(identifier.id())) {
-          if (auto overload = select_overload(*expr, **overloads, args)) {
-            replace_self(ast::StaticCallExpression::from_call(identifier.id(), **overload, expr));
+          if (auto overload = select_overload(*expr, **overloads, expr->args_mut())) {
+            *self = ast::StaticCallExpression::from_call(identifier.id(), **overload, expr);
 
-            return update_return(self_expr(), fn_pointer_for(expr->loc(), (*overload)->proto()));
+            return update_return(self->get(), (*overload)->proto().return_type().clone());
           } else {
             return update_return(expr, error_type());
           }
@@ -333,7 +417,7 @@ namespace {
         auto& callee = expr->callee();
         auto& fn_ptr_type = internal::debug_cast<const ast::FnPointerType&>(callee.result());
 
-        if (callable(callee.loc(), callee, fn_ptr_type.args(), args)) {
+        if (callable(callee.loc(), callee, fn_ptr_type.args(), expr->args_mut())) {
           return update_return(expr, fn_ptr_type.return_type().clone());
         }
       } else {
@@ -355,7 +439,51 @@ namespace {
 
     void visit(ast::IndexExpression*) final {}
 
-    void visit(ast::FieldAccessExpression*) final {}
+    void visit(ast::FieldAccessExpression* expr) final {
+      visit_children(expr);
+
+      if (!expr->object().result().is(TT::user_defined)) {
+        auto a = gal::point_out_list(type_was_err(expr->object()));
+        auto b = gal::single_message(absl::StrCat("cannot access field `",
+            expr->field_name(),
+            "` on type `",
+            gal::to_string(expr->object().result()),
+            "`"));
+
+        diagnostics_->report_emplace(35, gal::into_list(std::move(a), std::move(b)));
+
+        return update_return(expr, error_type());
+      }
+
+      auto& type = internal::debug_cast<const ast::UserDefinedType&>(expr->object().result());
+
+      if (auto struct_type = resolver_.struct_type(type.id())) {
+        auto& decl = **struct_type;
+        auto fields = decl.fields();
+        auto found = std::find_if(fields.begin(), fields.end(), [expr](const ast::Field& field) {
+          return field.name() == expr->field_name();
+        });
+
+        if (found == fields.end()) {
+          auto a = gal::point_out_part(*expr, gal::DiagnosticType::error, "field was here");
+          auto b = gal::point_out_part(decl, gal::DiagnosticType::note, "referred-to type was here");
+          auto c = gal::single_message(absl::StrCat("cannot access field `",
+              expr->field_name(),
+              "` on type `",
+              gal::to_string(expr->object().result()),
+              "`"));
+
+          diagnostics_->report_emplace(35,
+              gal::into_list(gal::point_out_list(std::move(a), std::move(b)), std::move(c)));
+
+          return update_return(expr, error_type());
+        }
+
+        return update_return(expr, found->type().clone());
+      } else {
+        assert(false);
+      }
+    }
 
     void visit(ast::GroupExpression* expr) final {
       visit_children(expr);
@@ -370,28 +498,18 @@ namespace {
       // TODO: remember: IMMUTABILITY AND := !!!!
     }
 
-    GALLIUM_COLD void cast_error(ast::CastExpression* expr, std::string_view msg, std::string_view help = "") noexcept {
-      auto a = gal::point_out(*expr, gal::DiagnosticType::error);
-      auto b = gal::single_message(std::string{msg});
-      auto vec = gal::into_list(std::move(a), std::move(b));
-
-      if (!help.empty()) {
-        vec.push_back(gal::single_message(std::string{help}));
-      }
-
-      diagnostics_->report_emplace(17, std::move(vec));
-
-      return update_return(expr, error_type());
-    }
-
     void visit(ast::CastExpression* expr) final {
       visit_children(expr);
 
-      static ast::PointerType mut_byte_ptr{ast::SourceLoc::nonexistent(),
-          true,
-          byte_type(ast::SourceLoc::nonexistent())};
+      if (type_convertible(expr->cast_to(), expr->castee())) {
+        auto pinned = expr->cast_to().clone();
 
-      static ast::PointerType byte_ptr{ast::SourceLoc::nonexistent(), false, byte_type(ast::SourceLoc::nonexistent())};
+        // this falls apart if the expected type given gets deleted, like it does when
+        // we try to replace ourselves
+        implicit_convert(*pinned, self_expr_owner(), expr->castee_owner());
+
+        return Expr::return_value(self_expr()->result_mut());
+      }
 
       if (!expr->unsafe()) {
         auto& result = expr->castee().result();
@@ -420,8 +538,7 @@ namespace {
             return cast_error(expr, "cannot cast between user-defined types");
           }
           case TT::fn_pointer: {
-            if (result.is(TT::nil_pointer) || type_compatible(result, mut_byte_ptr)
-                || type_compatible(result, byte_ptr)) {
+            if (type_identical(result, mut_byte_ptr) || type_identical(result, byte_ptr)) {
               return update_return(expr, expr->cast_to().clone());
             }
 
@@ -485,18 +602,48 @@ namespace {
       resolver_.leave_scope();
     }
 
-    void visit(ast::LoopExpression* expr) final {
-      in_loop_ = true;
-      visit_children(expr);
-      in_loop_ = false;
+    class BeforeAfterLoop {
+    public:
+      explicit BeforeAfterLoop(TypeChecker* ptr, bool can_break_with_val = false) noexcept : ptr_{ptr} {
+        ptr_->in_loop_ = true;
+        ptr_->can_break_with_value_ = can_break_with_val;
+        ptr_->last_break_type_ = nullptr;
+      }
 
-      update_return(expr, void_type(expr->loc()));
+      ~BeforeAfterLoop() {
+        ptr_->in_loop_ = false;
+        ptr_->can_break_with_value_ = false;
+        ptr_->last_break_type_ = nullptr;
+      }
+
+    private:
+      TypeChecker* ptr_;
+    };
+
+    void visit(ast::LoopExpression* expr) final {
+      auto type = std::unique_ptr<ast::Type>{};
+
+      {
+        auto _ = BeforeAfterLoop(this, true);
+        visit_children(expr);
+
+        if (last_break_type_ != nullptr) {
+          type = last_break_type_->clone();
+        }
+      }
+
+      if (type != nullptr) {
+        update_return(expr, std::move(type));
+      } else {
+        update_return(expr, void_type(expr->loc()));
+      }
     }
 
     void visit(ast::WhileExpression* expr) final {
-      in_loop_ = true;
-      visit_children(expr);
-      in_loop_ = false;
+      {
+        auto _ = BeforeAfterLoop(this);
+        visit_children(expr);
+      }
 
       if (!bool_compatible(expr->condition())) {
         auto a = gal::point_out_list(type_was_err(expr->condition()));
@@ -508,24 +655,25 @@ namespace {
     }
 
     void visit(ast::ForExpression* expr) final {
-      in_loop_ = true;
-      visit_children(expr);
-      in_loop_ = false;
+      {
+        auto _ = BeforeAfterLoop(this);
+        visit_children(expr);
+      }
     }
 
     void visit(ast::ReturnExpression* expr) final {
       visit_children(expr);
 
-      if (auto value = expr->value()) {
-        auto& ret_val = **value;
+      if (auto value = expr->value_owner()) {
+        auto& ret_val = ***value;
 
         if (expected_ == nullptr) {
           auto a = gal::point_out(*expr, gal::DiagnosticType::error, "return was here");
 
-          diagnostics_->report_emplace(25, gal::into_list(std::move(a)));
+          diagnostics_->report_emplace(26, gal::into_list(std::move(a)));
         }
 
-        if (expected_ != nullptr && !type_compatible(*expected_, ret_val)) {
+        if (expected_ != nullptr && !convert_compatible(*expected_, *value)) {
           auto a = type_was_err(ret_val);
           auto b = gal::point_out_part(*expected_,
               gal::DiagnosticType::note,
@@ -534,9 +682,9 @@ namespace {
           diagnostics_->report_emplace(20, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
         }
 
-        // while it won't actually *evaluate* to that, may as well
-        // make it **possible** to use it like it does in something like `if-then`
-        update_return(expr, ret_val.result().clone());
+        // we need to account for the possibility that there's an implicit conversion
+        // in the `convert_compatible`
+        update_return(expr, (**value)->result().clone());
       } else {
         update_return(expr, void_type(expr->loc()));
       }
@@ -551,10 +699,34 @@ namespace {
         diagnostics_->report_emplace(26, gal::into_list(std::move(a)));
       }
 
-      if (auto value = expr->value()) {
+      if (auto value = expr->value_mut()) {
+        if (!can_break_with_value_) {
+          auto a = gal::point_out_part(*expr, gal::DiagnosticType::error, "break was here");
+          auto b = gal::point_out_part(**value, gal::DiagnosticType::note, "value being broken is here");
+
+          diagnostics_->report_emplace(36, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
+        }
+
+        // if ((*value)->result().is(TT::unsized_integer)) {
+        //  implicit_convert(default_int, *expr->value_owner(), *expr->value_owner());
+        // }
+
+        if (last_break_type_ != nullptr && !convert_compatible(*last_break_type_, *expr->value_owner())) {
+          auto a = gal::point_out_part(*last_break_type_,
+              gal::DiagnosticType::note,
+              absl::StrCat("last break was of type `", gal::to_string(*last_break_type_), "`"));
+          auto b = type_was_err(**value);
+
+          diagnostics_->report_emplace(37, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
+        }
+
+        auto type = (*value)->result().clone();
+
+        last_break_type_ = type.get();
+
         // while it won't actually *evaluate* to that, may as well
         // make it **possible** to use it like it does in something like `if-then`
-        update_return(expr, (*value)->result().clone());
+        update_return(expr, std::move(type));
       } else {
         update_return(expr, void_type(expr->loc()));
       }
@@ -616,19 +788,88 @@ namespace {
     return name(lhs.result(), rhs.result());                                                                           \
   }
 
-    [[nodiscard]] static bool type_compatible(const ast::Type& lhs, const ast::Type& rhs) noexcept {
-      if (lhs.is_one_of(TT::pointer, TT::fn_pointer) && rhs.is(TT::nil_pointer)) {
-        return true;
+    [[nodiscard]] std::uint64_t builtin_size_of_bits(const ast::Type& type) noexcept {
+      switch (type.type()) {
+        case TT::builtin_integral: {
+          auto& builtin = internal::debug_cast<const ast::BuiltinIntegralType&>(type);
+
+          if (auto width = ast::width_of(builtin.width())) {
+            return static_cast<std::uint64_t>(*width) - (builtin.has_sign() ? 1 : 0);
+          } else {
+            return machine_.getPointerSizeInBits(layout_.getProgramAddressSpace()) - (builtin.has_sign() ? 1 : 0);
+          }
+        }
+        case TT::builtin_char: [[fallthrough]];
+        case TT::builtin_bool: [[fallthrough]];
+        case TT::builtin_byte: return 8;
+        case TT::builtin_float: {
+          auto& builtin = internal::debug_cast<const ast::BuiltinFloatType&>(type);
+
+          switch (builtin.width()) {
+            case ast::FloatWidth::ieee_single: return 32;
+            case ast::FloatWidth::ieee_double: return 64;
+            case ast::FloatWidth::ieee_quadruple: return 128;
+            default: assert(false); break;
+          }
+
+          break;
+        }
+        case TT::pointer: [[fallthrough]];
+        case TT::reference: return machine_.getPointerSizeInBits(layout_.getProgramAddressSpace());
+        default: assert(false); break;
       }
 
-      if (rhs.is_one_of(TT::pointer, TT::fn_pointer) && lhs.is(TT::nil_pointer)) {
-        return true;
-      }
-
-      return lhs == rhs;
+      return 0;
     }
 
-    GALLIUM_X_COMPATIBLE(type_compatible)
+    [[nodiscard]] static bool type_convertible(const ast::Type& into, const ast::Expression& expr) noexcept {
+      // we can convert the magic literal type -> integral types
+      // and the magic nil type -> pointer types
+      return (expr.result().is(TT::unsized_integer) && into.is_one_of(TT::builtin_integral, TT::builtin_byte))
+             || (expr.result().is(TT::nil_pointer) && into.is_one_of(TT::fn_pointer, TT::pointer));
+    }
+
+    bool implicit_convert(const ast::Type& expected,
+        std::unique_ptr<ast::Expression>* self,
+        std::unique_ptr<ast::Expression>* expr) noexcept {
+      if (expected.is_one_of(TT::builtin_integral, TT::builtin_byte)) {
+        auto& literal = internal::debug_cast<const ast::UnsizedIntegerType&>((*expr)->result());
+
+        if (gal::ipow(std::uint64_t{2}, builtin_size_of_bits(expected)) < literal.value()) {
+          auto a = gal::point_out_part(expected, gal::DiagnosticType::note, "converting based on this");
+          auto b = gal::point_out_part(**expr,
+              gal::DiagnosticType::error,
+              absl::StrCat("integer literal cannot fit in type `", gal::to_string(expected), "`"));
+
+          auto c = gal::point_out_list(std::move(a), std::move(b));
+          auto d = gal::single_message(absl::StrCat("note: max value for type `",
+              gal::to_string(expected),
+              "` is ",
+              gal::ipow(std::uint64_t{2}, builtin_size_of_bits(expected)) - 1));
+
+          diagnostics_->report_emplace(32, gal::into_list(std::move(c), std::move(d)));
+
+          return false;
+        }
+      }
+
+      *self = std::make_unique<ast::ImplicitConversionExpression>(std::move(*expr), expected.clone());
+      (*self)->result_update(expected.clone());
+
+      return true;
+    }
+
+    [[nodiscard]] bool convert_compatible(const ast::Type& expected, std::unique_ptr<ast::Expression>* expr) noexcept {
+      if (type_identical(expected, **expr)) {
+        return true;
+      }
+
+      if (type_convertible(expected, **expr)) {
+        return implicit_convert(expected, expr, expr);
+      }
+
+      return false;
+    }
 
     [[nodiscard]] static bool type_identical(const ast::Type& lhs, const ast::Type& rhs) noexcept {
       return lhs == rhs;
@@ -688,7 +929,7 @@ namespace {
     bool callable(const ast::SourceLoc& fn_loc,
         const ast::Expression& call_expr,
         absl::Span<const Arg> fn_args,
-        absl::Span<const std::unique_ptr<ast::Expression>> given_args,
+        absl::Span<std::unique_ptr<ast::Expression>> given_args,
         Fn mapper = {}) noexcept {
       auto fn_it = fn_args.begin();
       auto given_it = given_args.begin();
@@ -698,7 +939,7 @@ namespace {
         auto& type = mapper(*fn_it);
         auto& expr = **given_it;
 
-        if (!type_compatible(type, expr)) {
+        if (!convert_compatible(type, &*given_it)) {
           auto a = type_was_err(expr);
           auto b = gal::point_out_part(type,
               gal::DiagnosticType::note,
@@ -734,7 +975,7 @@ namespace {
 
     GALLIUM_COLD void report_ambiguous(const ast::Expression& expr,
         const gal::OverloadSet& set,
-        absl::Span<const std::unique_ptr<ast::Expression>> args) noexcept {
+        absl::Span<std::unique_ptr<ast::Expression>> args) noexcept {
       auto vec = std::vector<gal::PointedOut>{};
       auto mapper = [](const gal::ast::Argument& arg) -> decltype(auto) {
         return arg.type();
@@ -752,7 +993,7 @@ namespace {
 
     std::optional<const gal::Overload*> select_overload(const ast::Expression& expr,
         const gal::OverloadSet& set,
-        absl::Span<const std::unique_ptr<ast::Expression>> args) noexcept {
+        absl::Span<std::unique_ptr<ast::Expression>> args) noexcept {
       const auto* ptr = static_cast<const gal::Overload*>(nullptr);
       auto mapper = [](const gal::ast::Argument& arg) -> decltype(auto) {
         return arg.type();
@@ -773,15 +1014,41 @@ namespace {
       return (ptr != nullptr) ? std::make_optional(ptr) : std::nullopt;
     }
 
+    GALLIUM_COLD void cast_error(ast::CastExpression* expr, std::string_view msg, std::string_view help = "") noexcept {
+      auto a = gal::point_out(*expr, gal::DiagnosticType::error);
+      auto b = gal::single_message(std::string{msg});
+      auto vec = gal::into_list(std::move(a), std::move(b));
+
+      if (!help.empty()) {
+        vec.push_back(gal::single_message(std::string{help}));
+      }
+
+      diagnostics_->report_emplace(17, std::move(vec));
+
+      return update_return(expr, error_type());
+    }
+
+    void make_integer_lit_default(std::unique_ptr<ast::Expression>* ptr) noexcept {
+      if ((*ptr)->result().is(TT::unsized_integer)) {
+        implicit_convert(default_int, ptr, ptr);
+      }
+    }
+
     ast::Type* expected_ = nullptr;
+    ast::Type* last_break_type_ = nullptr;
     ast::Program* program_;
     gal::DiagnosticReporter* diagnostics_;
     gal::NameResolver resolver_;
+    const llvm::TargetMachine& machine_;
+    const llvm::DataLayout layout_;
     bool constant_only_ = false;
     bool in_loop_ = false;
+    bool can_break_with_value_ = false;
   }; // namespace
 } // namespace
 
-bool gal::type_check(ast::Program* program, gal::DiagnosticReporter* reporter) noexcept {
-  return TypeChecker(program, reporter).type_check();
+bool gal::type_check(ast::Program* program,
+    const llvm::TargetMachine& machine,
+    gal::DiagnosticReporter* reporter) noexcept {
+  return TypeChecker(program, machine, reporter).type_check();
 }

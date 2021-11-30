@@ -316,15 +316,23 @@ namespace gal::ast {
     ///
     /// \param name The name given
     /// \param type The type of the argument
-    explicit Argument(std::string name, std::unique_ptr<Type> type) noexcept
-        : name_{std::move(name)},
+    explicit Argument(SourceLoc loc, std::string name, std::unique_ptr<Type> type) noexcept
+        : loc_{std::move(loc)},
+          name_{std::move(name)},
           type_{std::move(type)} {}
 
     /// Properly copies an argument
-    Argument(const Argument& other) noexcept : name_{other.name_}, type_{other.type_->clone()} {}
+    Argument(const Argument& other) noexcept : loc_{other.loc_}, name_{other.name_}, type_{other.type_->clone()} {}
 
     /// Moves an argument
     Argument(Argument&&) noexcept = default;
+
+    /// Gets the location of the arg in the source
+    ///
+    /// \return The location
+    [[nodiscard]] const SourceLoc& loc() const noexcept {
+      return loc_;
+    }
 
     /// Gets the name of the argument
     //
@@ -364,6 +372,7 @@ namespace gal::ast {
     }
 
   private:
+    SourceLoc loc_;
     std::string name_;
     std::unique_ptr<Type> type_;
   };

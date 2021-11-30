@@ -88,6 +88,12 @@ namespace gal::ast {
 
     void visit(ErrorType*) override {}
 
+    void visit(UnsizedIntegerType*) override {}
+
+    void visit(ArrayType* array) override {
+      accept(array->element_type_owner());
+    }
+
     void visit(ImportDeclaration*) override {}
 
     void visit(ImportFromDeclaration*) override {}
@@ -255,9 +261,15 @@ namespace gal::ast {
 
     void visit(ContinueExpression*) override {}
 
-    void visit(ast::ImplicitConversionExpression* expression) override {
+    void visit(ImplicitConversionExpression* expression) override {
       accept(expression->expr_owner());
       accept(expression->cast_to_owner());
+    }
+
+    void visit(ArrayExpression* expression) override {
+      for (auto& element : expression->elements_mut()) {
+        accept(&element);
+      }
     }
 
     void visit(BindingStatement* statement) override {
@@ -279,7 +291,31 @@ namespace gal::ast {
 
   protected:
     template <typename T> void visit_children(T* node) noexcept {
-      Self::visit(node);
+      if constexpr (std::is_base_of_v<ast::Declaration, T>) {
+        auto* self = self_decl_owner();
+
+        Self::visit(node);
+
+        decl_owner_ = self;
+      } else if constexpr (std::is_base_of_v<ast::Expression, T>) {
+        auto* self = self_expr_owner();
+
+        Self::visit(node);
+
+        expr_owner_ = self;
+      } else if constexpr (std::is_base_of_v<ast::Statement, T>) {
+        auto* self = self_stmt_owner();
+
+        Self::visit(node);
+
+        stmt_owner_ = self;
+      } else {
+        auto* self = self_type_owner();
+
+        Self::visit(node);
+
+        type_owner_ = self;
+      }
     }
 
     [[nodiscard]] ast::Expression* self_expr() noexcept {
@@ -296,6 +332,22 @@ namespace gal::ast {
 
     [[nodiscard]] ast::Type* self_type() noexcept {
       return type_owner_->get();
+    }
+
+    [[nodiscard]] std::unique_ptr<ast::Expression>* self_expr_owner() noexcept {
+      return expr_owner_;
+    }
+
+    [[nodiscard]] std::unique_ptr<ast::Statement>* self_stmt_owner() noexcept {
+      return stmt_owner_;
+    }
+
+    [[nodiscard]] std::unique_ptr<ast::Declaration>* self_decl_owner() noexcept {
+      return decl_owner_;
+    }
+
+    [[nodiscard]] std::unique_ptr<ast::Type>* self_type_owner() noexcept {
+      return type_owner_;
     }
 
     void replace_self(std::unique_ptr<ast::Expression> node) noexcept {
@@ -408,6 +460,12 @@ namespace gal::ast {
 
     void visit(const ErrorType&) override {}
 
+    void visit(const UnsizedIntegerType&) override {}
+
+    void visit(const ArrayType& array) override {
+      accept(array.element_type());
+    }
+
     void visit(const ImportDeclaration&) override {}
 
     void visit(const ImportFromDeclaration&) override {}
@@ -515,6 +573,17 @@ namespace gal::ast {
     void visit(const CastExpression& expression) override {
       accept(expression.castee());
       accept(expression.cast_to());
+    }
+
+    void visit(const ImplicitConversionExpression& expression) override {
+      accept(expression.expr());
+      accept(expression.cast_to());
+    }
+
+    void visit(const ArrayExpression& expression) override {
+      for (auto& element : expression.elements()) {
+        accept(*element);
+      }
     }
 
     void visit(const IfThenExpression& expression) override {

@@ -691,4 +691,30 @@ namespace gal::ast {
   std::unique_ptr<Expression> ImplicitConversionExpression::internal_clone() const noexcept {
     return std::make_unique<ImplicitConversionExpression>(expr().clone(), cast_to().clone());
   }
+
+  void ArrayExpression::internal_accept(ExpressionVisitorBase* visitor) {
+    visitor->visit(this);
+  }
+
+  void ArrayExpression::internal_accept(ConstExpressionVisitorBase* visitor) const {
+    visitor->visit(*this);
+  }
+
+  bool ArrayExpression::internal_equals(const Expression& other) const noexcept {
+    auto& result = internal::debug_cast<const ArrayExpression&>(other);
+    auto elems = elements();
+    auto other_elems = result.elements();
+
+    return std::equal(elems.begin(),
+        elems.end(),
+        other_elems.begin(),
+        other_elems.end(),
+        [](const std::unique_ptr<Expression>& lhs, const std::unique_ptr<Expression>& rhs) {
+          return *lhs == *rhs;
+        });
+  }
+
+  std::unique_ptr<Expression> ArrayExpression::internal_clone() const noexcept {
+    return std::make_unique<ArrayExpression>(loc(), gal::clone_span(elements()));
+  }
 } // namespace gal::ast

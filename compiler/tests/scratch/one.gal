@@ -13,9 +13,12 @@ struct Point {
     y: f64
 }
 
+fn test(x: isize) -> void {
+    
+}
+
 fn main() -> void {
     let binding: fn(i32, f64) -> void = nil
-    let binding = nil
 
     pi
 
@@ -23,13 +26,13 @@ fn main() -> void {
 
     pi
 
-    return puts 
+    if true then 1 else 0
 
-    if 1 then 1 else 0.0 as void
+    let pt = Point { x: 64.3, y: 0.0 }
 
-    let x = Point { x: 64.3, y: 0 }
+    let y = pt.x
 
-    let y = x
+    let foo: [i64; 4] = [1, 2, 3, 4]
 
     while true {
         let y = 5
@@ -37,10 +40,14 @@ fn main() -> void {
         y
     }
 
-    ::puts(1, 2, 3)
-    puts("Hello")
+    // ::puts(1, 2, 3)
+    // puts("Hello")
+    // puts()
+    // puts(nil)
 
-    binding(1, 0)
+    // binding(1, 0)
+
+    test(2525)
 
     // ::puts(5 as *const u8)
 
@@ -56,4 +63,14 @@ fn main() -> void {
     }
 
     */
+}
+
+
+export extern fn lol() -> *mut byte {
+    let result = loop {
+        break 12 
+        break 10 
+    }
+
+    nil
 }
