@@ -301,4 +301,40 @@ namespace gal::ast {
   std::unique_ptr<Type> ErrorType::internal_clone() const noexcept {
     return std::make_unique<ErrorType>();
   }
+
+  void UnsizedIntegerType::internal_accept(TypeVisitorBase* visitor) {
+    visitor->visit(this);
+  }
+
+  void UnsizedIntegerType::internal_accept(ConstTypeVisitorBase* visitor) const {
+    visitor->visit(*this);
+  }
+
+  bool UnsizedIntegerType::internal_equals(const Type& other) const noexcept {
+    (void)internal::debug_cast<const UnsizedIntegerType&>(other);
+
+    return true;
+  }
+
+  std::unique_ptr<Type> UnsizedIntegerType::internal_clone() const noexcept {
+    return std::make_unique<ast::UnsizedIntegerType>(loc(), value());
+  }
+
+  void ArrayType::internal_accept(TypeVisitorBase* visitor) {
+    visitor->visit(this);
+  }
+
+  void ArrayType::internal_accept(ConstTypeVisitorBase* visitor) const {
+    visitor->visit(*this);
+  }
+
+  bool ArrayType::internal_equals(const Type& other) const noexcept {
+    auto& result = internal::debug_cast<const ArrayType&>(other);
+
+    return size() == result.size() && element_type() == result.element_type();
+  }
+
+  std::unique_ptr<Type> ArrayType::internal_clone() const noexcept {
+    return std::make_unique<ArrayType>(loc(), size(), element_type().clone());
+  }
 } // namespace gal::ast

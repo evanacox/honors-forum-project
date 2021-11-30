@@ -61,11 +61,15 @@ fragment STRING_LITERAL_CHARACTER
     | '\\' DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT // 3 digit decimal number, 000-255. maps to a single byte
    // | '\\u' DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT
    //      (DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT DECIMAL_DIGIT)? // U+nnnn (or U+nnnnnnnn if all 8)
-    | ~'\\' // any character besides `\`
+    | ~[\\"\n\r] // any character besides `\`
+    ;
+
+fragment STRING_CHAR_SEQ
+    : STRING_LITERAL_CHARACTER*
     ;
 
 STRING_LITERAL
-    : '"' STRING_LITERAL_CHARACTER* '"'
+    : '"' STRING_CHAR_SEQ? '"'
     ;
 
 CHAR_LITERAL
@@ -498,7 +502,8 @@ loopExpr
     ;
 
 expr
-    : primaryExpr
+    : arrayExpr
+    | primaryExpr
     | blockExpression
     | expr restOfCall
     | op=NOT_KEYWORD ws expr
@@ -532,6 +537,10 @@ primaryExpr
     | CHAR_LITERAL
     | BOOL_LITERAL
     | NIL_LITERAL
+    ;
+
+arrayExpr
+    : '[' ws? expr ws? (',' ws? expr)* ws? ']'
     ;
 
 structInitExpr
@@ -583,13 +592,13 @@ type
     ;
 
 typeWithoutRef
-    : squareBracket='[' WHITESPACE* typeWithoutRef WHITESPACE* ']'
+    : squareBracket='[' WHITESPACE* typeWithoutRef WHITESPACE* (';' WHITESPACE* DECIMAL_LITERAL)? ']'
     | ptr=(STAR_CONST | STAR_MUT) (WHITESPACE+) typeWithoutRef
     | BUILTIN_TYPE
     | userDefinedType=maybeGenericIdentifier
     | fnType='fn' WHITESPACE* '(' (WHITESPACE* genericTypeList WHITESPACE*)? ')' WHITESPACE+ '->' WHITESPACE+ type
     | 'dyn' ws dynType=maybeGenericIdentifier
-    ;  
+    ;
 
 genericTypeList
     : type WHITESPACE* (',' WHITESPACE* type)*

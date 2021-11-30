@@ -13,13 +13,20 @@
 #include "../ast/program.h"
 #include "../errors/reporter.h"
 
+namespace llvm {
+  class TargetMachine;
+}
+
 namespace gal {
   /// Walks through the entire program AST, and annotates each node with type information
   /// that needs it. During this walk, types are checked and errors are generated if
   /// types are not correct.
   ///
   /// \param program A program to be type-annotated and type-checked.
+  /// \param machine The LLVM "machine" being targeted, used for size info
   /// \param reporter The diagnostic reporter
   /// \return A list of errors if the program did not type-check, and nothing if it did
-  bool type_check(ast::Program* program, gal::DiagnosticReporter* reporter) noexcept;
+  bool type_check(ast::Program* program,
+      const llvm::TargetMachine& machine,
+      gal::DiagnosticReporter* reporter) noexcept;
 } // namespace gal

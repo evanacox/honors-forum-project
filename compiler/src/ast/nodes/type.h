@@ -42,7 +42,7 @@ namespace gal::ast {
     error,
     nil_pointer,
     unsized_integer,
-    unsized_float,
+    array,
   };
 
   /// Abstract base type for all "Type" AST nodes
@@ -890,6 +890,10 @@ namespace gal::ast {
         : Type(std::move(loc), TypeType::unsized_integer),
           value_{value} {}
 
+    [[nodiscard]] std::uint64_t value() const noexcept {
+      return value_;
+    }
+
   protected:
     void internal_accept(TypeVisitorBase* visitor) final;
 
@@ -901,6 +905,61 @@ namespace gal::ast {
 
   private:
     std::uint64_t value_;
+  };
+
+  /// Models an array type, i.e `[i32; 4]`
+  class ArrayType final : public Type {
+  public:
+    /// Creates an array type
+    ///
+    /// \param loc The location of the type
+    /// \param size The size of the array
+    /// \param type The type of each element
+    explicit ArrayType(SourceLoc loc, std::uint64_t size, std::unique_ptr<Type> type) noexcept
+        : Type(std::move(loc), TypeType::array),
+          size_{size},
+          type_{std::move(type)} {}
+
+    /// Returns the size of the array
+    ///
+    /// \return The size of the array
+    [[nodiscard]] std::uint64_t size() const noexcept {
+      return size_;
+    }
+
+    /// Gets the type of the array
+    ///
+    /// \return The type of the array
+    [[nodiscard]] const Type& element_type() const noexcept {
+      return *type_;
+    }
+
+    /// Gets the type of the array
+    ///
+    /// \return The type of the array
+    [[nodiscard]] Type* element_type_mut() noexcept {
+      return type_.get();
+    }
+
+    /// Gets the type of the array
+    ///
+    /// \return The type of the array
+    [[nodiscard]] std::unique_ptr<Type>* element_type_owner() noexcept {
+      return &type_;
+    }
+
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final;
+
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
+
+  private:
+    std::uint64_t size_;
+    std::unique_ptr<Type> type_;
   };
 
   class ErrorType final : public Type {

@@ -30,6 +30,7 @@ namespace gal::ast {
   class NilPointerType;
   class ErrorType;
   class UnsizedIntegerType;
+  class ArrayType;
 
   class TypeVisitorBase {
   public:
@@ -66,6 +67,8 @@ namespace gal::ast {
     virtual void visit(ErrorType*) = 0;
 
     virtual void visit(UnsizedIntegerType*) = 0;
+
+    virtual void visit(ArrayType*) = 0;
 
     virtual ~TypeVisitorBase() = default;
   };
@@ -105,6 +108,8 @@ namespace gal::ast {
     virtual void visit(const ErrorType&) = 0;
 
     virtual void visit(const UnsizedIntegerType&) = 0;
+
+    virtual void visit(const ArrayType&) = 0;
 
     virtual ~ConstTypeVisitorBase() = default;
   };

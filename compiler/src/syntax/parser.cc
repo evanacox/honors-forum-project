@@ -240,7 +240,7 @@ namespace {
       auto name = ctx->IDENTIFIER()->toString();
       auto type = return_value<ast::Type>();
 
-      return {ast::Argument{std::move(name), std::move(type)}};
+      return {ast::Argument{loc_from(ctx), std::move(name), std::move(type)}};
     }
 
     antlrcpp::Any visitTypeParamList(GalliumParser::TypeParamListContext* ctx) final {
@@ -461,6 +461,16 @@ namespace {
       }
     }
 
+    antlrcpp::Any visitArrayExpr(GalliumParser::ArrayExprContext* ctx) final {
+      auto vec = std::vector<std::unique_ptr<ast::Expression>>{};
+
+      for (auto* expr : ctx->expr()) {
+        vec.push_back(parse_expr(expr));
+      }
+
+      RETURN(std::make_unique<ast::ArrayExpression>(loc_from(ctx), std::move(vec)));
+    }
+
     antlrcpp::Any visitStructInitExpr(GalliumParser::StructInitExprContext* ctx) final {
       auto type = parse_type(ctx->typeWithoutRef());
       auto list =
@@ -570,7 +580,21 @@ namespace {
       if (ctx->squareBracket != nullptr) {
         auto type = parse_type(ctx->typeWithoutRef());
 
-        RETURN(std::make_unique<ast::SliceType>(loc_from(ctx), std::move(type)));
+        if (ctx->DECIMAL_LITERAL() != nullptr) {
+          auto parsed = gal::from_digits(ctx->DECIMAL_LITERAL()->getText());
+
+          if (auto* len = std::get_if<std::uint64_t>(&parsed)) {
+            RETURN(std::make_unique<ast::ArrayType>(loc_from(ctx), *len, std::move(type)));
+          } else {
+            RETURN(error_type(33,
+                loc_from(ctx),
+                {absl::StrCat("unable to parse array len. error: `",
+                    std::get<std::error_code>(parsed).message(),
+                    "`")}));
+          }
+        } else {
+          RETURN(std::make_unique<ast::SliceType>(loc_from(ctx), std::move(type)));
+        }
       } else if (ctx->ptr != nullptr) {
         auto type = parse_type(ctx->typeWithoutRef());
 
