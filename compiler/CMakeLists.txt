@@ -19,7 +19,7 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
-set(GALLIUM_LLVM_LIBS ${LLVM_AVAILABLE_LIBS})
+llvm_map_components_to_libnames(GALLIUM_LLVM_LIBS support core bitreader AllTargetsCodeGens AllTargetsAsmParsers AllTargetsDescs AllTargetsDisassemblers AllTargetsInfos)
 separate_arguments(GALLIUM_LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
 
 message(STATUS "Found LLVM libraries ${GALLIUM_LLVM_LIBS}")
