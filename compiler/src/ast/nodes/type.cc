@@ -337,4 +337,22 @@ namespace gal::ast {
   std::unique_ptr<Type> ArrayType::internal_clone() const noexcept {
     return std::make_unique<ArrayType>(loc(), size(), element_type().clone());
   }
+
+  void IndirectionType::internal_accept(TypeVisitorBase* visitor) {
+    visitor->visit(this);
+  }
+
+  void IndirectionType::internal_accept(ConstTypeVisitorBase* visitor) const {
+    visitor->visit(*this);
+  }
+
+  bool IndirectionType::internal_equals(const Type& other) const noexcept {
+    auto& result = internal::debug_cast<const IndirectionType&>(other);
+
+    return produced() == result.produced();
+  }
+
+  std::unique_ptr<Type> IndirectionType::internal_clone() const noexcept {
+    return std::unique_ptr<Type>();
+  }
 } // namespace gal::ast

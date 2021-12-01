@@ -174,11 +174,9 @@ namespace gal {
     important_loc_.emplace(it->loc);
 
     // sort so messages show up in the order they appear in the source
-    std::sort(list_.begin(), list_.end(), [](PointedOut& lhs, PointedOut& rhs) {
-      // if lines are equivalent, sort by column
-      // else, sort by the line in ascending order
-      return (lhs.loc.line() == rhs.loc.line()) ? (lhs.loc.column() < rhs.loc.column())
-                                                : (lhs.loc.line() < rhs.loc.line());
+    // note: stable, so the order given in the source code is preserved if they're all the same line
+    std::stable_sort(list_.begin(), list_.end(), [](const PointedOut& lhs, const PointedOut& rhs) {
+      return lhs.loc.line() < rhs.loc.line();
     });
   }
 } // namespace gal
@@ -207,7 +205,8 @@ namespace {
         diagnostic_color(spot.type, underline_with(underlined.size(), spot.underline)));
 
     // if there are any lines between the previous and current, add a .... otherwise
-    if (state->previous_line != (loc.line() - 1) && state->previous_line.has_value()) {
+    if (state->previous_line.has_value() && state->previous_line != (loc.line() - 1)
+        && state->previous_line != loc.line()) {
       absl::StrAppend(builder, "\n", state->padding, without_line, "...\n");
     } else if (state->previous_line.has_value()) {
       absl::StrAppend(builder, "\n");
@@ -430,6 +429,24 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
       {37,
           {"multiple breaks with incompatible break values",
               "cannot `break` with different types in the same loop, must be different types",
+              gal::DiagnosticType::error}},
+      {38,
+          {"logical operators require boolean expressions",
+              "logical operators can only be applied to expressions evaluating to `bool`",
+              gal::DiagnosticType::error}},
+      {39,
+          {"arithmetic operators requires integral or floating-point expressions",
+              "arithmetic operators can only be applied to expressions that evaluate to an arithmetic type "
+              "(signed/unsigned integers, bytes, or floating-point numbers)",
+              gal::DiagnosticType::error}},
+      {40,
+          {"mismatched types in binary expression",
+              "both the left and right expressions in a binary expr must be of the same type",
+              gal::DiagnosticType::error}},
+      {41,
+          {"bitwise operators requires integral expressions",
+              "bitwise operators can only be applied to expressions that evaluate to an integral type "
+              "(signed/unsigned integers, or bytes)",
               gal::DiagnosticType::error}},
   };
 

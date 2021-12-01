@@ -43,6 +43,7 @@ namespace gal::ast {
     nil_pointer,
     unsized_integer,
     array,
+    indirection,
   };
 
   /// Abstract base type for all "Type" AST nodes
@@ -960,6 +961,47 @@ namespace gal::ast {
   private:
     std::uint64_t size_;
     std::unique_ptr<Type> type_;
+  };
+
+  /// Models the magical type produced by `*` that can be assigned to / loaded from
+  class IndirectionType final : public Type {
+  public:
+    explicit IndirectionType(SourceLoc loc, std::unique_ptr<Type> produced) noexcept
+        : Type(std::move(loc), TypeType::indirection),
+          produced_{std::move(produced)} {}
+
+    /// Gets the type produced by the indirection
+    ///
+    /// \return The type produced
+    [[nodiscard]] const Type& produced() const noexcept {
+      return *produced_;
+    }
+
+    /// Gets the type produced by the indirection
+    ///
+    /// \return The type produced
+    [[nodiscard]] Type* produced_mut() noexcept {
+      return produced_.get();
+    }
+
+    /// Gets the type produced by the indirection
+    ///
+    /// \return The type produced
+    [[nodiscard]] std::unique_ptr<Type>* produced_owner() noexcept {
+      return &produced_;
+    }
+
+  protected:
+    void internal_accept(TypeVisitorBase* visitor) final;
+
+    void internal_accept(ConstTypeVisitorBase* visitor) const final;
+
+    [[nodiscard]] bool internal_equals(const Type& other) const noexcept final;
+
+    [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
+
+  private:
+    std::unique_ptr<Type> produced_;
   };
 
   class ErrorType final : public Type {

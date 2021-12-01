@@ -64,21 +64,23 @@ namespace {
     return std::make_unique<ast::ErrorType>();
   }
 
-  gal::PointedOut type_was(const ast::Expression& expr, gal::DiagnosticType type) noexcept {
-    auto msg = absl::StrCat("real type was `", gal::to_string(expr.result()), "`");
+  GALLIUM_COLD gal::PointedOut type_was(const ast::Expression& expr,
+      gal::DiagnosticType type,
+      std::string_view msg_prefix = "") noexcept {
+    auto msg = absl::StrCat(msg_prefix, "real type was `", gal::to_string(expr.result()), "`");
 
     return gal::point_out_part(expr, type, std::move(msg));
   }
 
-  gal::PointedOut type_was_err(const ast::Expression& expr) noexcept {
-    return type_was(expr, gal::DiagnosticType::error);
+  GALLIUM_COLD gal::PointedOut type_was_err(const ast::Expression& expr, std::string_view msg_prefix = "") noexcept {
+    return type_was(expr, gal::DiagnosticType::error, msg_prefix);
   }
 
-  gal::PointedOut type_was_note(const ast::Expression& expr) noexcept {
-    return type_was(expr, gal::DiagnosticType::note);
+  GALLIUM_COLD gal::PointedOut type_was_note(const ast::Expression& expr, std::string_view msg_prefix = "") noexcept {
+    return type_was(expr, gal::DiagnosticType::note, msg_prefix);
   }
 
-  gal::PointedOut expected_type(const ast::Type& type) noexcept {
+  GALLIUM_COLD gal::PointedOut expected_type(const ast::Type& type) noexcept {
     auto msg = absl::StrCat("expected type `", gal::to_string(type), "`");
 
     return gal::point_out_part(type, gal::DiagnosticType::note, std::move(msg));
@@ -136,11 +138,11 @@ namespace {
 
       // if we can do an implicit conversion on the **last** block member to fix type errors
       // we do it here, and then early return
-      if (!type_identical(*expected_, decl->body()) && !decl->body().statements().empty()) {
+      if (!identical(*expected_, decl->body()) && !decl->body().statements().empty()) {
         if (auto& back = decl->body_mut()->statements_mut().back(); back->is(ST::expr)) {
           auto* expr = internal::debug_cast<ast::ExpressionStatement*>(back.get());
 
-          if (convert_compatible(*expected_, expr->expr_owner())) {
+          if (try_make_compatible(*expected_, expr->expr_owner())) {
             return Expr::return_value(expr->expr_mut()->result_mut());
           }
         }
@@ -192,7 +194,7 @@ namespace {
       auto& expr_type = stmt->initializer().result();
 
       if (auto hint = stmt->hint()) {
-        if (!convert_compatible(**hint, stmt->initializer_owner())) {
+        if (!try_make_compatible(**hint, stmt->initializer_owner())) {
           auto a = type_was_err(stmt->initializer());
           auto b = expected_type(**hint);
           auto c = gal::point_out_list(std::move(a), std::move(b));
@@ -332,7 +334,7 @@ namespace {
             break;
           }
 
-          if (!convert_compatible(s_field.type(), init_field->init_owner())) {
+          if (!try_make_compatible(s_field.type(), init_field->init_owner())) {
             auto a = gal::point_out_part(init_field->init(),
                 gal::DiagnosticType::error,
                 absl::StrCat("expr evaluated to `", gal::to_string(init_field->init().result()), "`"));
@@ -491,21 +493,127 @@ namespace {
       update_return(expr, expr->expr().result().clone());
     }
 
-    void visit(ast::UnaryExpression*) final {}
+    void visit(ast::UnaryExpression* expr) final {
+      visit_children(expr);
 
-    void visit(ast::BinaryExpression*) final {
+      switch (expr->op()) {
+        case ast::UnaryOp::logical_not: {
+          if (!boolean(expr->expr())) {
+            auto a = type_was_note(expr->expr());
+            auto b = gal::point_out_part(*expr, gal::DiagnosticType::error, "`not` can only operate on booleans");
+
+            diagnostics_->report_emplace(38, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
+
+            return update_return(expr, error_type());
+          } else {
+            return update_return(expr, bool_type(expr->loc()));
+          }
+        }
+        case ast::UnaryOp::negate:
+        case ast::UnaryOp::bitwise_not: {
+          if (!integral(expr->expr())) {
+            auto a = type_was_note(expr->expr());
+            auto b = gal::point_out_part(*expr, gal::DiagnosticType::error, "expr was not integral");
+            auto c = gal::point_out_list(std::move(a), std::move(b));
+            auto d = gal::single_message(
+                absl::StrCat("operator `", gal::unary_op_string(expr->op()), "` must have an integral type"));
+
+            diagnostics_->report_emplace(39, gal::into_list(std::move(c), std::move(d)));
+
+            return update_return(expr, error_type());
+          } else {
+            return update_return(expr, expr->expr().result().clone());
+          }
+        }
+        case ast::UnaryOp::ref_to:
+        case ast::UnaryOp::mut_ref_to:
+        case ast::UnaryOp::dereference:
+        default: assert(false); break;
+      }
+    }
+
+    void visit(ast::BinaryExpression* expr) final {
       // TODO: model lvalues vs. rvalues
       // TODO: remember: IMMUTABILITY AND := !!!!
+
+      visit_children(expr);
+
+      switch (expr->op()) {
+        case ast::BinaryOp::mul:
+        case ast::BinaryOp::div:
+        case ast::BinaryOp::mod:
+        case ast::BinaryOp::add:
+        case ast::BinaryOp::sub: {
+          if (check_binary_conditions(expr, arithmetic, 39, "arithmetic")) {
+            return update_return(expr, expr->lhs().result().clone());
+          }
+
+          break;
+        }
+        case ast::BinaryOp::left_shift:
+        case ast::BinaryOp::right_shift:
+        case ast::BinaryOp::bitwise_and:
+        case ast::BinaryOp::bitwise_or:
+        case ast::BinaryOp::bitwise_xor: {
+          if (check_binary_conditions(expr, integral, 41, "integral")) {
+            return update_return(expr, expr->lhs().result().clone());
+          }
+
+          break;
+        }
+        case ast::BinaryOp::lt:
+        case ast::BinaryOp::gt:
+        case ast::BinaryOp::lt_eq:
+        case ast::BinaryOp::gt_eq: {
+          if (!check_condition(expr, arithmetic, 39, "arithmetic")) {
+            return update_return(expr, error_type());
+          }
+
+          // explicitly fall through to the eq/not-eq case, we care about that too.
+          // the above are logical operators too, they just *also* require types to be integral
+          [[fallthrough]];
+        }
+        case ast::BinaryOp::equals:
+        case ast::BinaryOp::not_equal: {
+          if (check_identical(expr)) {
+            return update_return(expr, bool_type(expr->loc()));
+          }
+
+          break;
+        }
+        case ast::BinaryOp::logical_and:
+        case ast::BinaryOp::logical_or:
+        case ast::BinaryOp::logical_xor: {
+          if (check_binary_conditions(expr, boolean, 38, "boolean")) {
+            return update_return(expr, bool_type(expr->loc()));
+          }
+
+          break;
+        }
+        case ast::BinaryOp::assignment:
+        case ast::BinaryOp::add_eq:
+        case ast::BinaryOp::sub_eq:
+        case ast::BinaryOp::mul_eq:
+        case ast::BinaryOp::div_eq:
+        case ast::BinaryOp::mod_eq:
+        case ast::BinaryOp::left_shift_eq:
+        case ast::BinaryOp::right_shift_eq:
+        case ast::BinaryOp::bitwise_and_eq:
+        case ast::BinaryOp::bitwise_or_eq:
+        case ast::BinaryOp::bitwise_xor_eq:
+        default: assert(false); break;
+      }
     }
 
     void visit(ast::CastExpression* expr) final {
       visit_children(expr);
 
-      if (type_convertible(expr->cast_to(), expr->castee())) {
+      if (convertible(expr->cast_to(), expr->castee())) {
         auto pinned = expr->cast_to().clone();
 
         // this falls apart if the expected type given gets deleted, like it does when
-        // we try to replace ourselves
+        // we try to replace `expr`. we need to do it manually, and pin our own `expected`
+        // type so that we don't end up referencing a deleted object
         implicit_convert(*pinned, self_expr_owner(), expr->castee_owner());
 
         return Expr::return_value(self_expr()->result_mut());
@@ -515,10 +623,10 @@ namespace {
         auto& result = expr->castee().result();
 
         switch (expr->cast_to().type()) {
-          case TT::builtin_integral: [[fallthrough]];
-          case TT::builtin_float: [[fallthrough]];
-          case TT::builtin_bool: [[fallthrough]];
-          case TT::builtin_byte: [[fallthrough]];
+          case TT::builtin_integral:
+          case TT::builtin_float:
+          case TT::builtin_bool:
+          case TT::builtin_byte:
           case TT::builtin_char: {
             if (result.is_one_of(TT::builtin_integral,
                     TT::builtin_byte,
@@ -533,12 +641,12 @@ namespace {
           case TT::builtin_void: {
             return cast_error(expr, "cannot cast anything to `void`");
           }
-          case TT::dyn_interface: [[fallthrough]];
+          case TT::dyn_interface:
           case TT::user_defined: {
             return cast_error(expr, "cannot cast between user-defined types");
           }
           case TT::fn_pointer: {
-            if (type_identical(result, mut_byte_ptr) || type_identical(result, byte_ptr)) {
+            if (identical(result, mut_byte_ptr) || identical(result, byte_ptr)) {
               return update_return(expr, expr->cast_to().clone());
             }
 
@@ -546,14 +654,14 @@ namespace {
                 "cannot cast any type besides a `byte` pointer to a fn pointer",
                 "help: try casting to `*const byte` first");
           }
-          case TT::nil_pointer: [[fallthrough]];
-          case TT::user_defined_unqualified: [[fallthrough]];
-          case TT::dyn_interface_unqualified: [[fallthrough]];
-          case TT::error: [[fallthrough]];
-          case TT::reference: [[fallthrough]];
-          case TT::slice: [[fallthrough]];
-          case TT::pointer: [[fallthrough]];
-          default: assert(false);
+          case TT::reference:
+          case TT::slice:
+          case TT::pointer:
+          case TT::nil_pointer:
+          case TT::error:
+          case TT::user_defined_unqualified:
+          case TT::dyn_interface_unqualified:
+          default: assert(false); break;
         }
       }
     }
@@ -561,7 +669,7 @@ namespace {
     void visit(ast::IfThenExpression* expr) final {
       visit_children(expr);
 
-      if (!bool_compatible(expr->condition())) {
+      if (!boolean(expr->condition())) {
         auto a = gal::point_out_list(type_was_err(expr->condition()));
 
         diagnostics_->report_emplace(15, gal::into_list(std::move(a)));
@@ -569,7 +677,7 @@ namespace {
 
       // compatible != identical, say its `if thing then nil else &a`. no accidental
       // and severely underpowered type inference is getting in until this compiler is ready!
-      if (!type_identical(expr->true_branch(), expr->false_branch())) {
+      if (!identical(expr->true_branch(), expr->false_branch())) {
         auto a = gal::point_out_part(*expr, gal::DiagnosticType::error);
         auto b = type_was_note(expr->true_branch());
         auto c = type_was_note(expr->false_branch());
@@ -602,24 +710,6 @@ namespace {
       resolver_.leave_scope();
     }
 
-    class BeforeAfterLoop {
-    public:
-      explicit BeforeAfterLoop(TypeChecker* ptr, bool can_break_with_val = false) noexcept : ptr_{ptr} {
-        ptr_->in_loop_ = true;
-        ptr_->can_break_with_value_ = can_break_with_val;
-        ptr_->last_break_type_ = nullptr;
-      }
-
-      ~BeforeAfterLoop() {
-        ptr_->in_loop_ = false;
-        ptr_->can_break_with_value_ = false;
-        ptr_->last_break_type_ = nullptr;
-      }
-
-    private:
-      TypeChecker* ptr_;
-    };
-
     void visit(ast::LoopExpression* expr) final {
       auto type = std::unique_ptr<ast::Type>{};
 
@@ -645,7 +735,7 @@ namespace {
         visit_children(expr);
       }
 
-      if (!bool_compatible(expr->condition())) {
+      if (!boolean(expr->condition())) {
         auto a = gal::point_out_list(type_was_err(expr->condition()));
 
         diagnostics_->report_emplace(15, gal::into_list(std::move(a)));
@@ -671,9 +761,7 @@ namespace {
           auto a = gal::point_out(*expr, gal::DiagnosticType::error, "return was here");
 
           diagnostics_->report_emplace(26, gal::into_list(std::move(a)));
-        }
-
-        if (expected_ != nullptr && !convert_compatible(*expected_, *value)) {
+        } else if (!try_make_compatible(*expected_, *value)) {
           auto a = type_was_err(ret_val);
           auto b = gal::point_out_part(*expected_,
               gal::DiagnosticType::note,
@@ -683,7 +771,7 @@ namespace {
         }
 
         // we need to account for the possibility that there's an implicit conversion
-        // in the `convert_compatible`
+        // in the `try_make_compatible`
         update_return(expr, (**value)->result().clone());
       } else {
         update_return(expr, void_type(expr->loc()));
@@ -707,11 +795,7 @@ namespace {
           diagnostics_->report_emplace(36, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
         }
 
-        // if ((*value)->result().is(TT::unsized_integer)) {
-        //  implicit_convert(default_int, *expr->value_owner(), *expr->value_owner());
-        // }
-
-        if (last_break_type_ != nullptr && !convert_compatible(*last_break_type_, *expr->value_owner())) {
+        if (last_break_type_ != nullptr && !try_make_compatible(*last_break_type_, *expr->value_owner())) {
           auto a = gal::point_out_part(*last_break_type_,
               gal::DiagnosticType::note,
               absl::StrCat("last break was of type `", gal::to_string(*last_break_type_), "`"));
@@ -720,7 +804,11 @@ namespace {
           diagnostics_->report_emplace(37, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
         }
 
-        auto type = (*value)->result().clone();
+        // user will need to cast if they want something other than default with literals
+        make_integer_lit_default(*expr->value_owner());
+
+        // `value` may be invalided at this point
+        auto type = (*expr->value())->result().clone();
 
         last_break_type_ = type.get();
 
@@ -734,7 +822,7 @@ namespace {
 
     void visit(ast::ContinueExpression* expr) final {
       if (!in_loop_) {
-        auto a = gal::point_out(*expr, gal::DiagnosticType::error, "break was here");
+        auto a = gal::point_out(*expr, gal::DiagnosticType::error, "continue was here");
 
         diagnostics_->report_emplace(26, gal::into_list(std::move(a)));
       }
@@ -743,7 +831,10 @@ namespace {
     }
 
     void visit(ast::ImplicitConversionExpression*) final {
-      // shouldnt ever visit, typechecker is what generates these
+      // should not **ever** ever visit one of these, type-checker is what generates these,
+      // and it's generated **after** the children of a node are visited.
+      // unless nodes are getting visited multiple times (which is a bug), this should
+      // never EVER be called
       assert(false);
     }
 
@@ -777,6 +868,25 @@ namespace {
       assert(false);
     }
 
+  private:
+    class BeforeAfterLoop {
+    public:
+      explicit BeforeAfterLoop(TypeChecker* ptr, bool can_break_with_val = false) noexcept : ptr_{ptr} {
+        ptr_->in_loop_ = true;
+        ptr_->can_break_with_value_ = can_break_with_val;
+        ptr_->last_break_type_ = nullptr;
+      }
+
+      ~BeforeAfterLoop() {
+        ptr_->in_loop_ = false;
+        ptr_->can_break_with_value_ = false;
+        ptr_->last_break_type_ = nullptr;
+      }
+
+    private:
+      TypeChecker* ptr_;
+    };
+
 #define GALLIUM_X_COMPATIBLE(name)                                                                                     \
   [[nodiscard]] static bool name(const ast::Expression& lhs, const ast::Type& rhs) noexcept {                          \
     return name(lhs.result(), rhs);                                                                                    \
@@ -799,9 +909,11 @@ namespace {
             return machine_.getPointerSizeInBits(layout_.getProgramAddressSpace()) - (builtin.has_sign() ? 1 : 0);
           }
         }
-        case TT::builtin_char: [[fallthrough]];
-        case TT::builtin_bool: [[fallthrough]];
-        case TT::builtin_byte: return 8;
+        case TT::builtin_char:
+        case TT::builtin_bool:
+        case TT::builtin_byte: {
+          return 8;
+        }
         case TT::builtin_float: {
           auto& builtin = internal::debug_cast<const ast::BuiltinFloatType&>(type);
 
@@ -814,15 +926,17 @@ namespace {
 
           break;
         }
-        case TT::pointer: [[fallthrough]];
-        case TT::reference: return machine_.getPointerSizeInBits(layout_.getProgramAddressSpace());
+        case TT::pointer:
+        case TT::reference: {
+          return machine_.getPointerSizeInBits(layout_.getProgramAddressSpace());
+        }
         default: assert(false); break;
       }
 
       return 0;
     }
 
-    [[nodiscard]] static bool type_convertible(const ast::Type& into, const ast::Expression& expr) noexcept {
+    [[nodiscard]] static bool convertible(const ast::Type& into, const ast::Expression& expr) noexcept {
       // we can convert the magic literal type -> integral types
       // and the magic nil type -> pointer types
       return (expr.result().is(TT::unsized_integer) && into.is_one_of(TT::builtin_integral, TT::builtin_byte))
@@ -859,38 +973,122 @@ namespace {
       return true;
     }
 
-    [[nodiscard]] bool convert_compatible(const ast::Type& expected, std::unique_ptr<ast::Expression>* expr) noexcept {
-      if (type_identical(expected, **expr)) {
+    [[nodiscard]] bool try_make_compatible(const ast::Type& expected, std::unique_ptr<ast::Expression>* expr) noexcept {
+      if (identical(expected, **expr)) {
         return true;
       }
 
-      if (type_convertible(expected, **expr)) {
+      if (convertible(expected, **expr)) {
         return implicit_convert(expected, expr, expr);
       }
 
       return false;
     }
 
-    [[nodiscard]] static bool type_identical(const ast::Type& lhs, const ast::Type& rhs) noexcept {
+    [[nodiscard]] static bool identical(const ast::Type& lhs, const ast::Type& rhs) noexcept {
       return lhs == rhs;
     }
 
-    GALLIUM_X_COMPATIBLE(type_identical)
+    GALLIUM_X_COMPATIBLE(identical)
 
-    [[nodiscard]] static bool bool_compatible(const ast::Type& type) noexcept {
-      static ast::BuiltinBoolType single_bool{ast::SourceLoc::nonexistent()};
-
-      return type == single_bool;
+    [[nodiscard]] static bool boolean(const ast::Type& type) noexcept {
+      return type.is(TT::builtin_bool);
     }
 
-    [[nodiscard]] static bool bool_compatible(const ast::Expression& expr) noexcept {
-      return bool_compatible(expr.result());
+    [[nodiscard]] static bool boolean(const ast::Expression& expr) noexcept {
+      return boolean(expr.result());
+    }
+
+    [[nodiscard]] static bool integral(const ast::Type& type) noexcept {
+      return type.is_one_of(TT::builtin_integral, TT::builtin_byte, TT::unsized_integer);
+    }
+
+    [[nodiscard]] static bool integral(const ast::Expression& expr) noexcept {
+      return integral(expr.result());
+    }
+
+    [[nodiscard]] static bool arithmetic(const ast::Type& type) noexcept {
+      return integral(type) || type.is(TT::builtin_float);
+    }
+
+    [[nodiscard]] static bool arithmetic(const ast::Expression& expr) noexcept {
+      return arithmetic(expr.result());
+    }
+
+    static bool lvalue(const ast::Expression& expr) noexcept {
+      return expr.is_one_of(ET::identifier, ET::identifier_local) || expr.result().is(TT::indirection);
+    }
+
+    static bool rvalue(const ast::Expression& expr) noexcept {
+      return !lvalue(expr);
     }
 
     void update_return(ast::Expression* expr, std::unique_ptr<ast::Type> type) noexcept {
       expr->result_update(std::move(type));
 
       Expr::return_value(expr->result_mut());
+    }
+
+    bool check_identical(ast::BinaryExpression* expr) {
+      auto& lhs = expr->lhs();
+      auto& rhs = expr->rhs();
+
+      // we can always try to convert to make the expression valid by
+      // sprinkling on some conversion magic
+      if (!identical(lhs, rhs) && !try_make_compatible(lhs.result(), expr->rhs_owner())
+          && !try_make_compatible(rhs.result(), expr->lhs_owner())) {
+        auto a = gal::point_out_part(*expr, gal::DiagnosticType::error, "lhs and rhs were not of identical types");
+        auto b = type_was_note(lhs, "left-hand side's ");
+        auto c = type_was_note(rhs, "right-hand side's ");
+        auto d = gal::point_out_list(std::move(a), std::move(b), std::move(c));
+
+        diagnostics_->report_emplace(40, gal::into_list(std::move(d)));
+
+        update_return(expr, error_type());
+
+        return false;
+      }
+
+      // if one of them gets converted here, both of them will
+      make_integer_lit_default(expr->lhs_owner());
+      make_integer_lit_default(expr->rhs_owner());
+
+      return true;
+    }
+
+    bool check_condition(ast::BinaryExpression* expr,
+        bool (*pred)(const ast::Expression&),
+        std::int64_t code,
+        std::string_view condition_name) {
+      auto& lhs = expr->lhs();
+      auto& rhs = expr->rhs();
+      auto result = pred(lhs) && pred(rhs);
+
+      if (!result) {
+        auto a = gal::point_out_part(*expr,
+            gal::DiagnosticType::error,
+            absl::StrCat("lhs and rhs were not both ", condition_name));
+        auto b = type_was_note(lhs, "left-hand side's ");
+        auto c = type_was_note(rhs, "right-hand side's ");
+        auto d = gal::point_out_list(std::move(a), std::move(b), std::move(c));
+        auto e = gal::single_message(absl::StrCat("both left and right expressions for operator `",
+            gal::binary_op_string(expr->op()),
+            "` must be ",
+            condition_name));
+
+        diagnostics_->report_emplace(code, gal::into_list(std::move(d), std::move(e)));
+
+        update_return(expr, error_type());
+      }
+
+      return result;
+    }
+
+    bool check_binary_conditions(ast::BinaryExpression* expr,
+        bool (*pred)(const ast::Expression&),
+        std::int64_t code,
+        std::string_view condition_name) noexcept {
+      return check_condition(expr, pred, code, condition_name) && check_identical(expr);
     }
 
     template <typename Fn>
@@ -939,7 +1137,7 @@ namespace {
         auto& type = mapper(*fn_it);
         auto& expr = **given_it;
 
-        if (!convert_compatible(type, &*given_it)) {
+        if (!try_make_compatible(type, &*given_it)) {
           auto a = type_was_err(expr);
           auto b = gal::point_out_part(type,
               gal::DiagnosticType::note,

@@ -31,6 +31,7 @@ namespace gal::ast {
   class ErrorType;
   class UnsizedIntegerType;
   class ArrayType;
+  class IndirectionType;
 
   class TypeVisitorBase {
   public:
@@ -69,6 +70,8 @@ namespace gal::ast {
     virtual void visit(UnsizedIntegerType*) = 0;
 
     virtual void visit(ArrayType*) = 0;
+
+    virtual void visit(IndirectionType*) = 0;
 
     virtual ~TypeVisitorBase() = default;
   };
@@ -110,6 +113,8 @@ namespace gal::ast {
     virtual void visit(const UnsizedIntegerType&) = 0;
 
     virtual void visit(const ArrayType&) = 0;
+
+    virtual void visit(const IndirectionType&) = 0;
 
     virtual ~ConstTypeVisitorBase() = default;
   };
