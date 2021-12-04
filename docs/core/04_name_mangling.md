@@ -77,39 +77,52 @@ Or, consider `::__builtin::__simd::__neon`: `M9__builtin6__simd6__neon`
 
 Finally, note that the prefix for `::` is simply no prefix at all. 
 
-*ModulePrefix* := (`M` (<decimal length> <module part name>)+)?
+*ModulePrefix* := (`M` (\<decimal length\> \<module part name\>)+)?
 
 ### Type Patterns
 Builtin types mangle to one or two characters. Types that are the same 
 size still mangle to different symbols, due to the fact that they can 
-be overloaded on.
+be overloaded on. User-defined types are identified by their names. 
 
-Any user-defined types are simply mangled by 
-
-| Type       | Mangled Name                  |
-|------------|-------------------------------|
-| `void`     | `v`                           |
-| `bool`     | `a`                           |
-| `byte`     | `b`                           |
-| `char`     | `c`                           |
-| `u8`       | `d`                           |
-| `u16`      | `e`                           |
-| `u32`      | `f`                           |
-| `u64`      | `g`                           |
-| `usize`    | `h`                           |
-| `i8`       | `i`                           |
-| `i16`      | `j`                           |
-| `i32`      | `k`                           |
-| `i64`      | `l`                           |
-| `isize`    | `m`                           |
-| `*const T`      | `P` <mangled name of `T`>     |
-| `*mut T`        | `Q` <mangled name of `T`>     |
-| `&T`            | `R` <mangled name of `T`>     |
-| `&mut T`        | `S` <mangled name of `T`>     |
-| `[T; N]`        | `A` <n> <mangled name of `T`> |
-| `[T]`           | `B` <mangled name of `T`>     |
-| `[mut T]`       | `C` <mangled name of `T`>     |
-| `fn (...) -> T` | `F` <mangled name of each arg> <mangled name of `T` |
+| Type                  | Mangled Name                                                                |
+|-----------------------|-----------------------------------------------------------------------------|
+| `void`                | `v`                                                                         |
+| `byte`                | `a`                                                                         |
+| `bool`                | `b`                                                                         |
+| `char`                | `c`                                                                         |
+| `u8`                  | `d`                                                                         |
+| `u16`                 | `e`                                                                         |
+| `u32`                 | `f`                                                                         |
+| `u64`                 | `g`                                                                         |
+| `u128`                | `h`                                                                         |
+| `usize`               | `i`                                                                         |
+| `i8`                  | `j`                                                                         |
+| `i16`                 | `k`                                                                         |
+| `i32`                 | `l`                                                                         |
+| `i64`                 | `m`                                                                         |
+| `i128`                | `n`                                                                         |
+| `isize`               | `o`                                                                         |
+| `f32`                 | `p`                                                                         |
+| `f64`                 | `q`                                                                         |
+| `f128`                | `r`                                                                         |
+| `*const T`            | `P` \<mangled name of `T`\>                                                 |
+| `*mut T`              | `Q` \<mangled name of `T`\>                                                 |
+| `&T`                  | `R` \<mangled name of `T`\>                                                 |
+| `&mut T`              | `S` \<mangled name of `T`\>                                                 |
+| `[T; N]`              | `A` \<mangled name of `T`\> \<`N`\>                                         |
+| `[T]`                 | `B` \<mangled name of `T`\>                                                 |
+| `[mut T]`             | `C` \<mangled name of `T`\>                                                 |
+| `fn (Args...) -> T`   | `F` (`T` \| `N`) \<mangled name of each in `Args`\> \<mangled name of `T`\> |
+| User-Defined Type `T` | *ModulePrefix* \<decimal length of name\> \<name of `T`\>                   |
+| Dynamic Interface `T` | *ModulePrefix* `z` \<decimal length of name\> \<name of `T`\>               |
 
 ## Functions
-*FnPattern* :=  `F` <name> (`T` | `N`) <mangled return type> (<mangled argument type>)*
+*FnPattern* :=  `F` \<decimal length of name\> \<name\> (`T` | `N`) (\<mangled argument type\>)* \<mangled return type\> 
+
+Functions encode whether they are throwing (`T`) or non-throwing (`N`) at the ABI level.
+
+## Constants
+*ConstantPattern* := `C` <decimal length of name> <name> <mangled type>
+
+Constants also encode slightly more information than necessary at the ABI level, just for safety
+purposes. 
