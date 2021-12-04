@@ -67,15 +67,17 @@ least unique in the ABIs that end up linked into a Gallium executable), we are f
 *MangledName* := `_G` *ModulePrefix* (*FnPattern* | *ConstantPattern*) 
 
 ### Module Prefix
-For a given module `<a>::<b>::<c>`, it would be mangled as:
+For a given module `::<a>::<b>::<c>`, it would be mangled as:
 
 `M<length in chars of a><a><len of b><b><len of c><c>`
 
-Consider `core::collections::internal`: `M4core11collections8internal`
+Consider `::core::collections::internal`: `M4core11collections8internal`
 
-Or, consider `__builtin::__simd::__neon`: `M9__builtin6__simd6__neon`
+Or, consider `::__builtin::__simd::__neon`: `M9__builtin6__simd6__neon`
 
-*ModulePrefix* := `M` (<decimal length> <module part name>)+
+Finally, note that the prefix for `::` is simply no prefix at all. 
+
+*ModulePrefix* := (`M` (<decimal length> <module part name>)+)?
 
 ### Type Patterns
 Builtin types mangle to one or two characters. Types that are the same 
@@ -84,25 +86,30 @@ be overloaded on.
 
 Any user-defined types are simply mangled by 
 
-| Type       | Mangled Name              |
-|------------|---------------------------|
-| `bool`     | `a`                       |
-| `byte`     | `b`                       |
-| `char`     | `c`                       |
-| `u8`       | `d`                       |
-| `u16`      | `e`                       |
-| `u32`      | `f`                       |
-| `u64`      | `g`                       |
-| `usize`    | `h`                       |
-| `i8`       | `i`                       |
-| `i16`      | `j`                       |
-| `i32`      | `k`                       |
-| `i64`      | `l`                       |
-| `isize`    | `m`                       |
-| `*const T` | `P` <mangled name of `T`> |
-| `*mut T`   | `Q` <mangled name of `T`> |
-| `&T`       | `R` <mangled name of `T`> |
-| `&mut T`   | `S` <mangled name of `T`> |
+| Type       | Mangled Name                  |
+|------------|-------------------------------|
+| `void`     | `v`                           |
+| `bool`     | `a`                           |
+| `byte`     | `b`                           |
+| `char`     | `c`                           |
+| `u8`       | `d`                           |
+| `u16`      | `e`                           |
+| `u32`      | `f`                           |
+| `u64`      | `g`                           |
+| `usize`    | `h`                           |
+| `i8`       | `i`                           |
+| `i16`      | `j`                           |
+| `i32`      | `k`                           |
+| `i64`      | `l`                           |
+| `isize`    | `m`                           |
+| `*const T`      | `P` <mangled name of `T`>     |
+| `*mut T`        | `Q` <mangled name of `T`>     |
+| `&T`            | `R` <mangled name of `T`>     |
+| `&mut T`        | `S` <mangled name of `T`>     |
+| `[T; N]`        | `A` <n> <mangled name of `T`> |
+| `[T]`           | `B` <mangled name of `T`>     |
+| `[mut T]`       | `C` <mangled name of `T`>     |
+| `fn (...) -> T` | `F` <mangled name of each arg> <mangled name of `T` |
 
 ## Functions
-*FnPattern* := <name> `F` (<mangled argument type>)+
+*FnPattern* :=  `F` <name> (`T` | `N`) <mangled return type> (<mangled argument type>)*
