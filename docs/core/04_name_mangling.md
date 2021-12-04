@@ -129,7 +129,27 @@ The following functions are special-cased for mangling:
 | `fn ::main() -> void` | `__gallium_user_main` |
 
 ## Constants
-*ConstantPattern* := `C` <decimal length of name> <name> <mangled type>
+*ConstantPattern* := `C` \<decimal length of name\> \<name\> \<mangled type\>
 
 Constants also encode slightly more information than necessary at the ABI level, just for safety
 purposes. 
+
+## Substitutions
+Substitutions exist for the sake of shortening symbol names that would otherwise
+be obnoxiously long for no reason.
+
+Every time a user-defined type is encountered by the name demangler, 
+it is put into a "substitution table," with the "key" being the position
+of the user-defined type starting at 0 (i.e first instance is 0, second 
+is 1, ...).
+
+Whenever `Z` is encountered, the number following the `Z` is treated 
+is looked up in the table, and the substution is replaced with the type 
+found in the table. 
+
+Ex: `_GF1fN4some4util3lib4VecZ0_v`
+    - `4some4util3lib4Vec` is encountered, put in table at position `0` 
+    - `Z0_` is encountered, table looks up `0`
+    - table has `0`, `Z0_` interpreted the same as `4some4util3lib4Vec`
+
+*Substitution* := `Z` \<decimal number\> `_`
