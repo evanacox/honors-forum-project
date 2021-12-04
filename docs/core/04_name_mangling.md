@@ -51,10 +51,11 @@ the [Itanium C++ ABI's name mangling rules](https://itanium-cxx-abi.github.io/cx
 All patterns begin with `_G`, the "Gallium-reserved" symbol prefix. The C standard 
 (along with most platforms) require that all symbols starting (or containing) `__` (double
 underscores) or any symbols beginning with `_` and a capital letter are reserved for use 
-by the "implementation," aka the platform's C library. In the real world, we can get away
-with using these symbols as long as we're consistent with "namespacing" them.
+by the "implementation," aka the platform's C library and any runtime libraries. In the 
+real world, we can get away with using these symbols as long as we're consistent with 
+"namespacing" them to ensure uniqueness. 
 
-In this case, `_G` is our way of "namespacing" all Gallium symbols from the rest of the world. 
+In this case, `_GAL` is our way of "namespacing" all Gallium symbols from the rest of the world. 
 The Gallium runtime library also uses functions starting with `__gallium_` for various
 operations, e.g `__gallium_alloca` or `__gallium_panic`. 
 
@@ -69,15 +70,15 @@ least unique in the ABIs that end up linked into a Gallium executable), we are f
 ### Module Prefix
 For a given module `::<a>::<b>::<c>`, it would be mangled as:
 
-`M<length in chars of a><a><len of b><b><len of c><c>`
+`<length in chars of a><a><len of b><b><len of c><c>`
 
-Consider `::core::collections::internal`: `M4core11collections8internal`
+Consider `::core::collections::internal`: `4core11collections8internal`
 
-Or, consider `::__builtin::__simd::__neon`: `M9__builtin6__simd6__neon`
+Or, consider `::__builtin::__simd::__neon`: `9__builtin6__simd6__neon`
 
 Finally, note that the prefix for `::` is simply no prefix at all. 
 
-*ModulePrefix* := (`M` (\<decimal length\> \<module part name\>)+)?
+*ModulePrefix* := (\<decimal length\> \<module part name\>)*
 
 ### Type Patterns
 Builtin types mangle to one or two characters. Types that are the same 
@@ -120,6 +121,12 @@ be overloaded on. User-defined types are identified by their names.
 *FnPattern* :=  `F` \<decimal length of name\> \<name\> (`T` | `N`) (\<mangled argument type\>)* \<mangled return type\> 
 
 Functions encode whether they are throwing (`T`) or non-throwing (`N`) at the ABI level.
+
+The following functions are special-cased for mangling:
+
+| Function Signature    | Mangled Name          |
+|-----------------------|-----------------------|
+| `fn ::main() -> void` | `__gallium_user_main` |
 
 ## Constants
 *ConstantPattern* := `C` <decimal length of name> <name> <mangled type>
