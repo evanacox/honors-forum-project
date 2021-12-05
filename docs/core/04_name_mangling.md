@@ -65,7 +65,9 @@ D reserves `_D,` Ada reserves `_ada_`, etc. As long as ours is unique (or at
 least unique in the ABIs that end up linked into a Gallium executable), we *should* be fine.
 
 ### Examples
-| Function Signature                                                              | Mangled Name                                  |
+Here are some examples of mangled symbol names, and the entity that they map to:
+
+| Entity Signature                                                                | Mangled Name                                  |
 |---------------------------------------------------------------------------------|-----------------------------------------------|
 | `fn ::foo(i32, i64) -> void`                                                    | `_GF3fooNlmEv`                                |
 | `fn ::square(isize, isize) throws -> isize`                                     | `_GF6squareTooEo`                             |
@@ -98,7 +100,7 @@ size still mangle to different symbols, due to the fact that they can
 be overloaded on. User-defined types are identified by their names. 
 
 | Type                  | Mangled Name                                                                    |
-|-----------------------|----------------------------------------------------------------------------- ---|
+|-----------------------|---------------------------------------------------------------------------------|
 | `void`                | `v`                                                                             |
 | `byte`                | `a`                                                                             |
 | `bool`                | `b`                                                                             |
