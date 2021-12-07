@@ -124,11 +124,11 @@ be overloaded on. User-defined types are identified by their names.
 | `*mut T`              | `Q` \<mangled name of `T`\>                                                     |
 | `&T`                  | `R` \<mangled name of `T`\>                                                     |
 | `&mut T`              | `S` \<mangled name of `T`\>                                                     |
-| `[T; N]`              | `A` \<mangled name of `T`\> \<`N`\>                                             |
+| `[T; N]`              | `A` \<mangled name of `T`\> \<`N`\> `_`                                         |
 | `[T]`                 | `B` \<mangled name of `T`\>                                                     |
 | `[mut T]`             | `C` \<mangled name of `T`\>                                                     |
 | `fn (Args...) -> T`   | `F` (`T` \| `N`) \<mangled name of each in `Args`\> `E` \<mangled name of `T`\> |
-| User-Defined Type `T` | *ModulePrefix* `S` \<decimal length of name\> \<name of `T`\>                   |
+| User-Defined Type `T` | *ModulePrefix* `U` \<decimal length of name\> \<name of `T`\>                   |
 | Dynamic Interface `T` | *ModulePrefix* `D` \<decimal length of name\> \<name of `T`\>                   |
 
 ## Functions
