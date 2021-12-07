@@ -61,3 +61,7 @@ function(gallium_configure_target TARGET)
 endfunction()
 
 add_subdirectory(src)
+
+if (GALLIUM_DEV)
+    add_subdirectory(tests)
+endif ()

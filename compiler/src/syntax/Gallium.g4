@@ -412,7 +412,7 @@ classMember
     ;
 
 classMemberWithoutPub
-    : var='var' classVariableBody
+    : var='mut' classVariableBody
     | let='let' classVariableBody
     | fnPrototype ws? blockExpression
     | typeDeclaration
@@ -449,7 +449,7 @@ assertStatement
 
 bindingStatement
     : let='let' ws IDENTIFIER (ws? ':' ws? type)? ws? '=' ws? expr
-    | var='var' ws IDENTIFIER (ws? ':' ws? type)? ws? '=' ws? expr
+    | var='mut' ws IDENTIFIER (ws? ':' ws? type)? ws? '=' ws? expr
     ;
 
 exprStatement
@@ -507,7 +507,8 @@ expr
     | blockExpression
     | expr restOfCall
     | op=NOT_KEYWORD ws expr
-    | op=(TILDE | AMPERSTAND | AMPERSTAND_MUT | HYPHEN | STAR) expr
+    | op=(TILDE | AMPERSTAND | HYPHEN | STAR) expr
+    | op=AMPERSTAND_MUT ws expr
     | expr ws as='as' ws type
     | expr ws asUnsafe='as!' ws type
     | expr ws op=(STAR | FORWARD_SLASH | PERCENT) ws expr
@@ -592,7 +593,7 @@ type
     ;
 
 typeWithoutRef
-    : squareBracket='[' WHITESPACE* typeWithoutRef WHITESPACE* (';' WHITESPACE* DECIMAL_LITERAL)? ']'
+    : squareBracket='[' WHITESPACE* (mut='mut' WHITESPACE+)? typeWithoutRef WHITESPACE* (';' WHITESPACE* DECIMAL_LITERAL)? ']'
     | ptr=(STAR_CONST | STAR_MUT) (WHITESPACE+) typeWithoutRef
     | BUILTIN_TYPE
     | userDefinedType=maybeGenericIdentifier

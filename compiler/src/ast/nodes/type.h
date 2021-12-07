@@ -260,10 +260,16 @@ namespace gal::ast {
   public:
     /// Creates a Slice type
     ///
+    /// \param mut Whether or not the elements can be mutated
     /// \param sliced The type contained in the slice
-    explicit SliceType(SourceLoc loc, std::unique_ptr<Type> sliced) noexcept
+    explicit SliceType(SourceLoc loc, bool mut, std::unique_ptr<Type> sliced) noexcept
         : Type(std::move(loc), TypeType::slice),
+          mut_{mut},
           sliced_{std::move(sliced)} {}
+
+    [[nodiscard]] bool mut() const noexcept {
+      return mut_;
+    }
 
     /// Gets the type being sliced, i.e the `T` in `&mut T`
     ///
@@ -297,6 +303,7 @@ namespace gal::ast {
     [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
 
   private:
+    bool mut_;
     std::unique_ptr<Type> sliced_;
   };
 
@@ -716,7 +723,7 @@ namespace gal::ast {
     /// \param generic_params Any generics provided
     explicit DynInterfaceType(SourceLoc loc,
         FullyQualifiedID id,
-        std::vector<std::unique_ptr<Type>> generic_params) noexcept
+        std::vector<std::unique_ptr<Type>> generic_params = {}) noexcept
         : Type(std::move(loc), TypeType::dyn_interface),
           name_{std::move(id)},
           generic_params_{std::move(generic_params)} {}
@@ -966,9 +973,10 @@ namespace gal::ast {
   /// Models the magical type produced by `*` that can be assigned to / loaded from
   class IndirectionType final : public Type {
   public:
-    explicit IndirectionType(SourceLoc loc, std::unique_ptr<Type> produced) noexcept
+    explicit IndirectionType(SourceLoc loc, std::unique_ptr<Type> produced, bool mut) noexcept
         : Type(std::move(loc), TypeType::indirection),
-          produced_{std::move(produced)} {}
+          produced_{std::move(produced)},
+          mut_{mut} {}
 
     /// Gets the type produced by the indirection
     ///
@@ -991,6 +999,13 @@ namespace gal::ast {
       return &produced_;
     }
 
+    /// Checks if the indirection result is mutable, i.e whether it was a `*mut T` or a `*const T`
+    ///
+    /// \return Whether the result can be mutated
+    [[nodiscard]] bool mut() const noexcept {
+      return mut_;
+    }
+
   protected:
     void internal_accept(TypeVisitorBase* visitor) final;
 
@@ -1002,6 +1017,7 @@ namespace gal::ast {
 
   private:
     std::unique_ptr<Type> produced_;
+    bool mut_;
   };
 
   class ErrorType final : public Type {

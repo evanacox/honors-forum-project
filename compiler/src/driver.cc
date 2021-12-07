@@ -9,6 +9,7 @@
 //======---------------------------------------------------------------======//
 
 #include "./driver.h"
+#include "./core/mangler.h"
 #include "./core/typechecker.h"
 #include "./errors/console_reporter.h"
 #include "./syntax/parser.h"
@@ -43,6 +44,14 @@ namespace {
 
 namespace gal {
   int Driver::start(absl::Span<std::string_view> files) noexcept {
+    if (flags().demangle()) {
+      for (auto file : files) {
+        gal::outs() << "demangled for `" << file << "`: " << gal::demangle(file);
+      }
+
+      return 0;
+    }
+
     auto triple = llvm::sys::getDefaultTargetTriple();
     llvm::InitializeAllTargetInfos();
     llvm::InitializeAllTargets();
@@ -73,7 +82,8 @@ namespace gal {
           gal::raw_outs() << gal::pretty_print(**program) << '\n';
         }
 
-        gal::outs() << "is valid: " << valid;
+        if (valid) {
+        }
       }
     }
 

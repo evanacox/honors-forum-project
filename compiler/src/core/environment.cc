@@ -160,10 +160,10 @@ namespace gal {
     return overloads_.contains(name) || entities_.contains(name);
   }
 
-  std::optional<const ast::Type*> Scope::get(std::string_view name) const noexcept {
+  std::optional<const ScopeEntity*> Scope::get(std::string_view name) const noexcept {
     auto it = variables_.find(name);
 
-    return (it != variables_.end()) ? std::make_optional(&it->second.type()) : std::nullopt;
+    return (it != variables_.end()) ? std::make_optional(&it->second) : std::nullopt;
   }
 
   bool Scope::add(std::string_view name, ScopeEntity data, gal::DiagnosticReporter* diagnostics) noexcept {
@@ -188,10 +188,10 @@ namespace gal {
     return variables_.contains(name);
   }
 
-  std::optional<const ast::Type*> Environment::get(std::string_view name) const noexcept {
+  std::optional<const ScopeEntity*> Environment::get(std::string_view name) const noexcept {
     for (auto& scope : gal::reverse(scopes_)) {
-      if (auto type = scope.get(name)) {
-        return type;
+      if (auto entity = scope.get(name)) {
+        return entity;
       }
     }
 

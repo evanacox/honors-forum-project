@@ -55,7 +55,8 @@ namespace gal {
         OutputFormat emit,
         bool debug,
         bool verbose,
-        bool colored) noexcept;
+        bool colored,
+        bool demangle) noexcept;
 
     /// Gets the number of threads that the compiler is allowed to
     /// create to parse/compile/whatever
@@ -93,7 +94,17 @@ namespace gal {
       return verbose_;
     }
 
+    /// Returns whether or not to put colors in command-line output
+    ///
+    /// \return Whether or not to put colors in command-line output
     [[nodiscard]] constexpr bool colored() const noexcept {
+      return colored_;
+    }
+
+    /// Whether or not to treat all files as symbols to demangle
+    ///
+    /// \return Whether or not to treat all files as symbols to demangle
+    [[nodiscard]] constexpr bool demangle() const noexcept {
       return colored_;
     }
 
@@ -104,6 +115,7 @@ namespace gal {
     bool debug_;
     bool verbose_;
     bool colored_;
+    bool demangle_;
   };
 
   /// Pretty-prints the flag state

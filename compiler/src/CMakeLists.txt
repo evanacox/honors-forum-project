@@ -57,22 +57,25 @@ target_include_directories(gallium_antlr4 SYSTEM PUBLIC
         ${GALLIUM_ANTLR4_RUNTIME_INCLUDE}
         ${GALLIUM_ANTLR4_GENERATED_DIR}/../)
 
-add_executable(gallium
-        ./main.cc
-        ./driver.cc
-        ${GALLIUM_AST_FILES}
+add_library(gallium_core STATIC ${GALLIUM_AST_FILES}
         ${GALLIUM_ERRORS_FILES}
         ${GALLIUM_CORE_FILES}
         ${GALLIUM_UTILITY_FILES}
         ${GALLIUM_SYNTAX_FILES})
-gallium_configure_target(gallium)
-target_include_directories(gallium SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
-target_compile_definitions(gallium PUBLIC ${GALLIUM_LLVM_DEFINITIONS_LIST})
-target_link_directories(gallium PRIVATE ${LLVM_LIBRARY_DIRS})
-target_link_libraries(gallium PRIVATE
+gallium_configure_target(gallium_core)
+target_include_directories(gallium_core SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
+target_compile_definitions(gallium_core PUBLIC ${GALLIUM_LLVM_DEFINITIONS_LIST})
+target_link_directories(gallium_core PUBLIC ${LLVM_LIBRARY_DIRS})
+target_link_libraries(gallium_core PUBLIC
         ${GALLIUM_LLVM_LIBS}
         gallium_antlr4
         absl::flags
         absl::flags_parse
         absl::strings
         absl::flat_hash_map)
+
+add_executable(gallium
+        ./main.cc
+        ./driver.cc)
+gallium_configure_target(gallium)
+target_link_libraries(gallium PRIVATE gallium_core)

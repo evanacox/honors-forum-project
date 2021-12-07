@@ -23,6 +23,13 @@ namespace gal {
   /// \return The mangled symbol representing the node
   std::string mangle(const ast::Declaration& node) noexcept;
 
+  /// Demangles a symbol and returns a human-readable version
+  /// of the symbol.
+  ///
+  /// \param mangled The mangled symbol to de-mangle
+  /// \return A human-readable demangled symbol
+  std::string demangle(std::string_view mangled) noexcept;
+
   /// Annotates the entire AST for a program with mangled symbol names
   /// that can be used by later phases
   ///

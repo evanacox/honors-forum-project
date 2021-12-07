@@ -308,4 +308,20 @@ namespace gal {
       return std::forward<T>(object);
     }
   };
+
+  /// Performs a debug-checked cast
+  ///
+  /// \param ref The reference to cast
+  /// \return The casted reference
+  template <typename U, typename T> [[nodiscard]] const U& as(const T& ref) noexcept {
+    return internal::debug_cast<const U&>(ref);
+  }
+
+  /// Performs a debug-checked cast
+  ///
+  /// \param ref The pointer to cast
+  /// \return The casted pointer
+  template <typename U, typename T> [[nodiscard]] U* as_mut(T* ref) noexcept {
+    return internal::debug_cast<U*>(ref);
+  }
 } // namespace gal

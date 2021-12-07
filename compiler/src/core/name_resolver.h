@@ -95,7 +95,7 @@ namespace gal {
     ///
     /// \param name The name to get
     /// \return A local, if it exists
-    [[nodiscard]] std::optional<const ast::Type*> local(std::string_view name) const noexcept;
+    [[nodiscard]] std::optional<const ScopeEntity*> local(std::string_view name) const noexcept;
 
     /// Finds the environment that has `id` in it, and returns a fully-qualified id if possible
     ///

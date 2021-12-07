@@ -283,11 +283,11 @@ namespace gal {
   /// Represents a single level of scope
   class Scope final {
   public:
-    /// Gets the type of the symbol, if it exists in this scope
+    /// Gets the entity referred to by a symbol, if it exists in this scope
     ///
     /// \param name The name to get
-    /// \return A type, if the symbol exists in this scope
-    [[nodiscard]] std::optional<const ast::Type*> get(std::string_view name) const noexcept;
+    /// \return An entity, if the symbol exists in this scope
+    [[nodiscard]] std::optional<const ScopeEntity*> get(std::string_view name) const noexcept;
 
     /// Checks if a variable name exists in the vector
     ///
@@ -317,11 +317,11 @@ namespace gal {
     /// \param reporter The diagnostic reporter to use
     explicit Environment(gal::DiagnosticReporter* reporter) noexcept;
 
-    /// Scans through all scopes, and gets the type of a name if it exists
+    /// Scans through all scopes, and gets the entity referred to by a name if it exists
     ///
     /// \param name The name to look for
-    /// \return A pointer to the type of the entity, if it exists
-    [[nodiscard]] std::optional<const ast::Type*> get(std::string_view name) const noexcept;
+    /// \return A pointer to the entity, if it exists
+    [[nodiscard]] std::optional<const ScopeEntity*> get(std::string_view name) const noexcept;
 
     /// Checks if the entire environment contains a symbol called `name`.
     ///

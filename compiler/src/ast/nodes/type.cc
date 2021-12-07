@@ -20,7 +20,7 @@ namespace gal::ast {
   }
 
   bool ReferenceType::internal_equals(const Type& other) const noexcept {
-    auto& result = internal::debug_cast<const ReferenceType&>(other);
+    auto& result = gal::as<ReferenceType>(other);
 
     return mut() == result.mut() && referenced() == result.referenced();
   }
@@ -38,13 +38,13 @@ namespace gal::ast {
   }
 
   bool SliceType::internal_equals(const Type& other) const noexcept {
-    auto& result = internal::debug_cast<const SliceType&>(other);
+    auto& result = gal::as<SliceType>(other);
 
     return sliced() == result.sliced();
   }
 
   std::unique_ptr<Type> SliceType::internal_clone() const noexcept {
-    return std::make_unique<SliceType>(loc(), sliced().clone());
+    return std::make_unique<SliceType>(loc(), mut(), sliced().clone());
   }
 
   void PointerType::internal_accept(TypeVisitorBase* visitor) {
@@ -56,7 +56,7 @@ namespace gal::ast {
   }
 
   bool PointerType::internal_equals(const Type& other) const noexcept {
-    auto& result = internal::debug_cast<const PointerType&>(other);
+    auto& result = gal::as<PointerType>(other);
 
     return mut() == result.mut() && pointed() == result.pointed();
   }
@@ -74,7 +74,7 @@ namespace gal::ast {
   }
 
   bool BuiltinIntegralType::internal_equals(const Type& other) const noexcept {
-    auto& result = internal::debug_cast<const BuiltinIntegralType&>(other);
+    auto& result = gal::as<BuiltinIntegralType>(other);
 
     return width() == result.width() && has_sign() == result.has_sign();
   }
@@ -92,7 +92,7 @@ namespace gal::ast {
   }
 
   bool BuiltinFloatType::internal_equals(const Type& other) const noexcept {
-    auto& result = internal::debug_cast<const BuiltinFloatType&>(other);
+    auto& result = gal::as<BuiltinFloatType>(other);
 
     return width() == result.width();
   }
@@ -110,7 +110,7 @@ namespace gal::ast {
   }
 
   bool BuiltinBoolType::internal_equals(const Type& other) const noexcept {
-    (void)internal::debug_cast<const BuiltinBoolType&>(other);
+    (void)gal::as<BuiltinBoolType>(other);
 
     return true;
   }
@@ -128,7 +128,7 @@ namespace gal::ast {
   }
 
   bool BuiltinByteType::internal_equals(const Type& other) const noexcept {
-    (void)internal::debug_cast<const BuiltinByteType&>(other);
+    (void)gal::as<BuiltinByteType>(other);
 
     return true;
   }
@@ -146,7 +146,7 @@ namespace gal::ast {
   }
 
   bool BuiltinCharType::internal_equals(const Type& other) const noexcept {
-    (void)internal::debug_cast<const BuiltinCharType&>(other);
+    (void)gal::as<BuiltinCharType>(other);
 
     return true;
   }
@@ -164,7 +164,7 @@ namespace gal::ast {
   }
 
   bool UnqualifiedUserDefinedType::internal_equals(const Type& other) const noexcept {
-    auto& result = internal::debug_cast<const UnqualifiedUserDefinedType&>(other);
+    auto& result = gal::as<UnqualifiedUserDefinedType>(other);
 
     return id() == result.id()
            && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
@@ -183,7 +183,7 @@ namespace gal::ast {
   }
 
   bool UserDefinedType::internal_equals(const Type& other) const noexcept {
-    auto& result = internal::debug_cast<const UserDefinedType&>(other);
+    auto& result = gal::as<UserDefinedType>(other);
 
     return id() == result.id()
            && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
@@ -202,7 +202,7 @@ namespace gal::ast {
   }
 
   bool FnPointerType::internal_equals(const Type& other) const noexcept {
-    auto& result = internal::debug_cast<const FnPointerType&>(other);
+    auto& result = gal::as<FnPointerType>(other);
     auto self_args = args();
     auto other_args = result.args();
 
@@ -223,7 +223,7 @@ namespace gal::ast {
   }
 
   bool DynInterfaceType::internal_equals(const Type& other) const noexcept {
-    auto& result = internal::debug_cast<const DynInterfaceType&>(other);
+    auto& result = gal::as<DynInterfaceType>(other);
 
     return id() == result.id()
            && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
@@ -242,7 +242,7 @@ namespace gal::ast {
   }
 
   bool UnqualifiedDynInterfaceType::internal_equals(const Type& other) const noexcept {
-    auto& result = internal::debug_cast<const UnqualifiedDynInterfaceType&>(other);
+    auto& result = gal::as<UnqualifiedDynInterfaceType>(other);
 
     return id() == result.id()
            && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
@@ -261,7 +261,7 @@ namespace gal::ast {
   }
 
   bool VoidType::internal_equals(const Type& other) const noexcept {
-    (void)internal::debug_cast<const VoidType&>(other);
+    (void)gal::as<VoidType>(other);
 
     return true;
   }
@@ -311,7 +311,7 @@ namespace gal::ast {
   }
 
   bool UnsizedIntegerType::internal_equals(const Type& other) const noexcept {
-    (void)internal::debug_cast<const UnsizedIntegerType&>(other);
+    (void)gal::as<UnsizedIntegerType>(other);
 
     return true;
   }
@@ -329,7 +329,7 @@ namespace gal::ast {
   }
 
   bool ArrayType::internal_equals(const Type& other) const noexcept {
-    auto& result = internal::debug_cast<const ArrayType&>(other);
+    auto& result = gal::as<ArrayType>(other);
 
     return size() == result.size() && element_type() == result.element_type();
   }
@@ -347,12 +347,12 @@ namespace gal::ast {
   }
 
   bool IndirectionType::internal_equals(const Type& other) const noexcept {
-    auto& result = internal::debug_cast<const IndirectionType&>(other);
+    auto& result = gal::as<IndirectionType>(other);
 
     return produced() == result.produced();
   }
 
   std::unique_ptr<Type> IndirectionType::internal_clone() const noexcept {
-    return std::unique_ptr<Type>();
+    return std::make_unique<IndirectionType>(loc(), produced().clone(), mut());
   }
 } // namespace gal::ast

@@ -20,7 +20,7 @@ namespace gal::ast {
   }
 
   bool BindingStatement::internal_equals(const Statement& other) const noexcept {
-    auto& result = internal::debug_cast<const BindingStatement&>(other);
+    auto& result = gal::as<BindingStatement>(other);
 
     return name() == result.name() && gal::unwrapping_equal(hint(), result.hint(), gal::DerefEq{})
            && initializer() == result.initializer();
@@ -39,7 +39,7 @@ namespace gal::ast {
   }
 
   bool AssertStatement::internal_equals(const Statement& other) const noexcept {
-    auto& result = internal::debug_cast<const AssertStatement&>(other);
+    auto& result = gal::as<AssertStatement>(other);
 
     return assertion() == result.assertion() && message() == result.message();
   }
@@ -59,7 +59,7 @@ namespace gal::ast {
   }
 
   bool ExpressionStatement::internal_equals(const Statement& other) const noexcept {
-    auto& result = internal::debug_cast<const ExpressionStatement&>(other);
+    auto& result = gal::as<ExpressionStatement>(other);
 
     return expr() == result.expr();
   }

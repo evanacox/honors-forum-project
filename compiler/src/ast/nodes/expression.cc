@@ -22,7 +22,7 @@ namespace gal::ast {
   }
 
   [[nodiscard]] bool StringLiteralExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const StringLiteralExpression&>(other);
+    auto& result = gal::as<StringLiteralExpression>(other);
 
     return text() == result.text();
   }
@@ -40,7 +40,7 @@ namespace gal::ast {
   }
 
   bool IntegerLiteralExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const IntegerLiteralExpression&>(other);
+    auto& result = gal::as<IntegerLiteralExpression>(other);
 
     return value() == result.value();
   }
@@ -58,7 +58,7 @@ namespace gal::ast {
   }
 
   bool FloatLiteralExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const FloatLiteralExpression&>(other);
+    auto& result = gal::as<FloatLiteralExpression>(other);
 
     // TODO: is this reasonable? should there be an epsilon of some sort?
     gal::outs() << "FloatLiteralExpression::internal_equals: epsilon???";
@@ -79,7 +79,7 @@ namespace gal::ast {
   }
 
   bool BoolLiteralExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const BoolLiteralExpression&>(other);
+    auto& result = gal::as<BoolLiteralExpression>(other);
 
     return value() == result.value();
   }
@@ -97,7 +97,7 @@ namespace gal::ast {
   }
 
   bool CharLiteralExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const CharLiteralExpression&>(other);
+    auto& result = gal::as<CharLiteralExpression>(other);
 
     return value() == result.value();
   }
@@ -116,7 +116,7 @@ namespace gal::ast {
 
   bool NilLiteralExpression::internal_equals(const Expression& other) const noexcept {
     // doing this for the side effect that it checks the validity in debug mode
-    (void)internal::debug_cast<const NilLiteralExpression&>(other);
+    (void)gal::as<NilLiteralExpression>(other);
 
     return true;
   }
@@ -146,7 +146,7 @@ namespace gal::ast {
   }
 
   bool IdentifierExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const IdentifierExpression&>(other);
+    auto& result = gal::as<IdentifierExpression>(other);
 
     return id() == result.id()
            && std::equal(generic_params_.begin(),
@@ -170,7 +170,7 @@ namespace gal::ast {
   }
 
   bool LocalIdentifierExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const LocalIdentifierExpression&>(other);
+    auto& result = gal::as<LocalIdentifierExpression>(other);
 
     return name() == result.name();
   }
@@ -188,7 +188,7 @@ namespace gal::ast {
   }
 
   bool UnqualifiedIdentifierExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const UnqualifiedIdentifierExpression&>(other);
+    auto& result = gal::as<UnqualifiedIdentifierExpression>(other);
 
     return id() == result.id()
            && std::equal(generic_params_.begin(),
@@ -215,7 +215,7 @@ namespace gal::ast {
   }
 
   bool StaticCallExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const StaticCallExpression&>(other);
+    auto& result = gal::as<StaticCallExpression>(other);
     auto self_args = args();
     auto res_args = result.args();
 
@@ -255,7 +255,7 @@ namespace gal::ast {
   }
 
   bool CallExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const CallExpression&>(other);
+    auto& result = gal::as<CallExpression>(other);
     auto self_args = args();
     auto res_args = result.args();
 
@@ -284,7 +284,7 @@ namespace gal::ast {
   }
 
   bool MethodCallExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const MethodCallExpression&>(other);
+    auto& result = gal::as<MethodCallExpression>(other);
     auto self_args = args();
     auto res_args = result.args();
 
@@ -314,7 +314,7 @@ namespace gal::ast {
   }
 
   bool IndexExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const IndexExpression&>(other);
+    auto& result = gal::as<IndexExpression>(other);
     auto self_args = args();
     auto other_args = result.args();
 
@@ -341,7 +341,7 @@ namespace gal::ast {
   }
 
   bool FieldAccessExpression::internal_equals(const Expression& expression) const noexcept {
-    auto& result = internal::debug_cast<const FieldAccessExpression&>(expression);
+    auto& result = gal::as<FieldAccessExpression>(expression);
 
     return object() == result.object() && field_name() == result.field_name();
   }
@@ -359,7 +359,7 @@ namespace gal::ast {
   }
 
   bool GroupExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const GroupExpression&>(other);
+    auto& result = gal::as<GroupExpression>(other);
 
     return expr() == result.expr();
   }
@@ -377,7 +377,7 @@ namespace gal::ast {
   }
 
   bool UnaryExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const UnaryExpression&>(other);
+    auto& result = gal::as<UnaryExpression>(other);
 
     return op() == result.op() && expr() == result.expr();
   }
@@ -395,7 +395,7 @@ namespace gal::ast {
   }
 
   bool BinaryExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const BinaryExpression&>(other);
+    auto& result = gal::as<BinaryExpression>(other);
 
     return op() == result.op() && lhs() == result.lhs() && rhs() == result.rhs();
   }
@@ -413,7 +413,7 @@ namespace gal::ast {
   }
 
   bool CastExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const CastExpression&>(other);
+    auto& result = gal::as<CastExpression>(other);
 
     return unsafe() == result.unsafe() && castee() == result.castee() && cast_to() == result.cast_to();
   }
@@ -431,7 +431,7 @@ namespace gal::ast {
   }
 
   bool BlockExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const BlockExpression&>(other);
+    auto& result = gal::as<BlockExpression>(other);
     auto stmts = statements();
     auto other_stmts = result.statements();
 
@@ -461,7 +461,7 @@ namespace gal::ast {
   }
 
   bool IfThenExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const IfThenExpression&>(other);
+    auto& result = gal::as<IfThenExpression>(other);
 
     return condition() == result.condition()        //
            && true_branch() == result.true_branch() //
@@ -484,7 +484,7 @@ namespace gal::ast {
   }
 
   bool IfElseExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const IfElseExpression&>(other);
+    auto& result = gal::as<IfElseExpression>(other);
 
     auto elifs = elif_blocks();
     auto other_elifs = result.elif_blocks();
@@ -511,7 +511,7 @@ namespace gal::ast {
   }
 
   bool LoopExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const LoopExpression&>(other);
+    auto& result = gal::as<LoopExpression>(other);
 
     return body() == result.body();
   }
@@ -529,7 +529,7 @@ namespace gal::ast {
   }
 
   bool WhileExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const WhileExpression&>(other);
+    auto& result = gal::as<WhileExpression>(other);
 
     return condition() == result.condition() && body() == result.body();
   }
@@ -549,7 +549,7 @@ namespace gal::ast {
   }
 
   bool ForExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const ForExpression&>(other);
+    auto& result = gal::as<ForExpression>(other);
 
     return loop_variable() == result.loop_variable() && loop_direction() == result.loop_direction()
            && init() == result.init() && last() == result.last() && body() == result.body();
@@ -573,7 +573,7 @@ namespace gal::ast {
   }
 
   bool ReturnExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const ReturnExpression&>(other);
+    auto& result = gal::as<ReturnExpression>(other);
 
     return gal::unwrapping_equal(value(), result.value());
   }
@@ -594,7 +594,7 @@ namespace gal::ast {
   }
 
   bool BreakExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const BreakExpression&>(other);
+    auto& result = gal::as<BreakExpression>(other);
 
     return gal::unwrapping_equal(value(), result.value());
   }
@@ -615,7 +615,7 @@ namespace gal::ast {
   }
 
   bool ContinueExpression::internal_equals(const Expression& other) const noexcept {
-    (void)internal::debug_cast<const ReturnExpression&>(other);
+    (void)gal::as<ReturnExpression>(other);
 
     return true;
   }
@@ -637,7 +637,7 @@ namespace gal::ast {
   }
 
   bool StructExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const StructExpression&>(other);
+    auto& result = gal::as<StructExpression>(other);
 
     return struct_type() == result.struct_type() && fields_ == result.fields_;
   }
@@ -683,7 +683,7 @@ namespace gal::ast {
   }
 
   bool ImplicitConversionExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const ImplicitConversionExpression&>(other);
+    auto& result = gal::as<ImplicitConversionExpression>(other);
 
     return expr() == result.expr() && cast_to() == result.cast_to();
   }
@@ -701,7 +701,7 @@ namespace gal::ast {
   }
 
   bool ArrayExpression::internal_equals(const Expression& other) const noexcept {
-    auto& result = internal::debug_cast<const ArrayExpression&>(other);
+    auto& result = gal::as<ArrayExpression>(other);
     auto elems = elements();
     auto other_elems = result.elements();
 
@@ -716,5 +716,60 @@ namespace gal::ast {
 
   std::unique_ptr<Expression> ArrayExpression::internal_clone() const noexcept {
     return std::make_unique<ArrayExpression>(loc(), gal::clone_span(elements()));
+  }
+
+  void LoadExpression::internal_accept(ExpressionVisitorBase* visitor) {
+    visitor->visit(this);
+  }
+
+  void LoadExpression::internal_accept(ConstExpressionVisitorBase* visitor) const {
+    visitor->visit(*this);
+  }
+
+  bool LoadExpression::internal_equals(const Expression& other) const noexcept {
+    auto& result = gal::as<LoadExpression>(other);
+
+    return expr() == result.expr();
+  }
+
+  std::unique_ptr<Expression> LoadExpression::internal_clone() const noexcept {
+    return std::make_unique<LoadExpression>(loc(), expr().clone());
+  }
+
+  void AddressOfExpression::internal_accept(ExpressionVisitorBase* visitor) {
+    visitor->visit(this);
+  }
+
+  void AddressOfExpression::internal_accept(ConstExpressionVisitorBase* visitor) const {
+    visitor->visit(*this);
+  }
+
+  bool AddressOfExpression::internal_equals(const Expression& other) const noexcept {
+    auto& result = gal::as<AddressOfExpression>(other);
+
+    return expr() == result.expr();
+  }
+
+  std::unique_ptr<Expression> AddressOfExpression::internal_clone() const noexcept {
+    return std::make_unique<ast::AddressOfExpression>(loc(), expr().clone());
+  }
+  void StaticGlobalExpression::internal_accept(ExpressionVisitorBase* visitor) {
+    visitor->visit(this);
+  }
+
+  void StaticGlobalExpression::internal_accept(ConstExpressionVisitorBase* visitor) const {
+    visitor->visit(*this);
+  }
+
+  bool StaticGlobalExpression::internal_equals(const Expression& other) const noexcept {
+    auto& result = gal::as<StaticGlobalExpression>(other);
+
+    return decl() == result.decl();
+  }
+
+  std::unique_ptr<Expression> StaticGlobalExpression::internal_clone() const noexcept {
+    return std::make_unique<StaticGlobalExpression>(loc(),
+        decl(),
+        generic_params_.empty() ? std::vector<std::unique_ptr<Type>>{} : gal::clone_span(*generic_params()));
   }
 } // namespace gal::ast

@@ -115,16 +115,38 @@ namespace {
   }
 
   void annotate_type(gal::GlobalEntity* entity, std::string_view module) noexcept {
+    auto id = ast::FullyQualifiedID(std::string{module}, std::string{entity->name()});
+
     switch (entity->decl().type()) {
       case ast::DeclType::struct_decl: [[fallthrough]];
       case ast::DeclType::class_decl: {
-        auto id = ast::FullyQualifiedID(std::string{module}, std::string{entity->name()});
         *entity->type_owner() = std::make_unique<ast::UserDefinedType>(entity->decl().loc(), std::move(id));
         break;
       }
       case ast::DeclType::type_decl: {
-        auto& type_decl = gal::internal::debug_cast<const gal::ast::TypeDeclaration&>(entity->decl());
+        auto& type_decl = gal::as<gal::ast::TypeDeclaration>(entity->decl());
         *entity->type_owner() = type_decl.aliased().clone();
+        break;
+      }
+      case ast::DeclType::constant_decl: {
+        auto* constant = gal::as_mut<ast::ConstantDeclaration>(entity->decl_mut());
+
+        constant->set_id(std::move(id));
+
+        break;
+      }
+      case ast::DeclType::external_fn_decl: {
+        auto* fn = gal::as_mut<ast::ExternalFnDeclaration>(entity->decl_mut());
+
+        fn->set_id(std::move(id));
+
+        break;
+      }
+      case ast::DeclType::fn_decl: {
+        auto* fn = gal::as_mut<ast::ExternalFnDeclaration>(entity->decl_mut());
+
+        fn->set_id(std::move(id));
+
         break;
       }
       default: break;
@@ -175,7 +197,7 @@ namespace gal {
   std::optional<const ast::StructDeclaration*> NameResolver::struct_type(
       const ast::FullyQualifiedID& id) const noexcept {
     if (auto entity = this->entity(id); entity && (*entity)->decl().is(ast::DeclType::struct_decl)) {
-      return internal::debug_cast<const ast::StructDeclaration*>(&(*entity)->decl());
+      return &gal::as<ast::StructDeclaration>((*entity)->decl());
     }
 
     return std::nullopt;
@@ -184,7 +206,7 @@ namespace gal {
   std::optional<const ast::ConstantDeclaration*> NameResolver::constant(
       const ast::FullyQualifiedID& id) const noexcept {
     if (auto entity = this->entity(id); entity && (*entity)->decl().is(ast::DeclType::constant_decl)) {
-      return internal::debug_cast<const ast::ConstantDeclaration*>(&(*entity)->decl());
+      return &gal::as<ast::ConstantDeclaration>((*entity)->decl());
     }
 
     return std::nullopt;
@@ -206,7 +228,7 @@ namespace gal {
     env_.add(name, std::move(data));
   }
 
-  std::optional<const ast::Type*> NameResolver::local(std::string_view name) const noexcept {
+  std::optional<const ScopeEntity*> NameResolver::local(std::string_view name) const noexcept {
     return env_.get(name);
   }
 
@@ -247,5 +269,4 @@ namespace gal {
 
     return std::nullopt;
   }
-
 } // namespace gal

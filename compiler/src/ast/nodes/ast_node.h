@@ -11,6 +11,7 @@
 #pragma once
 
 #include "../../utility/misc.h"
+#include "../modular_id.h"
 #include "../source_loc.h"
 #include "absl/types/span.h"
 
@@ -44,20 +45,37 @@ namespace gal::ast {
     ///
     /// \return The mangled name of the function
     [[nodiscard]] std::string_view mangled_name() const noexcept {
-      assert(!mangled_.empty());
+      assert(mangled_.has_value());
 
-      return mangled_;
+      return *mangled_;
+    }
+
+    /// Gets the ID of the node
+    ///
+    /// \return The ID
+    [[nodiscard]] const ast::FullyQualifiedID& id() const noexcept {
+      assert(id_.has_value());
+
+      return *id_;
+    }
+
+    /// Sets the "fully qualified" ID part of the entity
+    ///
+    /// \param id
+    void set_id(FullyQualifiedID id) noexcept {
+      id_ = std::move(id);
     }
 
     /// Sets the mangled name of a function
     ///
     /// \param mangled_name The mangled name of the function
-    void mangle(std::string mangled_name) noexcept {
+    void set_mangled(std::string mangled_name) noexcept {
       mangled_ = std::move(mangled_name);
     }
 
   private:
-    std::string mangled_;
+    std::optional<FullyQualifiedID> id_;
+    std::optional<std::string> mangled_;
   };
 
   namespace internal {

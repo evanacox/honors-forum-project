@@ -507,7 +507,7 @@ namespace gal::ast {
   };
 
   /// Models a full function declaration, prototype and body.
-  class FnDeclaration final : public Declaration {
+  class FnDeclaration final : public Declaration, public Mangled {
   public:
     /// Creates a FnDeclaration
     ///
@@ -552,14 +552,14 @@ namespace gal::ast {
     ///
     /// \return The function body
     [[nodiscard]] const BlockExpression& body() const noexcept {
-      return internal::debug_cast<const BlockExpression&>(*body_);
+      return gal::as<BlockExpression>(*body_);
     }
 
     /// Gets a mutable ptr to the body of the function
     ///
     /// \return A mutable ptr to the function body
     [[nodiscard]] BlockExpression* body_mut() const noexcept {
-      return internal::debug_cast<BlockExpression*>(body_.get());
+      return gal::as_mut<BlockExpression>(body_.get());
     }
 
     /// Correctly release and update the body for `*this`
@@ -668,7 +668,7 @@ namespace gal::ast {
     }
 
     [[nodiscard]] bool internal_equals(const Declaration& other) const noexcept final {
-      (void)internal::debug_cast<const ErrorDeclaration&>(other);
+      (void)gal::as<ErrorDeclaration>(other);
 
       return true;
     }
@@ -864,7 +864,7 @@ namespace gal::ast {
   };
 
   /// Maps to an **external** function, i.e one declared within an `external` block
-  class ExternalFnDeclaration final : public Declaration {
+  class ExternalFnDeclaration final : public Declaration, public Mangled {
   public:
     /// Creates an external fn decl
     ///
@@ -944,7 +944,7 @@ namespace gal::ast {
   };
 
   /// Models a constant, i.e `const pi: f64 = 3.14159265`
-  class ConstantDeclaration final : public Declaration {
+  class ConstantDeclaration final : public Declaration, public Mangled {
   public:
     /// Creates a constant declaration
     ///

@@ -30,6 +30,7 @@ namespace gal {
 
 namespace gal::ast {
   class Statement;
+  class Declaration;
 
   enum class ExprType {
     string_lit,
@@ -64,6 +65,9 @@ namespace gal::ast {
     struct_expr,
     implicit,
     array,
+    load,
+    address_of,
+    static_global,
   };
 
   /// Represents the different unary expression operators
@@ -1614,7 +1618,6 @@ namespace gal::ast {
   };
   /// Models a single `elif` in a chain
   struct ElifBlock {
-
     explicit ElifBlock(std::unique_ptr<Expression> cond, std::unique_ptr<BlockExpression> block) noexcept
         : condition_{std::move(cond)},
           block_{std::move(block)} {}
@@ -1661,14 +1664,14 @@ namespace gal::ast {
     ///
     /// \return The block
     [[nodiscard]] const BlockExpression& block() const noexcept {
-      return internal::debug_cast<const BlockExpression&>(*block_);
+      return gal::as<BlockExpression>(*block_);
     }
 
     /// Gets the elif's block
     ///
     /// \return The block
     [[nodiscard]] BlockExpression* block_mut() noexcept {
-      return internal::debug_cast<BlockExpression*>(block_.get());
+      return gal::as_mut<BlockExpression>(block_.get());
     }
 
     /// Gets the elif's block
@@ -1729,14 +1732,14 @@ namespace gal::ast {
     ///
     /// \return The true block
     [[nodiscard]] const BlockExpression& block() const noexcept {
-      return internal::debug_cast<const BlockExpression&>(*block_);
+      return gal::as<BlockExpression>(*block_);
     }
 
     /// Gets the block to enter if the condition is true
     ///
     /// \return The true block
     [[nodiscard]] BlockExpression* block_mut() noexcept {
-      return internal::debug_cast<BlockExpression*>(block_.get());
+      return gal::as_mut<BlockExpression>(block_.get());
     }
 
     /// Gets the owner of the block to enter if the condition is true
@@ -1765,7 +1768,7 @@ namespace gal::ast {
     /// \return The else block
     [[nodiscard]] std::optional<const BlockExpression*> else_block() const noexcept {
       if (is_evaluable()) {
-        return internal::debug_cast<const BlockExpression*>(else_block_->get());
+        return gal::as_mut<const BlockExpression>(else_block_->get());
       }
 
       return std::nullopt;
@@ -1776,7 +1779,7 @@ namespace gal::ast {
     /// \return The else block
     [[nodiscard]] std::optional<BlockExpression*> else_block_mut() noexcept {
       if (is_evaluable()) {
-        return internal::debug_cast<BlockExpression*>(else_block_->get());
+        return gal::as_mut<BlockExpression>(else_block_->get());
       }
 
       return std::nullopt;
@@ -1828,14 +1831,14 @@ namespace gal::ast {
     ///
     /// \return The body of the loop
     [[nodiscard]] const BlockExpression& body() const noexcept {
-      return internal::debug_cast<const BlockExpression&>(*body_);
+      return gal::as<BlockExpression>(*body_);
     }
 
     /// Gets the body of the loop
     ///
     /// \return The body of the loop
     [[nodiscard]] BlockExpression* body_mut() noexcept {
-      return internal::debug_cast<BlockExpression*>(body_.get());
+      return gal::as_mut<BlockExpression>(body_.get());
     }
 
     /// Gets the owner of the body of the loop
@@ -1898,14 +1901,14 @@ namespace gal::ast {
     ///
     /// \return The body of the loop
     [[nodiscard]] const BlockExpression& body() const noexcept {
-      return internal::debug_cast<const BlockExpression&>(*body_);
+      return gal::as<BlockExpression>(*body_);
     }
 
     /// Gets the body of the loop
     ///
     /// \return The body of the loop
     [[nodiscard]] BlockExpression* body_mut() noexcept {
-      return internal::debug_cast<BlockExpression*>(body_.get());
+      return gal::as_mut<BlockExpression>(body_.get());
     }
 
     /// Gets the owner of the body of the loop
@@ -2019,14 +2022,14 @@ namespace gal::ast {
     ///
     /// \return The body of the loop
     [[nodiscard]] const BlockExpression& body() const noexcept {
-      return internal::debug_cast<const BlockExpression&>(*body_);
+      return gal::as<BlockExpression>(*body_);
     }
 
     /// Gets the body of the loop
     ///
     /// \return The body of the loop
     [[nodiscard]] BlockExpression* body_mut() noexcept {
-      return internal::debug_cast<BlockExpression*>(body_.get());
+      return gal::as_mut<BlockExpression>(body_.get());
     }
 
     /// Gets the owner of the body of the loop
@@ -2411,5 +2414,153 @@ namespace gal::ast {
 
   private:
     std::vector<std::unique_ptr<ast::Expression>> elements_;
+  };
+
+  class LoadExpression final : public Expression {
+  public:
+    /// Creates a load expression
+    ///
+    /// \param loc The location in the source
+    /// \param loaded_from The expression being loaded from
+    explicit LoadExpression(SourceLoc loc, std::unique_ptr<Expression> loaded_from) noexcept
+        : Expression(std::move(loc), ExprType::load),
+          loaded_from_{std::move(loaded_from)} {}
+
+    /// Gets the expression being loaded from
+    ///
+    /// \return The expression being loaded from
+    [[nodiscard]] const Expression& expr() const noexcept {
+      return *loaded_from_;
+    }
+
+    /// Gets the expression being loaded from
+    ///
+    /// \return The expression being loaded from
+    [[nodiscard]] Expression* expr_mut() noexcept {
+      return loaded_from_.get();
+    }
+
+    /// Gets the expression being loaded from
+    ///
+    /// \return The expression being loaded from
+    [[nodiscard]] std::unique_ptr<Expression>* expr_owner() noexcept {
+      return &loaded_from_;
+    }
+
+  protected:
+    void internal_accept(ExpressionVisitorBase* visitor) final;
+
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
+
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
+
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
+
+  private:
+    std::unique_ptr<Expression> loaded_from_;
+  };
+
+  class AddressOfExpression final : public Expression {
+  public:
+    /// Creates an addr-of expression
+    ///
+    /// \param loc The location in the source
+    /// \param loaded_from The expression having its address taken
+    explicit AddressOfExpression(SourceLoc loc, std::unique_ptr<Expression> loaded_from) noexcept
+        : Expression(std::move(loc), ExprType::address_of),
+          loaded_from_{std::move(loaded_from)} {}
+
+    /// Gets the expression that will have its address taken
+    ///
+    /// \return The expression that will have its address taken
+    [[nodiscard]] const Expression& expr() const noexcept {
+      return *loaded_from_;
+    }
+
+    /// Gets the expression that will have its address taken
+    ///
+    /// \return The expression that will have its address taken
+    [[nodiscard]] Expression* expr_mut() noexcept {
+      return loaded_from_.get();
+    }
+
+    /// Gets the expression that will have its address taken
+    ///
+    /// \return The expression that will have its address taken
+    [[nodiscard]] std::unique_ptr<Expression>* expr_owner() noexcept {
+      return &loaded_from_;
+    }
+
+  protected:
+    void internal_accept(ExpressionVisitorBase* visitor) final;
+
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
+
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
+
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
+
+  private:
+    std::unique_ptr<Expression> loaded_from_;
+  };
+
+  class StaticGlobalExpression final : public Expression {
+  public:
+    explicit StaticGlobalExpression(SourceLoc loc,
+        const Declaration& decl,
+        std::vector<std::unique_ptr<Type>> generic_params = {}) noexcept
+        : Expression(std::move(loc), ExprType::static_global),
+          decl_{decl},
+          generic_params_{std::move(generic_params)} {}
+
+    [[nodiscard]] const Declaration& decl() const noexcept {
+      return decl_;
+    }
+
+    /// Gets the list of generic parameters
+    ///
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<const std::unique_ptr<Type>>> generic_params() const noexcept {
+      if (!generic_params_.empty()) {
+        return absl::MakeConstSpan(generic_params_);
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the list of generic parameters
+    ///
+    /// \return The generic parameters
+    [[nodiscard]] std::optional<absl::Span<std::unique_ptr<Type>>> generic_params_mut() noexcept {
+      if (!generic_params_.empty()) {
+        return absl::MakeSpan(generic_params_);
+      }
+
+      return std::nullopt;
+    }
+
+    /// Gets the owner of the list of generic parameters
+    ///
+    /// \return The owner of the generic parameters
+    [[nodiscard]] std::optional<std::vector<std::unique_ptr<Type>>*> generic_params_owner() noexcept {
+      if (!generic_params_.empty()) {
+        return &generic_params_;
+      }
+
+      return std::nullopt;
+    }
+
+  protected:
+    void internal_accept(ExpressionVisitorBase* visitor) final;
+
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
+
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
+
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
+
+  private:
+    const Declaration& decl_;
+    std::vector<std::unique_ptr<Type>> generic_params_;
   };
 } // namespace gal::ast

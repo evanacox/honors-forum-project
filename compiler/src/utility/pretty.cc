@@ -179,6 +179,29 @@ namespace {
       print_last_member("name: ", id_str(node.id().name()));
     }
 
+    void visit(const ast::StaticGlobalExpression& node) final {
+      print_expr("static-global", node);
+
+      switch (node.decl().type()) {
+        case ast::DeclType::constant_decl: {
+          auto& constant = gal::as<ast::ConstantDeclaration>(node.decl());
+          print_last_member("decl: ", colors::yellow("constant: "), id_str(constant.name()));
+          break;
+        }
+        case ast::DeclType::fn_decl: {
+          auto& fn = gal::as<ast::FnDeclaration>(node.decl());
+          print_last_member("decl: ", colors::red("fn: "), id_str(fn.proto().name()));
+          break;
+        }
+        case ast::DeclType::external_fn_decl: {
+          auto& fn = gal::as<ast::ExternalFnDeclaration>(node.decl());
+          print_last_member("decl: ", colors::red("extern-fn: "), id_str(fn.proto().name()));
+          break;
+        }
+        default: assert(false); break;
+      }
+    }
+
     void visit(const ast::LocalIdentifierExpression& node) final {
       print_expr("local-id", node);
       print_last_member("name: ", id_str(node.name()));
@@ -354,6 +377,16 @@ namespace {
       print_expr<true>("continue", node);
     }
 
+    void visit(const ast::LoadExpression& node) final {
+      print_expr("load", node);
+      accept_last_member("loading from: ", node.expr());
+    }
+
+    void visit(const ast::AddressOfExpression& node) final {
+      print_expr("addr-of", node);
+      accept_last_member("taking address of: ", node.expr());
+    }
+
     void visit(const ast::ReferenceType& node) final {
       auto rest = node.referenced().accept(this);
 
@@ -367,7 +400,11 @@ namespace {
     void visit(const ast::SliceType& node) final {
       auto rest = node.sliced().accept(this);
 
-      return_value(absl::StrCat(colors::red("["), "(", rest, ")", colors::red("]")));
+      if (node.mut()) {
+        return_value(absl::StrCat(colors::red("["), colors::magenta("mut"), "(", rest, ")", colors::red("]")));
+      } else {
+        return_value(absl::StrCat(colors::red("["), "(", rest, ")", colors::red("]")));
+      }
     }
 
     void visit(const ast::PointerType& node) final {
@@ -486,6 +523,16 @@ namespace {
           ") ; ",
           colors::blue(gal::to_digits(type.size())),
           colors::red("]")));
+    }
+
+    void visit(const ast::IndirectionType& type) final {
+      auto rest = type.produced().accept(this);
+
+      return_value(absl::StrCat(colors::bold_yellow("indirection -> "),
+          "(",
+          rest,
+          ")",
+          type.mut() ? colors::magenta("mut") : ""));
     }
 
   private:
@@ -693,7 +740,11 @@ namespace {
     }
 
     void visit(const ast::SliceType& type) final {
-      return_value(absl::StrCat("[", type.sliced().accept(this), "]"));
+      if (type.mut()) {
+        return_value(absl::StrCat("[mut ", type.sliced().accept(this), "]"));
+      } else {
+        return_value(absl::StrCat("[", type.sliced().accept(this), "]"));
+      }
     }
 
     void visit(const ast::ArrayType& type) final {
@@ -778,6 +829,10 @@ namespace {
 
     void visit(const ast::UnsizedIntegerType&) final {
       return_value("<integer literal>");
+    }
+
+    void visit(const ast::IndirectionType& type) final {
+      return_value(absl::StrCat("<indirection -> ", type.produced().accept(this), ">"));
     }
   };
 } // namespace

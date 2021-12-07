@@ -13,7 +13,10 @@ struct Point {
     y: f64
 }
 
-/*
+fn test() -> i32 {
+    5
+}
+
 fn main() -> void {
     let binding: fn(i32, f64) -> void = nil
 
@@ -54,28 +57,36 @@ fn main() -> void {
 
     // ::puts(5 as *const u8)
 
-   1 + 2 / 3 * 4 % 5
+    1 + 2 / 3 * 4 % 5
 
 
     if true {
         if false then 1 else 2 
-    } elif 3 {
-        thing.foo
+    } elif false {
+        pt.x as i64
     } else {
-        lol()
+        test() as i64
     }
-
-    
 }
-*/
+
+
+fn g() -> *mut i64 { 
+    nil
+}
+
+
+fn f(x: i64) -> void {}
 
 export extern fn lol() -> *mut byte {
-    let result = loop {
-        break 12 
-        break 10 
-    }
+    mut point = Point { x: 5.0, y: 0.0 }
+    mut arr = [1, 2, 3, 4, 5]
+    let ref = &mut point 
 
-    if -1 < 12 then true >= true else 0.0 + 352
+    point.x := 6.0
+    arr[0] := 7
+    *ref := Point { x: 0.0, y: 0.0 }
+
+    Point
 
     nil
 }

@@ -38,7 +38,7 @@ namespace gal::ast {
     using Self = AnyVisitorBase<T1, T2, T3, T4>;
 
   public:
-    virtual void walk_ast(ast::Program* program) {
+    virtual void walk_ast(Program* program) {
       for (auto& decl : program->decls_mut()) {
         accept(&decl);
       }
@@ -90,8 +90,12 @@ namespace gal::ast {
 
     void visit(UnsizedIntegerType*) override {}
 
-    void visit(ArrayType* array) override {
-      accept(array->element_type_owner());
+    void visit(ArrayType* type) override {
+      accept(type->element_type_owner());
+    }
+
+    void visit(IndirectionType* type) override {
+      accept(type->produced_owner());
     }
 
     void visit(ImportDeclaration*) override {}
@@ -143,9 +147,17 @@ namespace gal::ast {
 
     void visit(NilLiteralExpression*) override {}
 
+    void visit(ArrayExpression* expression) override {
+      for (auto& element : expression->elements_mut()) {
+        accept(&element);
+      }
+    }
+
     void visit(UnqualifiedIdentifierExpression*) override {}
 
     void visit(IdentifierExpression*) override {}
+
+    void visit(StaticGlobalExpression*) override {}
 
     void visit(LocalIdentifierExpression*) override {}
 
@@ -266,10 +278,12 @@ namespace gal::ast {
       accept(expression->cast_to_owner());
     }
 
-    void visit(ArrayExpression* expression) override {
-      for (auto& element : expression->elements_mut()) {
-        accept(&element);
-      }
+    void visit(LoadExpression* expression) override {
+      accept(expression->expr_owner());
+    }
+
+    void visit(AddressOfExpression* expression) override {
+      accept(expression->expr_owner());
     }
 
     void visit(BindingStatement* statement) override {
@@ -291,19 +305,19 @@ namespace gal::ast {
 
   protected:
     template <typename T> void visit_children(T* node) noexcept {
-      if constexpr (std::is_base_of_v<ast::Declaration, T>) {
+      if constexpr (std::is_base_of_v<Declaration, T>) {
         auto* self = self_decl_owner();
 
         Self::visit(node);
 
         decl_owner_ = self;
-      } else if constexpr (std::is_base_of_v<ast::Expression, T>) {
+      } else if constexpr (std::is_base_of_v<Expression, T>) {
         auto* self = self_expr_owner();
 
         Self::visit(node);
 
         expr_owner_ = self;
-      } else if constexpr (std::is_base_of_v<ast::Statement, T>) {
+      } else if constexpr (std::is_base_of_v<Statement, T>) {
         auto* self = self_stmt_owner();
 
         Self::visit(node);
@@ -318,79 +332,79 @@ namespace gal::ast {
       }
     }
 
-    [[nodiscard]] ast::Expression* self_expr() noexcept {
+    [[nodiscard]] Expression* self_expr() noexcept {
       return expr_owner_->get();
     }
 
-    [[nodiscard]] ast::Statement* self_stmt() noexcept {
+    [[nodiscard]] Statement* self_stmt() noexcept {
       return stmt_owner_->get();
     }
 
-    [[nodiscard]] ast::Declaration* self_decl() noexcept {
+    [[nodiscard]] Declaration* self_decl() noexcept {
       return decl_owner_->get();
     }
 
-    [[nodiscard]] ast::Type* self_type() noexcept {
+    [[nodiscard]] Type* self_type() noexcept {
       return type_owner_->get();
     }
 
-    [[nodiscard]] std::unique_ptr<ast::Expression>* self_expr_owner() noexcept {
+    [[nodiscard]] std::unique_ptr<Expression>* self_expr_owner() noexcept {
       return expr_owner_;
     }
 
-    [[nodiscard]] std::unique_ptr<ast::Statement>* self_stmt_owner() noexcept {
+    [[nodiscard]] std::unique_ptr<Statement>* self_stmt_owner() noexcept {
       return stmt_owner_;
     }
 
-    [[nodiscard]] std::unique_ptr<ast::Declaration>* self_decl_owner() noexcept {
+    [[nodiscard]] std::unique_ptr<Declaration>* self_decl_owner() noexcept {
       return decl_owner_;
     }
 
-    [[nodiscard]] std::unique_ptr<ast::Type>* self_type_owner() noexcept {
+    [[nodiscard]] std::unique_ptr<Type>* self_type_owner() noexcept {
       return type_owner_;
     }
 
-    void replace_self(std::unique_ptr<ast::Expression> node) noexcept {
+    void replace_self(std::unique_ptr<Expression> node) noexcept {
       *expr_owner_ = std::move(node);
     }
 
-    void replace_self(std::unique_ptr<ast::Declaration> node) noexcept {
+    void replace_self(std::unique_ptr<Declaration> node) noexcept {
       *decl_owner_ = std::move(node);
     }
 
-    void replace_self(std::unique_ptr<ast::Statement> node) noexcept {
+    void replace_self(std::unique_ptr<Statement> node) noexcept {
       *stmt_owner_ = std::move(node);
     }
 
-    void replace_self(std::unique_ptr<ast::Type> node) noexcept {
+    void replace_self(std::unique_ptr<Type> node) noexcept {
       *type_owner_ = std::move(node);
     }
 
-    void accept(std::unique_ptr<ast::Expression>* expr) noexcept {
+    void accept(std::unique_ptr<Expression>* expr) noexcept {
       expr_owner_ = expr;
 
       (*expr)->accept(this);
     }
 
-    void accept(std::unique_ptr<ast::Statement>* stmt) noexcept {
+    void accept(std::unique_ptr<Statement>* stmt) noexcept {
       stmt_owner_ = stmt;
 
       (*stmt)->accept(this);
     }
 
-    void accept(std::unique_ptr<ast::Declaration>* decl) noexcept {
+    void accept(std::unique_ptr<Declaration>* decl) noexcept {
       decl_owner_ = decl;
 
       (*decl)->accept(this);
     }
 
-    void accept(std::unique_ptr<ast::Type>* type) noexcept {
+    void accept(std::unique_ptr<Type>* type) noexcept {
       type_owner_ = type;
 
       (*type)->accept(this);
     }
 
-    void accept_proto(ast::FnPrototype* proto) noexcept {
+    void accept_proto(FnPrototype* proto) noexcept {
       for (auto& arg : proto->args_mut()) {
         accept(arg.type_owner());
       }
@@ -399,10 +413,10 @@ namespace gal::ast {
     }
 
   private:
-    std::unique_ptr<ast::Expression>* expr_owner_{};
-    std::unique_ptr<ast::Statement>* stmt_owner_{};
-    std::unique_ptr<ast::Declaration>* decl_owner_{};
-    std::unique_ptr<ast::Type>* type_owner_{};
+    std::unique_ptr<Expression>* expr_owner_{};
+    std::unique_ptr<Statement>* stmt_owner_{};
+    std::unique_ptr<Declaration>* decl_owner_{};
+    std::unique_ptr<Type>* type_owner_{};
   };
 
   template <typename T1, typename T2 = T1, typename T3 = T1, typename T4 = T1>
@@ -410,7 +424,7 @@ namespace gal::ast {
     using Self = AnyConstVisitorBase<T1, T2, T3, T4>;
 
   public:
-    virtual void walk_ast(const ast::Program& program) {
+    virtual void walk_ast(const Program& program) {
       for (auto& decl : program.decls()) {
         accept(decl);
       }
@@ -466,6 +480,10 @@ namespace gal::ast {
       accept(array.element_type());
     }
 
+    void visit(const IndirectionType& type) override {
+      accept(type.produced());
+    }
+
     void visit(const ImportDeclaration&) override {}
 
     void visit(const ImportFromDeclaration&) override {}
@@ -515,9 +533,17 @@ namespace gal::ast {
 
     void visit(const NilLiteralExpression&) override {}
 
+    void visit(const ArrayExpression& expression) override {
+      for (auto& element : expression.elements()) {
+        accept(*element);
+      }
+    }
+
     void visit(const UnqualifiedIdentifierExpression&) override {}
 
     void visit(const IdentifierExpression&) override {}
+
+    void visit(const StaticGlobalExpression&) override {}
 
     void visit(const StructExpression& expression) override {
       accept(expression.struct_type());
@@ -580,10 +606,12 @@ namespace gal::ast {
       accept(expression.cast_to());
     }
 
-    void visit(const ArrayExpression& expression) override {
-      for (auto& element : expression.elements()) {
-        accept(*element);
-      }
+    void visit(const LoadExpression& expression) override {
+      accept(expression.expr());
+    }
+
+    void visit(const AddressOfExpression& expression) override {
+      accept(expression.expr());
     }
 
     void visit(const IfThenExpression& expression) override {
@@ -665,23 +693,23 @@ namespace gal::ast {
     }
 
   private:
-    void accept(const ast::Expression& expr) noexcept {
+    void accept(const Expression& expr) noexcept {
       expr.accept(this);
     }
 
-    void accept(const ast::Statement& stmt) noexcept {
+    void accept(const Statement& stmt) noexcept {
       stmt.accept(this);
     }
 
-    void accept(const ast::Declaration& decl) noexcept {
+    void accept(const Declaration& decl) noexcept {
       decl.accept(this);
     }
 
-    void accept(const ast::Type& type) noexcept {
+    void accept(const Type& type) noexcept {
       type.accept(this);
     }
 
-    void accept_proto(const ast::FnPrototype& proto) noexcept {
+    void accept_proto(const FnPrototype& proto) noexcept {
       for (auto& arg : proto.args()) {
         accept(arg.type());
       }

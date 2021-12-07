@@ -33,8 +33,8 @@ namespace {
     return std::make_unique<ast::BuiltinIntegralType>(std::move(loc), false, static_cast<ast::IntegerWidth>(width));
   }
 
-  std::unique_ptr<ast::Type> slice_of(ast::SourceLoc loc, std::unique_ptr<ast::Type> type) noexcept {
-    return std::make_unique<ast::SliceType>(std::move(loc), std::move(type));
+  std::unique_ptr<ast::Type> slice_of(ast::SourceLoc loc, std::unique_ptr<ast::Type> type, bool mut) noexcept {
+    return std::make_unique<ast::SliceType>(std::move(loc), mut, std::move(type));
   }
 
   std::unique_ptr<ast::Type> bool_type(ast::SourceLoc loc) noexcept {
@@ -92,6 +92,8 @@ namespace {
 
   static ast::BuiltinIntegralType default_int{ast::SourceLoc::nonexistent(), true, static_cast<ast::IntegerWidth>(64)};
 
+  static ast::BuiltinIntegralType ptr_width_int{ast::SourceLoc::nonexistent(), true, ast::IntegerWidth::native_width};
+
   class TypeChecker final : public ast::AnyVisitorBase<void, ast::Type*> {
     using Expr = ast::ExpressionVisitor<ast::Type*>;
     using Base = ast::AnyVisitorBase<void, ast::Type*>;
@@ -140,7 +142,7 @@ namespace {
       // we do it here, and then early return
       if (!identical(*expected_, decl->body()) && !decl->body().statements().empty()) {
         if (auto& back = decl->body_mut()->statements_mut().back(); back->is(ST::expr)) {
-          auto* expr = internal::debug_cast<ast::ExpressionStatement*>(back.get());
+          auto* expr = gal::as_mut<ast::ExpressionStatement>(back.get());
 
           if (try_make_compatible(*expected_, expr->expr_owner())) {
             return Expr::return_value(expr->expr_mut()->result_mut());
@@ -158,7 +160,7 @@ namespace {
         auto& front = *decl->body().statements().back();
 
         if (front.is(ST::expr)) {
-          auto& expr_stmt = internal::debug_cast<const ast::ExpressionStatement&>(front);
+          auto& expr_stmt = gal::as<ast::ExpressionStatement>(front);
 
           list.push_back(type_was_err(expr_stmt.expr()));
         } else {
@@ -212,7 +214,7 @@ namespace {
           diagnostics_->report_emplace(21, gal::into_list(std::move(a), std::move(b)));
         }
 
-        make_integer_lit_default(stmt->initializer_owner());
+        convert_intermediate(stmt->initializer_owner());
 
         resolver_.add_local(stmt->name(),
             gal::ScopeEntity{stmt->loc(), stmt->initializer_mut()->result_mut(), stmt->mut()});
@@ -221,8 +223,6 @@ namespace {
 
     void visit(ast::ExpressionStatement* stmt) final {
       visit_children(stmt);
-
-      make_integer_lit_default(stmt->expr_owner());
     }
 
     void visit(ast::AssertStatement* stmt) final {
@@ -230,7 +230,7 @@ namespace {
     }
 
     void visit(ast::StringLiteralExpression* expr) final {
-      update_return(expr, slice_of(expr->loc(), uint_type(expr->loc(), 8)));
+      update_return(expr, slice_of(expr->loc(), uint_type(expr->loc(), 8), false));
     }
 
     void visit(ast::IntegerLiteralExpression* expr) final {
@@ -255,41 +255,48 @@ namespace {
 
     void visit(ast::LocalIdentifierExpression* expr) final {
       if (!constant_only_) {
-        if (auto type = resolver_.local(expr->name())) {
-          return update_return(expr, (*type)->clone());
+        if (auto local = resolver_.local(expr->name())) {
+          return update_return(expr, (*local)->type().clone());
         }
       }
 
       if (auto qualified = resolver_.qualified_for(ast::UnqualifiedID{std::nullopt, std::string{expr->name()}})) {
         auto& [id, _] = *qualified;
 
-        // why can't we use structured-binding variables inside of lambdas? aaaaaaaaa
-        auto* id_p = &id;
-        auto result = check_qualified_id(expr, id, [&, this](std::unique_ptr<ast::Type> type) {
-          replace_self(std::make_unique<ast::IdentifierExpression>(expr->loc(), std::move(*id_p)));
-          update_return(self_expr(), std::move(type));
-        });
-
-        if (result) {
+        if (check_qualified_id(self_expr_owner(), id)) {
           return;
         }
       }
 
-      auto a = gal::point_out(*expr, gal::DiagnosticType::error, "usage was here");
+      auto a = report_unknown_entity(*expr);
 
       diagnostics_->report_emplace(18, gal::into_list(std::move(a)));
 
       update_return(expr, error_type());
     }
 
+    GALLIUM_COLD std::unique_ptr<gal::DiagnosticPart> report_unknown_entity(
+        const ast::LocalIdentifierExpression& expr) noexcept {
+      auto vec = std::vector<gal::PointedOut>{};
+
+      vec.push_back(gal::point_out_part(expr, gal::DiagnosticType::error, "usage was here"));
+
+      if (auto qualified = resolver_.qualified_for(ast::UnqualifiedID{std::nullopt, std::string{expr.name()}})) {
+        auto& [id, _] = *qualified;
+
+        if (auto entity = resolver_.entity(id)) {
+          vec.push_back(
+              gal::point_out_part((*entity)->decl().loc(), gal::DiagnosticType::note, "name referred to this"));
+        }
+      }
+
+      return gal::point_out_list(std::move(vec));
+    }
+
     void visit(ast::IdentifierExpression* expr) final {
       auto id = expr->id();
 
-      auto result = check_qualified_id(expr, id, [&, this](std::unique_ptr<ast::Type> type) {
-        update_return(expr, std::move(type));
-      });
-
-      if (!result) {
+      if (!check_qualified_id(self_expr_owner(), id)) {
         auto entity = resolver_.entity(id);
         assert(entity.has_value());
         auto a = gal::point_out_part(*expr, gal::DiagnosticType::error, "usage was here");
@@ -314,7 +321,7 @@ namespace {
         return update_return(expr, error_type());
       }
 
-      auto& type = internal::debug_cast<const ast::UserDefinedType&>(expr->struct_type());
+      auto& type = gal::as<ast::UserDefinedType>(expr->struct_type());
 
       if (auto decl = resolver_.struct_type(type.id())) {
         for (auto& s_field : (*decl)->fields()) {
@@ -353,6 +360,10 @@ namespace {
       }
     }
 
+    void visit(ast::StaticGlobalExpression*) final {
+      assert(false);
+    }
+
     void visit(ast::ArrayExpression* expr) final {
       visit_children(expr);
 
@@ -363,10 +374,8 @@ namespace {
 
       // array is guaranteed by the syntax to be larger than 0
       if (it == elements.end()) {
-        if (elements.front()->result().is(TT::unsized_integer)) {
-          for (auto& element : elements) {
-            implicit_convert(default_int, &element, &element);
-          }
+        for (auto& element : elements) {
+          convert_intermediate(&element);
         }
 
         update_return(expr,
@@ -397,7 +406,7 @@ namespace {
 
       // we need to do special handling here in order to not break over function overloading n whatnot
       if (expr->callee().is(ET::identifier)) {
-        auto& identifier = internal::debug_cast<const ast::IdentifierExpression&>(expr->callee());
+        auto& identifier = gal::as<ast::IdentifierExpression>(expr->callee());
 
         if (auto overloads = resolver_.overloads(identifier.id())) {
           if (auto overload = select_overload(*expr, **overloads, expr->args_mut())) {
@@ -417,7 +426,7 @@ namespace {
 
       if (expr->callee().result().is(TT::fn_pointer)) {
         auto& callee = expr->callee();
-        auto& fn_ptr_type = internal::debug_cast<const ast::FnPointerType&>(callee.result());
+        auto& fn_ptr_type = gal::as<ast::FnPointerType>(callee.result());
 
         if (callable(callee.loc(), callee, fn_ptr_type.args(), expr->args_mut())) {
           return update_return(expr, fn_ptr_type.return_type().clone());
@@ -439,12 +448,85 @@ namespace {
 
     void visit(ast::StaticMethodCallExpression*) final {}
 
-    void visit(ast::IndexExpression*) final {}
+    void visit(ast::IndexExpression* expr) final {
+      visit_children(expr);
+
+      // may get "indirected" by the auto-deref code
+      // and then fail, in which case we still need access to it
+      auto* callee = expr->callee_mut();
+
+      if (expr->callee().result().is(TT::reference)) {
+        auto_deref(expr->callee_owner());
+      }
+
+      // while we want to get it down to just ids, ptrs and refs, we don't want to allow
+      // raw indexing into pointers without a `*`
+      if (is_indirection_to(TT::slice, expr->callee()) || is_indirection_to(TT::array, expr->callee())) {
+        unwrap_indirection(expr->callee_owner());
+      } else if (!expr->callee().result().is_one_of(TT::slice, TT::array)) {
+        auto a = type_was_err(*callee);
+        auto b = gal::point_out_part(*callee, gal::DiagnosticType::note, "tried to index here");
+        auto c = gal::point_out_list(std::move(a), std::move(b));
+
+        diagnostics_->report_emplace(46, gal::into_list(std::move(c)));
+
+        return update_return(expr, error_type());
+      }
+
+      auto args = expr->args_mut();
+
+      // there is infrastructure for multi-dimensional array
+      // lookups, but it doesn't do anything right now
+      if (args.size() != 1) {
+        auto b = gal::point_out(*expr, gal::DiagnosticType::error, "must have exactly one number in `[]`s");
+
+        diagnostics_->report_emplace(47, gal::into_list(std::move(b)));
+
+        return update_return(expr, error_type());
+      } else if (!try_make_compatible(ptr_width_int, &args.front())) {
+        auto a = type_was_note(*args.front());
+        auto b =
+            gal::point_out_part(*expr, gal::DiagnosticType::error, "cannot index into array a type other than `isize`");
+
+        diagnostics_->report_emplace(48, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
+
+        return update_return(expr, error_type());
+      }
+
+      return update_return(expr, array_type(expr->callee_mut()->result_mut())->clone());
+    }
+
+    [[nodiscard]] const ast::Type& accessed_type(const ast::Type& type) noexcept {
+      switch (type.type()) {
+        case TT::pointer: {
+          auto& p = gal::as<ast::PointerType>(type);
+
+          return p.pointed();
+        }
+        case TT::reference: {
+          auto& r = gal::as<ast::ReferenceType>(type);
+
+          return r.referenced();
+        }
+        case TT::indirection: {
+          auto& i = gal::as<ast::IndirectionType>(type);
+
+          return i.produced();
+        }
+        default: return type;
+      }
+    }
 
     void visit(ast::FieldAccessExpression* expr) final {
       visit_children(expr);
 
-      if (!expr->object().result().is(TT::user_defined)) {
+      if (expr->object().result().is(TT::reference)) {
+        auto_deref(expr->object_owner());
+      }
+
+      if (is_indirection_to(TT::user_defined, expr->object())) {
+        unwrap_indirection(expr->object_owner());
+      } else if (!expr->object().result().is(TT::user_defined)) {
         auto a = gal::point_out_list(type_was_err(expr->object()));
         auto b = gal::single_message(absl::StrCat("cannot access field `",
             expr->field_name(),
@@ -457,7 +539,8 @@ namespace {
         return update_return(expr, error_type());
       }
 
-      auto& type = internal::debug_cast<const ast::UserDefinedType&>(expr->object().result());
+      auto& held = accessed_type(expr->object().result());
+      auto& type = gal::as<ast::UserDefinedType>(held);
 
       if (auto struct_type = resolver_.struct_type(type.id())) {
         auto& decl = **struct_type;
@@ -469,11 +552,8 @@ namespace {
         if (found == fields.end()) {
           auto a = gal::point_out_part(*expr, gal::DiagnosticType::error, "field was here");
           auto b = gal::point_out_part(decl, gal::DiagnosticType::note, "referred-to type was here");
-          auto c = gal::single_message(absl::StrCat("cannot access field `",
-              expr->field_name(),
-              "` on type `",
-              gal::to_string(expr->object().result()),
-              "`"));
+          auto c = gal::single_message(
+              absl::StrCat("cannot access field `", expr->field_name(), "` on type `", gal::to_string(type), "`"));
 
           diagnostics_->report_emplace(35,
               gal::into_list(gal::point_out_list(std::move(a), std::move(b)), std::move(c)));
@@ -526,16 +606,78 @@ namespace {
           }
         }
         case ast::UnaryOp::ref_to:
-        case ast::UnaryOp::mut_ref_to:
-        case ast::UnaryOp::dereference:
+        case ast::UnaryOp::mut_ref_to: {
+          if (!lvalue(expr->expr())) {
+            auto a = type_was_note(expr->expr());
+            auto b = gal::point_out_part(*expr, gal::DiagnosticType::error, "expr was not an lvalue");
+            auto c = gal::point_out_list(std::move(a), std::move(b));
+            auto d = gal::single_message(
+                absl::StrCat("operator `", gal::unary_op_string(expr->op()), "` must have an lvalue expression"));
+
+            diagnostics_->report_emplace(43, gal::into_list(std::move(c), std::move(d)));
+
+            return update_return(expr, error_type());
+          }
+
+          if (expr->op() == ast::UnaryOp::mut_ref_to && !mut(expr->expr())) {
+            auto a = report_not_mut(expr->expr());
+            auto b = gal::point_out_part(*expr, gal::DiagnosticType::error, "cannot take ref to non-`mut` object");
+            auto c = gal::point_out_list(std::move(a), std::move(b));
+
+            diagnostics_->report_emplace(44, gal::into_list(std::move(c)));
+
+            return update_return(expr, error_type());
+          }
+
+          auto type = expr->expr().result().clone();
+          replace_self(std::make_unique<ast::AddressOfExpression>(expr->loc(), std::move(*expr->expr_owner())));
+          auto* self = self_expr();
+
+          return update_return(self,
+              std::make_unique<ast::ReferenceType>(self->loc(),
+                  expr->op() == ast::UnaryOp::mut_ref_to,
+                  std::move(type)));
+        }
+        case ast::UnaryOp::dereference: {
+          auto& type = expr->expr().result();
+
+          switch (type.type()) {
+            case TT::pointer: {
+              auto& ptr = gal::as<ast::PointerType>(type);
+
+              return update_return(expr,
+                  std::make_unique<ast::IndirectionType>(expr->loc(), ptr.pointed().clone(), mut(expr->expr())));
+            }
+            case TT::reference: {
+              auto& ref = gal::as<ast::ReferenceType>(type);
+
+              return update_return(expr,
+                  std::make_unique<ast::IndirectionType>(expr->loc(), ref.referenced().clone(), mut(expr->expr())));
+            }
+            case TT::indirection: {
+              auto& indirection = gal::as<ast::IndirectionType>(type);
+
+              return update_return(expr,
+                  std::make_unique<ast::IndirectionType>(expr->loc(), indirection.clone(), mut(expr->expr())));
+            }
+            default: {
+              auto a = type_was_note(expr->expr());
+              auto b = gal::point_out_part(*expr,
+                  gal::DiagnosticType::error,
+                  absl::StrCat("cannot dereference expression of type `", gal::to_string(expr->expr().result()), "`"));
+
+              auto c = gal::point_out_list(std::move(a), std::move(b));
+              diagnostics_->report_emplace(45, gal::into_list(std::move(c)));
+
+              return update_return(expr, error_type());
+            }
+          }
+        }
         default: assert(false); break;
       }
     }
 
     void visit(ast::BinaryExpression* expr) final {
-      // TODO: model lvalues vs. rvalues
-      // TODO: remember: IMMUTABILITY AND := !!!!
-
       visit_children(expr);
 
       switch (expr->op()) {
@@ -566,11 +708,9 @@ namespace {
         case ast::BinaryOp::lt_eq:
         case ast::BinaryOp::gt_eq: {
           if (!check_condition(expr, arithmetic, 39, "arithmetic")) {
-            return update_return(expr, error_type());
+            return;
           }
 
-          // explicitly fall through to the eq/not-eq case, we care about that too.
-          // the above are logical operators too, they just *also* require types to be integral
           [[fallthrough]];
         }
         case ast::BinaryOp::equals:
@@ -590,17 +730,55 @@ namespace {
 
           break;
         }
-        case ast::BinaryOp::assignment:
-        case ast::BinaryOp::add_eq:
-        case ast::BinaryOp::sub_eq:
-        case ast::BinaryOp::mul_eq:
-        case ast::BinaryOp::div_eq:
-        case ast::BinaryOp::mod_eq:
         case ast::BinaryOp::left_shift_eq:
         case ast::BinaryOp::right_shift_eq:
         case ast::BinaryOp::bitwise_and_eq:
         case ast::BinaryOp::bitwise_or_eq:
-        case ast::BinaryOp::bitwise_xor_eq:
+        case ast::BinaryOp::bitwise_xor_eq: {
+          if (!check_condition(expr, integral, 41, "integral")) {
+            return update_return(expr, error_type());
+          }
+
+          [[fallthrough]];
+        }
+        case ast::BinaryOp::add_eq:
+        case ast::BinaryOp::sub_eq:
+        case ast::BinaryOp::mul_eq:
+        case ast::BinaryOp::div_eq:
+        case ast::BinaryOp::mod_eq: {
+          if (!check_condition(expr, arithmetic, 41, "integral")) {
+            return;
+          }
+
+          [[fallthrough]];
+        }
+        case ast::BinaryOp::assignment: {
+          if (!lvalue(expr->lhs())) {
+            auto a = gal::point_out_list(type_was_err(expr->lhs()));
+            auto b =
+                gal::single_message("lvalues are identifiers, and the result of `*expr` on pointers and references");
+
+            diagnostics_->report_emplace(42, gal::into_list(std::move(a), std::move(b)));
+          }
+
+          if (!mut(expr->lhs())) {
+            auto a =
+                gal::point_out(expr->lhs(), gal::DiagnosticType::error, "left-hand side of assignment was not `mut`");
+            auto b = gal::single_message("cannot assign to immutable lvalue");
+
+            diagnostics_->report_emplace(49, gal::into_list(std::move(a), std::move(b)));
+          }
+
+          if (!try_make_compatible(accessed_type(expr->lhs().result()), expr->rhs_owner())) {
+            auto a = type_was_err(expr->rhs());
+            auto b = type_was_note(expr->lhs());
+            auto c = gal::point_out_list(std::move(a), std::move(b));
+
+            diagnostics_->report_emplace(50, gal::into_list(std::move(c)));
+          }
+
+          return update_return(expr, void_type(expr->loc()));
+        }
         default: assert(false); break;
       }
     }
@@ -686,12 +864,49 @@ namespace {
 
         update_return(expr, error_type());
       } else {
+        convert_intermediate(expr->true_branch_owner());
+
         update_return(expr, expr->true_branch().result().clone());
       }
     }
 
-    void visit(ast::IfElseExpression*) final {
-      // todo
+    void visit(ast::IfElseExpression* expr) final {
+      visit_children(expr);
+
+      if (!boolean(expr->condition())) {
+        auto a = gal::point_out_list(type_was_err(expr->condition()));
+
+        diagnostics_->report_emplace(15, gal::into_list(std::move(a)));
+      }
+
+      auto& type = expr->block().result();
+      auto all_same = true;
+
+      for (auto& elif : expr->elif_blocks_mut()) {
+        if (!boolean(elif.condition())) {
+          auto a = gal::point_out_list(type_was_err(elif.condition()));
+
+          diagnostics_->report_emplace(15, gal::into_list(std::move(a)));
+        }
+
+        if (!try_make_compatible(type, elif.block_owner())) {
+          all_same = false;
+        }
+      }
+
+      if (auto else_block = expr->else_block_owner()) {
+        auto* block = *else_block;
+
+        if (!try_make_compatible(type, block)) {
+          all_same = false;
+        }
+      }
+
+      if (all_same) {
+        update_return(expr, type.clone());
+      } else {
+        update_return(expr, void_type(expr->loc()));
+      }
     }
 
     void visit(ast::BlockExpression* expr) final {
@@ -700,7 +915,7 @@ namespace {
       visit_children(expr);
 
       if (auto stmts = expr->statements(); !stmts.empty() && expr->statements().back()->is(ST::expr)) {
-        auto& expr_stmt = gal::internal::debug_cast<const ast::ExpressionStatement&>(*stmts.back());
+        auto& expr_stmt = gal::as<ast::ExpressionStatement>(*stmts.back());
 
         update_return(expr, expr_stmt.expr().result().clone());
       } else {
@@ -805,7 +1020,7 @@ namespace {
         }
 
         // user will need to cast if they want something other than default with literals
-        make_integer_lit_default(*expr->value_owner());
+        convert_intermediate(*expr->value_owner());
 
         // `value` may be invalided at this point
         auto type = (*expr->value())->result().clone();
@@ -838,6 +1053,11 @@ namespace {
       assert(false);
     }
 
+    void visit(ast::LoadExpression*) final {
+      // see comment above
+      assert(false);
+    }
+
     void visit(ast::ReferenceType*) final {}
 
     void visit(ast::SliceType*) final {}
@@ -865,6 +1085,10 @@ namespace {
     void visit(ast::NilPointerType*) final {}
 
     void visit(ast::ErrorType*) final {
+      assert(false);
+    }
+
+    void visit(ast::IndirectionType*) final {
       assert(false);
     }
 
@@ -901,7 +1125,7 @@ namespace {
     [[nodiscard]] std::uint64_t builtin_size_of_bits(const ast::Type& type) noexcept {
       switch (type.type()) {
         case TT::builtin_integral: {
-          auto& builtin = internal::debug_cast<const ast::BuiltinIntegralType&>(type);
+          auto& builtin = gal::as<ast::BuiltinIntegralType>(type);
 
           if (auto width = ast::width_of(builtin.width())) {
             return static_cast<std::uint64_t>(*width) - (builtin.has_sign() ? 1 : 0);
@@ -915,7 +1139,7 @@ namespace {
           return 8;
         }
         case TT::builtin_float: {
-          auto& builtin = internal::debug_cast<const ast::BuiltinFloatType&>(type);
+          auto& builtin = gal::as<ast::BuiltinFloatType>(type);
 
           switch (builtin.width()) {
             case ast::FloatWidth::ieee_single: return 32;
@@ -936,7 +1160,54 @@ namespace {
       return 0;
     }
 
-    [[nodiscard]] static bool convertible(const ast::Type& into, const ast::Expression& expr) noexcept {
+    void unwrap_indirection(std::unique_ptr<ast::Expression>* expr) noexcept {
+      if ((*expr)->is(ET::group)) {
+        auto* group = gal::as_mut<ast::GroupExpression>(expr->get());
+
+        *expr = std::move(*group->expr_owner());
+
+        unwrap_indirection(expr);
+      } else {
+        auto* unary = gal::as_mut<ast::UnaryExpression>(expr->get());
+        (void)gal::as<ast::IndirectionType>(unary->result());
+
+        *expr = std::move(*unary->expr_owner());
+      }
+    }
+
+    [[nodiscard]] static bool is_indirection_to(TT type, const ast::Expression& expr) noexcept {
+      if (expr.result().is(TT::indirection)) {
+        auto& indirection = gal::as<ast::IndirectionType>(expr.result());
+
+        return indirection.produced().is(type);
+      }
+
+      return false;
+    }
+
+    [[nodiscard]] bool convertible(const ast::Type& into, const ast::Expression& expr) noexcept {
+      // the "implicit conversion" isn't really a conversion, it's a load. the result is the same
+      if (expr.result().is(TT::indirection)) {
+        auto& indirection = gal::as<ast::IndirectionType>(expr.result());
+
+        return indirection.produced() == into;
+      }
+
+      if (into.is(TT::slice) && expr.result().is(TT::reference)) {
+        auto& ref = gal::as<ast::ReferenceType>(expr.result());
+
+        if (ref.referenced().is(TT::array)) {
+          auto& array = gal::as<ast::ArrayType>(ref.referenced());
+          auto& slice = gal::as<ast::SliceType>(into);
+
+          if (slice.mut()) {
+            return mut(expr) && array.element_type() == slice.sliced();
+          } else {
+            return array.element_type() == slice.sliced();
+          }
+        }
+      }
+
       // we can convert the magic literal type -> integral types
       // and the magic nil type -> pointer types
       return (expr.result().is(TT::unsized_integer) && into.is_one_of(TT::builtin_integral, TT::builtin_byte))
@@ -946,8 +1217,8 @@ namespace {
     bool implicit_convert(const ast::Type& expected,
         std::unique_ptr<ast::Expression>* self,
         std::unique_ptr<ast::Expression>* expr) noexcept {
-      if (expected.is_one_of(TT::builtin_integral, TT::builtin_byte)) {
-        auto& literal = internal::debug_cast<const ast::UnsizedIntegerType&>((*expr)->result());
+      if (expected.is_one_of(TT::builtin_integral, TT::builtin_byte) && (*expr)->result().is(TT::unsized_integer)) {
+        auto& literal = gal::as<ast::UnsizedIntegerType>((*expr)->result());
 
         if (gal::ipow(std::uint64_t{2}, builtin_size_of_bits(expected)) < literal.value()) {
           auto a = gal::point_out_part(expected, gal::DiagnosticType::note, "converting based on this");
@@ -967,7 +1238,14 @@ namespace {
         }
       }
 
-      *self = std::make_unique<ast::ImplicitConversionExpression>(std::move(*expr), expected.clone());
+      if ((*expr)->result().is(TT::indirection)) {
+        unwrap_indirection(expr);
+
+        *self = std::make_unique<ast::LoadExpression>((*expr)->loc(), std::move(*expr));
+      } else {
+        *self = std::make_unique<ast::ImplicitConversionExpression>(std::move(*expr), expected.clone());
+      }
+
       (*self)->result_update(expected.clone());
 
       return true;
@@ -986,7 +1264,7 @@ namespace {
     }
 
     [[nodiscard]] static bool identical(const ast::Type& lhs, const ast::Type& rhs) noexcept {
-      return lhs == rhs;
+      return (lhs == rhs);
     }
 
     GALLIUM_X_COMPATIBLE(identical)
@@ -1015,11 +1293,84 @@ namespace {
       return arithmetic(expr.result());
     }
 
-    static bool lvalue(const ast::Expression& expr) noexcept {
-      return expr.is_one_of(ET::identifier, ET::identifier_local) || expr.result().is(TT::indirection);
+    template <typename T> bool check_mut(const ast::Expression& expr) noexcept {
+      auto& entity = gal::as<T>(expr.result());
+
+      return entity.mut();
     }
 
-    static bool rvalue(const ast::Expression& expr) noexcept {
+    [[nodiscard]] bool mut(const ast::Expression& expr) noexcept {
+      // need to check this first: an id that maps to a `mut` view type
+      // would break otherwise
+      switch (expr.result().type()) {
+        case TT::pointer: return check_mut<ast::PointerType>(expr);
+        case TT::reference: return check_mut<ast::ReferenceType>(expr);
+        case TT::indirection: return check_mut<ast::IndirectionType>(expr);
+        case TT::slice: return check_mut<ast::SliceType>(expr);
+        default: break;
+      }
+
+      switch (expr.type()) {
+        case ET::identifier: {
+          // TODO: global mut variables?
+          return false;
+        }
+        case ET::identifier_local: {
+          auto& local = gal::as<ast::LocalIdentifierExpression>(expr);
+
+          return (*resolver_.local(local.name()))->mut();
+        }
+        case ET::string_lit: {
+          // always false, string literals are read-only
+          return false;
+        }
+        case ET::field_access: {
+          auto& field_access = gal::as<ast::FieldAccessExpression>(expr);
+
+          return mut(field_access.object());
+        }
+        case ET::index: {
+          auto& index = gal::as<ast::IndexExpression>(expr);
+
+          return mut(index.callee());
+        }
+        default: break;
+      }
+
+      // default is false, temporaries and whatnot should not be able to be mutated for example
+      return false;
+    }
+
+    GALLIUM_COLD gal::PointedOut report_not_mut(const ast::Expression& expr) {
+      switch (expr.type()) {
+        case ET::identifier: {
+          auto& id = gal::as<ast::IdentifierExpression>(expr);
+
+          return gal::point_out_part((*resolver_.constant(id.id()))->loc(),
+              gal::DiagnosticType::note,
+              "name referred to this, constants are never `mut`");
+        }
+        case ET::identifier_local: {
+          auto& local = gal::as<ast::LocalIdentifierExpression>(expr);
+
+          return gal::point_out_part((*resolver_.local(local.name()))->loc(),
+              gal::DiagnosticType::note,
+              "name referred to this, local binding is not `mut`");
+        }
+        default: break;
+      }
+
+      return type_was_note(expr);
+    }
+
+    [[nodiscard]] static bool lvalue(const ast::Expression& expr) noexcept {
+      // identifiers all have some sort of address, field-access requires a struct object to exist,
+      // array-access requires the array / slice to exist, string literals are magic
+      return expr.is_one_of(ET::identifier, ET::identifier_local, ET::field_access, ET::index, ET::string_lit)
+             || expr.result().is(TT::indirection);
+    }
+
+    [[nodiscard]] static bool rvalue(const ast::Expression& expr) noexcept {
       return !lvalue(expr);
     }
 
@@ -1029,7 +1380,7 @@ namespace {
       Expr::return_value(expr->result_mut());
     }
 
-    bool check_identical(ast::BinaryExpression* expr) {
+    [[nodiscard]] bool check_identical(ast::BinaryExpression* expr) {
       auto& lhs = expr->lhs();
       auto& rhs = expr->rhs();
 
@@ -1050,13 +1401,13 @@ namespace {
       }
 
       // if one of them gets converted here, both of them will
-      make_integer_lit_default(expr->lhs_owner());
-      make_integer_lit_default(expr->rhs_owner());
+      convert_intermediate(expr->lhs_owner());
+      convert_intermediate(expr->rhs_owner());
 
       return true;
     }
 
-    bool check_condition(ast::BinaryExpression* expr,
+    [[nodiscard]] bool check_condition(ast::BinaryExpression* expr,
         bool (*pred)(const ast::Expression&),
         std::int64_t code,
         std::string_view condition_name) {
@@ -1084,31 +1435,34 @@ namespace {
       return result;
     }
 
-    bool check_binary_conditions(ast::BinaryExpression* expr,
+    [[nodiscard]] bool check_binary_conditions(ast::BinaryExpression* expr,
         bool (*pred)(const ast::Expression&),
         std::int64_t code,
         std::string_view condition_name) noexcept {
       return check_condition(expr, pred, code, condition_name) && check_identical(expr);
     }
 
-    template <typename Fn>
-    bool check_qualified_id(ast::Expression* expr, const ast::FullyQualifiedID& id, Fn f) noexcept {
+    [[nodiscard]] bool check_qualified_id(std::unique_ptr<ast::Expression>* expr,
+        const ast::FullyQualifiedID& id) noexcept {
       if (!constant_only_) {
         if (auto overloads = resolver_.overloads(id)) {
           auto& overload_set = **overloads;
           auto fns = overload_set.fns();
 
           if (fns.size() == 1) {
-            f(fn_pointer_for(fns.front().loc(), fns.front().proto()));
+            auto held = std::move(*expr);
+            *expr = std::make_unique<ast::StaticGlobalExpression>(held->loc(), fns.front().decl_base());
+            update_return(expr->get(), fn_pointer_for(fns.front().loc(), fns.front().proto()));
+
             return true;
           }
 
-          auto a = gal::point_out(*expr, gal::DiagnosticType::error, "usage was here");
+          auto a = gal::point_out(**expr, gal::DiagnosticType::error, "usage was here");
           auto b = gal::single_message(absl::StrCat("there were ", fns.size(), " potential overloads"));
 
           diagnostics_->report_emplace(19, gal::into_list(std::move(a), std::move(b)));
 
-          update_return(expr, error_type());
+          update_return(expr->get(), error_type());
           return true;
         }
       }
@@ -1116,7 +1470,10 @@ namespace {
       if (auto constant = resolver_.constant(id)) {
         auto& c = **constant;
 
-        f(c.hint().clone());
+        auto held = std::move(*expr);
+        *expr = std::make_unique<ast::StaticGlobalExpression>(held->loc(), c);
+        update_return(expr->get(), c.hint().clone());
+
         return true;
       }
 
@@ -1124,7 +1481,7 @@ namespace {
     }
 
     template <typename Arg, typename Fn = gal::Deref>
-    bool callable(const ast::SourceLoc& fn_loc,
+    [[nodiscard]] bool callable(const ast::SourceLoc& fn_loc,
         const ast::Expression& call_expr,
         absl::Span<const Arg> fn_args,
         absl::Span<std::unique_ptr<ast::Expression>> given_args,
@@ -1226,9 +1583,61 @@ namespace {
       return update_return(expr, error_type());
     }
 
-    void make_integer_lit_default(std::unique_ptr<ast::Expression>* ptr) noexcept {
-      if ((*ptr)->result().is(TT::unsized_integer)) {
+    void convert_intermediate(std::unique_ptr<ast::Expression>* ptr) noexcept {
+      if ((*ptr)->result().is(TT::indirection)) {
+        auto& indirection = gal::as<ast::IndirectionType>((*ptr)->result());
+
+        implicit_convert(*indirection.produced().clone(), ptr, ptr);
+      } else if ((*ptr)->result().is(TT::nil_pointer)) {
+        implicit_convert(byte_ptr, ptr, ptr);
+      } else if ((*ptr)->result().is(TT::unsized_integer)) {
         implicit_convert(default_int, ptr, ptr);
+      }
+    }
+
+    [[nodiscard]] static ast::Type* array_type(ast::Type* type) noexcept {
+      switch (type->type()) {
+        case TT::reference: {
+          auto* array = gal::as_mut<ast::ReferenceType>(type);
+
+          return array_type(array->referenced_mut());
+        }
+        case TT::pointer: {
+          auto* ptr = gal::as_mut<ast::PointerType>(type);
+
+          return array_type(ptr->pointed_mut());
+        }
+        case TT::slice: {
+          auto* slice = gal::as_mut<ast::SliceType>(type);
+
+          return slice->sliced_mut();
+        }
+        case TT::array: {
+          auto* slice = gal::as_mut<ast::ArrayType>(type);
+
+          return slice->element_type_mut();
+        }
+        default: assert(false); return nullptr;
+      }
+    }
+
+    std::unique_ptr<ast::Expression> dereference(std::unique_ptr<ast::Expression> expr) noexcept {
+      auto& loc = expr->loc();
+
+      auto& reference = gal::as<ast::ReferenceType>(expr->result());
+      auto is_mut = mut(*expr);
+
+      auto deref = std::make_unique<ast::UnaryExpression>(loc, ast::UnaryOp::dereference, std::move(expr));
+      deref->result_update(std::make_unique<ast::IndirectionType>(loc, reference.referenced().clone(), is_mut));
+
+      return deref;
+    }
+
+    void auto_deref(std::unique_ptr<ast::Expression>* expr) noexcept {
+      if ((*expr)->result().is(TT::reference)) {
+        auto held = std::move(*expr);
+
+        *expr = dereference(std::move(held));
       }
     }
 

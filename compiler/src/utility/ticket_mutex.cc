@@ -31,15 +31,26 @@ namespace gal {
     // lock is owned, now we release it and evaporate the pointer
     // so that it remains locked when we return
     (void)lock.release();
+
+    locked_.store(true, std::memory_order_relaxed);
   }
 
   void TicketMutex::unlock() noexcept {
     // update the current ticket number
     current_.fetch_add(1, std::memory_order_relaxed);
-
+    locked_.store(false, std::memory_order_relaxed);
     lock_.unlock();
 
     // notify all currently waiting to check the new ticket number
     waiter_.notify_all();
+  }
+
+  TicketMutex::~TicketMutex() {
+    // if `locked_` is set, a thread still holds the lock.
+    // if `current_ != count_`, multiple threads are still waiting
+    if (locked_.load(std::memory_order_relaxed)
+        || current_.load(std::memory_order_relaxed) != count_.load(std::memory_order_relaxed)) {
+      std::terminate();
+    }
   }
 } // namespace gal

@@ -44,6 +44,9 @@ namespace gal::ast {
   class LocalIdentifierExpression;
   class ImplicitConversionExpression;
   class ArrayExpression;
+  class LoadExpression;
+  class AddressOfExpression;
+  class StaticGlobalExpression;
 
   class ExpressionVisitorBase {
   public:
@@ -61,9 +64,13 @@ namespace gal::ast {
 
     virtual void visit(NilLiteralExpression*) = 0;
 
+    virtual void visit(ArrayExpression*) = 0;
+
     virtual void visit(UnqualifiedIdentifierExpression*) = 0;
 
     virtual void visit(IdentifierExpression*) = 0;
+
+    virtual void visit(StaticGlobalExpression*) = 0;
 
     virtual void visit(LocalIdentifierExpression*) = 0;
 
@@ -109,7 +116,9 @@ namespace gal::ast {
 
     virtual void visit(ImplicitConversionExpression*) = 0;
 
-    virtual void visit(ArrayExpression*) = 0;
+    virtual void visit(LoadExpression*) = 0;
+
+    virtual void visit(AddressOfExpression*) = 0;
   };
 
   class ConstExpressionVisitorBase {
@@ -128,9 +137,13 @@ namespace gal::ast {
 
     virtual void visit(const NilLiteralExpression&) = 0;
 
+    virtual void visit(const ArrayExpression&) = 0;
+
     virtual void visit(const UnqualifiedIdentifierExpression&) = 0;
 
     virtual void visit(const IdentifierExpression&) = 0;
+
+    virtual void visit(const StaticGlobalExpression&) = 0;
 
     virtual void visit(const LocalIdentifierExpression&) = 0;
 
@@ -176,7 +189,9 @@ namespace gal::ast {
 
     virtual void visit(const ImplicitConversionExpression&) = 0;
 
-    virtual void visit(const ArrayExpression&) = 0;
+    virtual void visit(const LoadExpression&) = 0;
+
+    virtual void visit(const AddressOfExpression&) = 0;
   };
 
   template <typename T> using ExpressionVisitor = ValueVisitor<T, ExpressionVisitorBase>;

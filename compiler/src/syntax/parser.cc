@@ -593,7 +593,7 @@ namespace {
                     "`")}));
           }
         } else {
-          RETURN(std::make_unique<ast::SliceType>(loc_from(ctx), std::move(type)));
+          RETURN(std::make_unique<ast::SliceType>(loc_from(ctx), ctx->mut != nullptr, std::move(type)));
         }
       } else if (ctx->ptr != nullptr) {
         auto type = parse_type(ctx->typeWithoutRef());

@@ -20,7 +20,7 @@ namespace gal::ast {
   }
 
   bool ImportDeclaration::internal_equals(const Declaration& other) const noexcept {
-    auto& result = internal::debug_cast<const ImportDeclaration&>(other);
+    auto& result = gal::as<ImportDeclaration>(other);
 
     return exported() == result.exported() && mod() == result.mod() && alias() == result.alias();
   }
@@ -38,7 +38,7 @@ namespace gal::ast {
   }
 
   bool ImportFromDeclaration::internal_equals(const Declaration& other) const noexcept {
-    auto& result = internal::debug_cast<const ImportFromDeclaration&>(other);
+    auto& result = gal::as<ImportFromDeclaration>(other);
     auto self_entities = imported_entities();
     auto other_entities = result.imported_entities();
 
@@ -68,7 +68,7 @@ namespace gal::ast {
   }
 
   bool FnDeclaration::internal_equals(const Declaration& other) const noexcept {
-    auto& result = internal::debug_cast<const FnDeclaration&>(other);
+    auto& result = gal::as<FnDeclaration>(other);
 
     return exported() == result.exported() && external() == result.external() && proto() == result.proto()
            && body() == result.body();
@@ -91,7 +91,7 @@ namespace gal::ast {
   }
 
   bool MethodDeclaration::internal_equals(const Declaration& other) const noexcept {
-    auto& result = internal::debug_cast<const MethodDeclaration&>(other);
+    auto& result = gal::as<MethodDeclaration>(other);
 
     return exported() == result.exported() && proto() == result.proto() && body() == result.body();
   }
@@ -112,7 +112,7 @@ namespace gal::ast {
   }
 
   bool StructDeclaration::internal_equals(const Declaration& other) const noexcept {
-    auto& result = internal::debug_cast<const StructDeclaration&>(other);
+    auto& result = gal::as<StructDeclaration>(other);
     auto self_fields = fields();
     auto other_fields = result.fields();
 
@@ -153,7 +153,7 @@ namespace gal::ast {
   }
 
   bool TypeDeclaration::internal_equals(const Declaration& other) const noexcept {
-    auto& result = internal::debug_cast<const TypeDeclaration&>(other);
+    auto& result = gal::as<TypeDeclaration>(other);
 
     return name() == result.name() && aliased() == result.aliased();
   }
@@ -171,7 +171,7 @@ namespace gal::ast {
   }
 
   bool ExternalFnDeclaration::internal_equals(const Declaration& other) const noexcept {
-    auto& result = internal::debug_cast<const ast::ExternalFnDeclaration&>(other);
+    auto& result = gal::as<ast::ExternalFnDeclaration>(other);
 
     return proto() == result.proto();
   }
@@ -189,7 +189,7 @@ namespace gal::ast {
   }
 
   bool ExternalDeclaration::internal_equals(const Declaration& other) const noexcept {
-    auto& result = internal::debug_cast<const ExternalDeclaration&>(other);
+    auto& result = gal::as<ExternalDeclaration>(other);
 
     return externals_ == result.externals_;
   }
@@ -207,7 +207,7 @@ namespace gal::ast {
   }
 
   bool ConstantDeclaration::internal_equals(const Declaration& other) const noexcept {
-    auto& result = internal::debug_cast<const ConstantDeclaration&>(other);
+    auto& result = gal::as<ConstantDeclaration>(other);
 
     return name() == result.name() && hint() == result.hint() && initializer() == result.initializer();
   }

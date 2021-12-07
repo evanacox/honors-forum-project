@@ -26,6 +26,8 @@ ABSL_FLAG(std::uint64_t, jobs, 1, "the number of threads that the compiler can c
 
 ABSL_FLAG(bool, colored, true, "whether or not to enable ANSI color codes in the compiler output");
 
+ABSL_FLAG(bool, demangle, false, "whether or not to treat all files as symbols to demangle");
+
 namespace {
   std::optional<gal::OptLevel> parse_opt() noexcept {
     static absl::flat_hash_map<std::string_view, gal::OptLevel> lookup{
@@ -77,6 +79,7 @@ namespace {
     auto debug = absl::GetFlag(FLAGS_debug);
     auto verbose = absl::GetFlag(FLAGS_verbose);
     auto colored = absl::GetFlag(FLAGS_colored);
+    auto demangle = absl::GetFlag(FLAGS_demangle);
     auto emit = parse_emit();
     auto opt = parse_opt();
 
@@ -84,7 +87,7 @@ namespace {
       std::abort();
     }
 
-    return gal::CompilerConfig(jobs, *opt, *emit, debug, verbose, colored);
+    return gal::CompilerConfig(jobs, *opt, *emit, debug, verbose, colored, demangle);
   }
 } // namespace
 
@@ -94,13 +97,15 @@ namespace gal {
       OutputFormat emit,
       bool debug,
       bool verbose,
-      bool colored) noexcept
+      bool colored,
+      bool demangle) noexcept
       : jobs_{jobs},
         opt_level_{opt},
         format_{emit},
         debug_{debug},
         verbose_{verbose},
-        colored_{colored} {}
+        colored_{colored},
+        demangle_{demangle} {}
 
   const CompilerConfig& flags() noexcept {
     static CompilerConfig config = generate_config();

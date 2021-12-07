@@ -306,14 +306,14 @@ namespace gal::ast {
     ///
     /// \return The assertion message
     [[nodiscard]] const StringLiteralExpression& message() const noexcept {
-      return internal::debug_cast<const StringLiteralExpression&>(*message_);
+      return gal::as<StringLiteralExpression>(*message_);
     }
 
     /// Gets the message that the assertion was given
     ///
     /// \return The assertion message
     [[nodiscard]] StringLiteralExpression* message_mut() noexcept {
-      return internal::debug_cast<StringLiteralExpression*>(message_.get());
+      return gal::as_mut<StringLiteralExpression>(message_.get());
     }
 
     /// Gets the message that the assertion was given
