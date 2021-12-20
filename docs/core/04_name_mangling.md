@@ -71,12 +71,12 @@ Here are some examples of mangled symbol names, and the entity that they map to:
 |---------------------------------------------------------------------------------|-----------------------------------------------|
 | `fn ::foo(i32, i64) -> void`                                                    | `_GF3fooNlmEv`                                |
 | `fn ::square(isize, isize) throws -> isize`                                     | `_GF6squareTooEo`                             |
-| `fn ::read_file(&::core::fs::Path) throws -> ::core::String`                    | `_GF9read_fileTR4core2fsS4PathE4coreS6String` |
+| `fn ::read_file(&::core::fs::Path) throws -> ::core::String`                    | `_GF9read_fileTR4core2fsU4PathE4coreU6String` |
 | `fn ::core::mem::copy(*const byte, *mut byte) -> void`                          | `_G4core3memF4copyNPaQaEv`                    |
 | `fn ::__arch::__amd64::__save_fpu_state() -> void`                              | `_G6__arch7__amd64F16__save_fpu_stateNEv`     |
 | `const ::core::math::pi: f64`                                                   | `_G4core4mathC2piq`                           |
 | `const ::n_threads: usize`                                                      | `_GC9n_threadsi`                              |
-| `fn ::whatever(&::long::Name, &::LongType, ::long::Name) throws -> ::LongType`  | `_GF8whateverTR4longS4NameRS8LongTypeZ0_EZ1_` |
+| `fn ::whatever(&::long::Name, &::LongType, ::long::Name) throws -> ::LongType`  | `_GF8whateverTR4longU4NameRU8LongTypeZ0_EZ1_` |
 
 ### Pattern
 *MangledName* := `_G` *ModulePrefix* (*FnPattern* | *ConstantPattern*) 
