@@ -106,8 +106,8 @@ namespace {
   };
 
   template <typename Fn>
-  void walk_module_tree(gal::internal::ModuleTable* node, Fn f, std::string module = "::") noexcept {
-    f(std::string_view{module}, &node->env);
+  void walk_module_tree(gal::internal::ModuleTable* node, Fn f, std::string_view module = "::") noexcept {
+    f(module, &node->env);
 
     for (auto& [key, value] : node->nested) {
       walk_module_tree(value.get(), f, absl::StrCat(module, "::", key));
@@ -120,7 +120,8 @@ namespace {
     switch (entity->decl().type()) {
       case ast::DeclType::struct_decl: [[fallthrough]];
       case ast::DeclType::class_decl: {
-        *entity->type_owner() = std::make_unique<ast::UserDefinedType>(entity->decl().loc(), std::move(id));
+        *entity->type_owner() =
+            std::make_unique<ast::UserDefinedType>(entity->decl().loc(), entity->decl_mut(), std::move(id));
         break;
       }
       case ast::DeclType::type_decl: {

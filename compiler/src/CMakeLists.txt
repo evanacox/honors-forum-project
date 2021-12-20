@@ -15,9 +15,13 @@ set(GALLIUM_AST_FILES
         ast/nodes/type.cc)
 
 set(GALLIUM_ERRORS_FILES
-        errors/console_reporter.cc errors/diagnostics.cc errors/reporter.cc)
+        errors/console_reporter.cc
+        errors/diagnostics.cc
+        errors/reporter.cc)
 
 set(GALLIUM_CORE_FILES
+        core/generator/code_generator.cc
+        core/generator/variable_resolver.cc
         core/codegen.cc
         core/environment.cc
         core/typechecker.cc
@@ -33,7 +37,7 @@ set(GALLIUM_UTILITY_FILES
 
 set(GALLIUM_SYNTAX_FILES
         syntax/parser.cc
-        syntax/parse_errors.cc errors/console_reporter.h errors/reporter.h errors/diagnostics.h)
+        syntax/parse_errors.cc)
 
 set(GALLIUM_ANTLR4_GENERATED_DIR ${CMAKE_BINARY_DIR}/antlr4/generated)
 

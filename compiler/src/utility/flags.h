@@ -105,7 +105,7 @@ namespace gal {
     ///
     /// \return Whether or not to treat all files as symbols to demangle
     [[nodiscard]] constexpr bool demangle() const noexcept {
-      return colored_;
+      return demangle_;
     }
 
   private:

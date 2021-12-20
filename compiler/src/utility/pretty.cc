@@ -48,7 +48,7 @@ namespace {
       print_initial(colors::bold_red("import-from decl"));
       print_member("exported: ", lit_str(node.exported()));
       print_last_list("entities", node.imported_entities(), [this](const ast::FullyQualifiedID& entity) {
-        print_initial(entity.to_string());
+        print_initial(entity.as_string());
       });
     }
 
@@ -175,7 +175,7 @@ namespace {
 
     void visit(const ast::IdentifierExpression& node) final {
       print_expr("id", node);
-      print_member("fully-qualified: ", id_str(node.id().to_string()));
+      print_member("fully-qualified: ", id_str(node.id().as_string()));
       print_last_member("name: ", id_str(node.id().name()));
     }
 
@@ -228,7 +228,7 @@ namespace {
 
     void visit(const ast::StaticCallExpression& node) final {
       print_expr("static-call", node);
-      print_member("fn: ", id_str(node.id().to_string()));
+      print_member("fn: ", id_str(node.id().as_string()));
       print_last_list("args: ", node.args(), [this](const std::unique_ptr<ast::Expression>& ptr) {
         print_initial("argument");
         accept_last_member("value: ", *ptr);
@@ -461,7 +461,7 @@ namespace {
     }
 
     void visit(const ast::UserDefinedType& node) final {
-      return_value(absl::StrCat(colors::code_green, "`", node.id().to_string(), "`", colors::code_reset));
+      return_value(absl::StrCat(colors::code_green, "`", node.id().as_string(), "`", colors::code_reset));
     }
 
     void visit(const ast::FnPointerType& node) final {
@@ -493,7 +493,7 @@ namespace {
       return_value(absl::StrCat(colors::code_green,
           colors::magenta("dyn"),
           " `",
-          node.id().to_string(),
+          node.id().as_string(),
           "`",
           colors::code_reset));
     }
@@ -796,7 +796,7 @@ namespace {
     }
 
     void visit(const ast::UserDefinedType& type) final {
-      return_value(type.id().to_string());
+      return_value(type.id().as_string());
     }
 
     void visit(const ast::FnPointerType& type) final {
@@ -812,7 +812,7 @@ namespace {
     }
 
     void visit(const ast::DynInterfaceType& type) final {
-      return_value(absl::StrCat("dyn ", type.id().to_string()));
+      return_value(absl::StrCat("dyn ", type.id().as_string()));
     }
 
     void visit(const ast::VoidType&) final {

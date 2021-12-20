@@ -588,17 +588,33 @@ namespace gal::ast {
     /// \param id The identifier
     /// \param generic_params Any generic parameters
     explicit UserDefinedType(SourceLoc loc,
+        class Declaration* decl,
         FullyQualifiedID id,
         std::vector<std::unique_ptr<Type>> generic_params = {}) noexcept
         : Type(std::move(loc), TypeType::user_defined),
-          name_{std::move(id)},
+          decl_{decl},
+          id_{std::move(id)},
           generic_params_{std::move(generic_params)} {}
 
-    /// Gets the fully qualified ID
+    /// Gets the ID of the type
     ///
-    /// \return The ID
+    /// \return The ID of the type
     [[nodiscard]] const FullyQualifiedID& id() const noexcept {
-      return name_;
+      return id_;
+    }
+
+    /// Gets the declaration that the type is referring to
+    ///
+    /// \return The decl
+    [[nodiscard]] const Declaration& decl() const noexcept {
+      return *decl_;
+    }
+
+    /// Gets the declaration that the type is referring to
+    ///
+    /// \return The decl
+    [[nodiscard]] Declaration* decl_mut() noexcept {
+      return decl_;
     }
 
     /// Gets the list of generic parameters
@@ -644,7 +660,8 @@ namespace gal::ast {
     [[nodiscard]] std::unique_ptr<Type> internal_clone() const noexcept final;
 
   private:
-    FullyQualifiedID name_;
+    Declaration* decl_;
+    FullyQualifiedID id_;
     std::vector<std::unique_ptr<Type>> generic_params_;
   };
 

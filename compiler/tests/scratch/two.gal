@@ -1,0 +1,12 @@
+fn test(x: i32) -> void {
+    x + 5
+}
+
+fn lol() -> void {
+    let a = [1, 2, 3, 4, 5]
+    let b: [i64] = &a
+}
+
+const pi: f64 = 3.141592
+const g: i32 = 12
+const l: [u8] = "Hello"

@@ -9,6 +9,7 @@
 //======---------------------------------------------------------------======//
 
 #include "./type.h"
+#include "./declaration.h"
 
 namespace gal::ast {
   void ReferenceType::internal_accept(TypeVisitorBase* visitor) {
@@ -185,12 +186,12 @@ namespace gal::ast {
   bool UserDefinedType::internal_equals(const Type& other) const noexcept {
     auto& result = gal::as<UserDefinedType>(other);
 
-    return id() == result.id()
+    return decl() == result.decl() && id() == result.id()
            && gal::unwrapping_equal(generic_params(), result.generic_params(), internal::GenericArgsCmp{});
   }
 
   std::unique_ptr<Type> UserDefinedType::internal_clone() const noexcept {
-    return std::make_unique<UserDefinedType>(loc(), id(), internal::clone_generics(generic_params_));
+    return std::make_unique<UserDefinedType>(loc(), decl_, id(), internal::clone_generics(generic_params_));
   }
 
   void FnPointerType::internal_accept(TypeVisitorBase* visitor) {
@@ -230,7 +231,7 @@ namespace gal::ast {
   }
 
   std::unique_ptr<Type> DynInterfaceType::internal_clone() const noexcept {
-    return std::make_unique<UserDefinedType>(loc(), id(), internal::clone_generics(generic_params_));
+    return std::make_unique<DynInterfaceType>(loc(), id(), internal::clone_generics(generic_params_));
   }
 
   void UnqualifiedDynInterfaceType::internal_accept(TypeVisitorBase* visitor) {

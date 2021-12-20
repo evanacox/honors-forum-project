@@ -138,9 +138,10 @@ namespace gal::ast {
     ///
     /// \param mod The module the entity is a part of
     /// \param id The name of the entity
-    explicit FullyQualifiedID(std::string module_string, std::string id) noexcept
-        : module_string_{std::move(module_string)},
-          id_{std::move(id)} {}
+    explicit FullyQualifiedID(std::string_view module_string, std::string_view id) noexcept
+        : full_string_{absl::StrCat(module_string, id)},
+          module_string_{std::string_view{full_string_}.substr(0, module_string.size())},
+          id_{std::string_view{full_string_}.substr(module_string.size() - 1)} {}
 
     /// Gets the name of the entity
     ///
@@ -159,8 +160,8 @@ namespace gal::ast {
     /// Gets a string representation of the identifier
     ///
     /// \return A string representation of the identifier
-    [[nodiscard]] std::string to_string() const noexcept {
-      return absl::StrCat(module_string_, id_);
+    [[nodiscard]] std::string_view as_string() const noexcept {
+      return full_string_;
     }
 
     /// Compares two FullyQualifiedID for equality
@@ -175,8 +176,11 @@ namespace gal::ast {
     }
 
   private:
-    std::string module_string_;
-    std::string id_;
+    // contains `to_string` result, the other two literally just point at the two
+    // parts of `full_string_` so lifetime issues never happen
+    std::string full_string_;
+    std::string_view module_string_;
+    std::string_view id_;
   };
 
   /// Transforms a moduleID into an unqualified identifier

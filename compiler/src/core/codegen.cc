@@ -9,5 +9,16 @@
 //======---------------------------------------------------------------======//
 
 #include "./codegen.h"
+#include "../ast/visitors.h"
+#include "./generator/code_generator.h"
+#include "absl/container/flat_hash_map.h"
 
-namespace gal {}
+namespace ast = gal::ast;
+
+namespace gal {
+  std::unique_ptr<llvm::Module> codegen(llvm::LLVMContext* context,
+      const ast::Program& program,
+      const llvm::DataLayout& layout) noexcept {
+    return backend::CodeGenerator(context, program, layout).codegen();
+  }
+} // namespace gal
