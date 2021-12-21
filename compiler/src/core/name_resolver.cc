@@ -27,7 +27,7 @@ namespace {
 
     void visit(ast::UnqualifiedUserDefinedType* type) final {
       if (auto qualified = resolver_->qualified_for(type->id())) {
-        auto& [id, env] = *qualified;
+        auto id = std::move(qualified->first);
 
         if (auto actual_type = resolver_->type(id)) {
           replace_self((*actual_type)->clone());
@@ -68,7 +68,7 @@ namespace {
       // and we just need to make a fully-qualified one
       if (auto prefix = identifier->id().prefix()) {
         if (auto qualified = resolver_->qualified_for(identifier->id())) {
-          auto& [id, env] = *qualified;
+          auto id = std::move(qualified->first);
 
           if (auto _ = resolver_->constant(id)) {
             replace_self(std::make_unique<ast::IdentifierExpression>(identifier->loc(), std::move(id)));
@@ -115,7 +115,7 @@ namespace {
   }
 
   void annotate_type(gal::GlobalEntity* entity, std::string_view module) noexcept {
-    auto id = ast::FullyQualifiedID(std::string{module}, std::string{entity->name()});
+    auto id = ast::FullyQualifiedID(module, entity->name());
 
     switch (entity->decl().type()) {
       case ast::DeclType::struct_decl: [[fallthrough]];
@@ -263,7 +263,7 @@ namespace gal {
     }
 
     if (table->env.contains_any(id.name())) {
-      auto full_id = ast::FullyQualifiedID(std::move(s), std::string{id.name()});
+      auto full_id = ast::FullyQualifiedID(s, id.name());
 
       return std::pair{std::move(full_id), &table->env};
     }

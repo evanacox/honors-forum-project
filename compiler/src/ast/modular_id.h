@@ -141,7 +141,31 @@ namespace gal::ast {
     explicit FullyQualifiedID(std::string_view module_string, std::string_view id) noexcept
         : full_string_{absl::StrCat(module_string, id)},
           module_string_{std::string_view{full_string_}.substr(0, module_string.size())},
-          id_{std::string_view{full_string_}.substr(module_string.size() - 1)} {}
+          id_{std::string_view{full_string_}.substr(module_string.size())} {}
+
+    FullyQualifiedID(const FullyQualifiedID& other) noexcept : full_string_{other.full_string_} {
+      initialize_parts(other.module_string_);
+    }
+
+    FullyQualifiedID(FullyQualifiedID&& other) noexcept : full_string_{std::move(other.full_string_)} {
+      initialize_parts(other.module_string_);
+    }
+
+    FullyQualifiedID& operator=(const FullyQualifiedID& other) noexcept {
+      full_string_ = other.full_string_;
+
+      initialize_parts(other.module_string_);
+
+      return *this;
+    }
+
+    FullyQualifiedID& operator=(FullyQualifiedID&& other) noexcept {
+      full_string_ = std::move(other.full_string_);
+
+      initialize_parts(other.module_string_);
+
+      return *this;
+    }
 
     /// Gets the name of the entity
     ///
@@ -176,6 +200,11 @@ namespace gal::ast {
     }
 
   private:
+    void initialize_parts(std::string_view module) noexcept {
+      module_string_ = std::string_view{full_string_}.substr(0, module.size());
+      id_ = std::string_view{full_string_}.substr(module.size());
+    }
+
     // contains `to_string` result, the other two literally just point at the two
     // parts of `full_string_` so lifetime issues never happen
     std::string full_string_;
