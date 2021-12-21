@@ -15,15 +15,9 @@ namespace gal::backend {
   VariableResolver::VariableResolver(llvm::IRBuilder<>* builder) noexcept : builder_{builder} {}
 
   llvm::Value* VariableResolver::get(std::string_view name) noexcept {
-    if (auto it = parameters_.find(name); it != parameters_.end()) {
-      return it->second;
-    }
-
     for (auto& scope : gal::reverse(scopes_)) {
       if (auto it = scope.find(name); it != scope.end()) {
-        auto* address = it->second;
-
-        return builder_->CreateLoad(address);
+        return it->second;
       }
     }
 
@@ -49,13 +43,5 @@ namespace gal::backend {
     for (auto& [_, value] : scope) {
       builder_->CreateLifetimeEnd(value);
     }
-  }
-
-  void VariableResolver::set_param(std::string_view name, llvm::Value* value) noexcept {
-    parameters_.emplace(std::string{name}, value);
-  }
-
-  void VariableResolver::clear_params() noexcept {
-    parameters_.clear();
   }
 } // namespace gal::backend

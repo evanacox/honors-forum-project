@@ -12,6 +12,7 @@
 
 #include "../../ast/program.h"
 #include "../../ast/visitors.h"
+#include "./variable_resolver.h"
 #include "absl/container/flat_hash_map.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
@@ -24,22 +25,15 @@ namespace gal::backend {
   class CodeGenerator final : public ast::AnyConstVisitor<void, llvm::Value*, void, llvm::Type*> {
     using Type = ast::ConstTypeVisitor<llvm::Type*>;
     using Expr = ast::ConstExpressionVisitor<llvm::Value*>;
-    using Stmt = ast::ConstStatementVisitor<void>;
-    using Decl = ast::ConstDeclarationVisitor<void>;
 
   public:
     explicit CodeGenerator(llvm::LLVMContext* context,
         const ast::Program& program,
-        const llvm::DataLayout& layout) noexcept
-        : program_{program},
-          layout_{layout},
-          context_{context},
-          module_{std::make_unique<llvm::Module>("main", *context_)},
-          builder_{std::make_unique<llvm::IRBuilder<>>(*context_)} {}
+        const llvm::DataLayout& layout) noexcept;
 
     std::unique_ptr<llvm::Module> codegen() noexcept;
 
-    llvm::Function* codegen_proto(const ast::FnPrototype& proto, std::string_view name, bool external) noexcept;
+    llvm::Function* codegen_proto(const ast::FnPrototype& proto, std::string_view name) noexcept;
 
     void visit(const ast::ImportDeclaration& declaration) final;
 
@@ -187,13 +181,14 @@ namespace gal::backend {
 
     llvm::Type* slice_of(llvm::Type* type) noexcept;
 
-    llvm::Type* array_of(llvm::Type* type, std::uint64_t length) noexcept;
-
     llvm::Type* map_type(const ast::Type& type) noexcept;
 
     llvm::Type* struct_for(const ast::UserDefinedType& type) noexcept;
 
-    std::size_t field_index(const ast::UserDefinedType& type, std::string_view name) noexcept;
+    llvm::Type* array_of(llvm::Type* type, std::uint64_t length) noexcept;
+
+    // int32_t because LLVM GEPs for field indices must be 32-bit constants
+    std::int32_t field_index(const ast::UserDefinedType& type, std::string_view name) noexcept;
 
   private:
     llvm::SmallVector<std::pair<llvm::Type*, std::string_view>, 8> from_structure(
@@ -206,6 +201,14 @@ namespace gal::backend {
 
     llvm::Constant* into_constant(llvm::Type* type, const ast::Expression& expr) noexcept;
 
+    llvm::Constant* int64_constant(std::int64_t value) noexcept;
+
+    llvm::Constant* int32_constant(std::int32_t value) noexcept;
+
+    llvm::Value* codegen_into_reg(const ast::Expression& expr, llvm::Type* type) noexcept;
+
+    llvm::Value* codegen_into_reg(const ast::Expression& expr) noexcept;
+
     const ast::Program& program_;
     const llvm::DataLayout& layout_;
     std::size_t curr_label_ = 0;
@@ -213,9 +216,11 @@ namespace gal::backend {
     llvm::LLVMContext* context_;
     std::unique_ptr<llvm::Module> module_;
     std::unique_ptr<llvm::IRBuilder<>> builder_;
+    VariableResolver variables_;
     absl::flat_hash_map<std::string, llvm::Constant*> string_literals_;
     absl::flat_hash_map<std::string, llvm::Type*> user_types_; // map of `struct name -> LLVM struct`
     absl::flat_hash_map<std::string, std::vector<std::string_view>>
         user_type_mapping_; // `struct name -> [field name]`, the index of the field name = index in the llvm type
+    bool want_loaded_ = false;
   };
 } // namespace gal::backend

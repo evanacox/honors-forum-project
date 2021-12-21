@@ -9,6 +9,10 @@
 //======---------------------------------------------------------------======//
 
 #include "./code_generator.h"
+#include "../name_resolver.h"
+#include "../typechecker.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_replace.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APSInt.h"
@@ -185,13 +189,21 @@ namespace {
 } // namespace
 
 namespace gal::backend {
+  CodeGenerator::CodeGenerator(llvm::LLVMContext* context,
+      const ast::Program& program,
+      const llvm::DataLayout& layout) noexcept
+      : program_{program},
+        layout_{layout},
+        context_{context},
+        module_{std::make_unique<llvm::Module>("main", *context_)},
+        builder_{std::make_unique<llvm::IRBuilder<>>(*context_)},
+        variables_{builder_.get()} {}
+
   std::unique_ptr<llvm::Module> CodeGenerator::codegen() noexcept {
     return std::move(module_);
   }
 
-  llvm::Function* CodeGenerator::codegen_proto(const ast::FnPrototype& proto,
-      std::string_view name,
-      bool external) noexcept {
+  llvm::Function* CodeGenerator::codegen_proto(const ast::FnPrototype& proto, std::string_view name) noexcept {
     auto arg_types = std::vector<llvm::Type*>{};
 
     for (auto& arg : proto.args()) {
@@ -199,13 +211,7 @@ namespace gal::backend {
     }
 
     auto* function_type = llvm::FunctionType::get(proto.return_type().accept(this), arg_types, false);
-    auto* fn = llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, llvm::Twine(name), module_.get());
-
-    if (external) {
-      fn->setCallingConv(llvm::CallingConv::C);
-    } else {
-      fn->setCallingConv(llvm::CallingConv::Fast);
-    }
+    auto* fn = llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, name, module_.get());
 
     return fn;
   }
@@ -215,9 +221,15 @@ namespace gal::backend {
   void CodeGenerator::visit(const ast::ImportFromDeclaration&) {}
 
   void CodeGenerator::visit(const ast::FnDeclaration& declaration) {
-    auto* fn = codegen_proto(declaration.proto(), declaration.mangled_name(), declaration.external());
+    auto* fn = codegen_proto(declaration.proto(), declaration.mangled_name());
     auto* entry = llvm::BasicBlock::Create(*context_, "entry", fn);
     builder_->SetInsertPoint(entry);
+
+    // copy all args onto stack, so we don't have to special-case when trying to extract from params or whatever
+    for (auto& arg : fn->args()) {
+      auto* alloca = builder_->CreateAlloca(arg.getType());
+      builder_->CreateStore(&arg, alloca);
+    }
   }
 
   void CodeGenerator::visit(const ast::StructDeclaration&) {}
@@ -229,7 +241,7 @@ namespace gal::backend {
   void CodeGenerator::visit(const ast::MethodDeclaration&) {}
 
   void CodeGenerator::visit(const ast::ExternalFnDeclaration& declaration) {
-    codegen_proto(declaration.proto(), declaration.mangled_name(), true);
+    codegen_proto(declaration.proto(), declaration.mangled_name());
   }
 
   void CodeGenerator::visit(const ast::ExternalDeclaration& declaration) {
@@ -239,8 +251,8 @@ namespace gal::backend {
   }
 
   void CodeGenerator::visit(const ast::ConstantDeclaration& declaration) {
-    auto* type = static_cast<llvm::Type*>(nullptr);
-    auto* initializer = static_cast<llvm::Constant*>(nullptr);
+    auto* type = map_type(declaration.hint());
+    auto* initializer = into_constant(type, declaration.initializer());
     auto* constant = module_->getOrInsertGlobal(declaration.mangled_name(), type);
 
     llvm::cast<llvm::GlobalVariable>(constant)->setInitializer(initializer);
@@ -352,13 +364,15 @@ namespace gal::backend {
 
   void CodeGenerator::visit(const ast::ArrayExpression& expression) {
     auto* type = expression.result().accept(this);
+    auto* element_type = llvm::cast<llvm::ArrayType>(type)->getElementType();
     auto* alloca = builder_->CreateAlloca(type);
     auto count = 0;
 
     for (const auto& expr : expression.elements()) {
       auto* val = expr->accept(this);
 
-      auto* ptr = builder_->CreateGEP(alloca,
+      auto* ptr = builder_->CreateGEP(element_type,
+          alloca,
           {llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context_), 0),
               llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context_), count++)});
 
@@ -378,64 +392,112 @@ namespace gal::backend {
 
   void CodeGenerator::visit(const ast::StaticGlobalExpression& expression) {
     auto& decl = gal::as<ast::ConstantDeclaration>(expression.decl());
-    auto* global = module_->getOrInsertGlobal(decl.mangled_name(), map_type(expression.result()));
+    auto* type = map_type(decl.hint());
+    auto* global = module_->getGlobalVariable(decl.mangled_name());
 
-    Expr::return_value(builder_->CreateLoad(global));
+    Expr::return_value(builder_->CreateLoad(type, global));
   }
 
-  void CodeGenerator::visit(const ast::LocalIdentifierExpression& expression) {}
+  void CodeGenerator::visit(const ast::LocalIdentifierExpression& expression) {
+    Expr::return_value(variables_.get(expression.name()));
+  }
 
-  void CodeGenerator::visit(const ast::StructExpression& expression) {}
+  void CodeGenerator::visit(const ast::StructExpression& expression) {
+    auto* type = map_type(expression.result());
+    auto* alloca = builder_->CreateAlloca(type);
 
-  void CodeGenerator::visit(const ast::CallExpression& expression) {}
+    for (auto& field : expression.fields()) {
+      auto* initializer = codegen_into_reg(field.init());
+      auto* gep = builder_->CreateGEP(type,
+          alloca,
+          {int64_constant(0),
+              int32_constant(field_index(gal::as<ast::UserDefinedType>(expression.result()), field.name()))});
 
-  void CodeGenerator::visit(const ast::StaticCallExpression& expression) {}
+      builder_->CreateStore(initializer, gep);
+    }
 
-  void CodeGenerator::visit(const ast::MethodCallExpression& expression) {}
+    Expr::return_value(alloca);
+  }
 
-  void CodeGenerator::visit(const ast::StaticMethodCallExpression& expression) {}
+  void CodeGenerator::visit(const ast::CallExpression& expression) {
+    auto* fn_type = map_type(expression.result());
+    auto* callee = codegen_into_reg(expression.callee(), fn_type);
+    auto args = llvm::SmallVector<llvm::Value*, 8>{};
 
-  void CodeGenerator::visit(const ast::IndexExpression& expression) {}
+    for (auto& arg : expression.args()) {
+      args.push_back(codegen_into_reg(*arg));
+    }
 
-  void CodeGenerator::visit(const ast::FieldAccessExpression& expression) {}
+    Expr::return_value(builder_->CreateCall(llvm::cast<llvm::FunctionType>(fn_type), callee, args));
+  }
 
-  void CodeGenerator::visit(const ast::GroupExpression& expression) {}
+  void CodeGenerator::visit(const ast::StaticCallExpression& expression) {
+    auto args_types = llvm::SmallVector<llvm::Type*, 8>{};
+    auto args = llvm::SmallVector<llvm::Value*, 8>{};
 
-  void CodeGenerator::visit(const ast::UnaryExpression& expression) {}
+    for (auto& expr : expression.args()) {
+      auto* type = map_type(expr->result());
+      args_types.push_back(type);
+      args.push_back(codegen_into_reg(*expr, type));
+    }
 
-  void CodeGenerator::visit(const ast::BinaryExpression& expression) {}
+    auto name = std::visit(
+        [](auto* decl) {
+          return decl->mangled_name();
+        },
+        expression.callee().decl());
 
-  void CodeGenerator::visit(const ast::CastExpression& expression) {}
+    auto* fn = module_->getFunction(name);
+    Expr::return_value(builder_->CreateCall(fn, args));
+  }
 
-  void CodeGenerator::visit(const ast::IfThenExpression& expression) {}
+  void CodeGenerator::visit(const ast::MethodCallExpression&) {}
 
-  void CodeGenerator::visit(const ast::IfElseExpression& expression) {}
+  void CodeGenerator::visit(const ast::StaticMethodCallExpression&) {}
 
-  void CodeGenerator::visit(const ast::BlockExpression& expression) {}
+  void CodeGenerator::visit(const ast::IndexExpression&) {
+    //
+  }
 
-  void CodeGenerator::visit(const ast::LoopExpression& expression) {}
+  void CodeGenerator::visit(const ast::FieldAccessExpression&) {}
 
-  void CodeGenerator::visit(const ast::WhileExpression& expression) {}
+  void CodeGenerator::visit(const ast::GroupExpression&) {}
 
-  void CodeGenerator::visit(const ast::ForExpression& expression) {}
+  void CodeGenerator::visit(const ast::UnaryExpression&) {}
 
-  void CodeGenerator::visit(const ast::ReturnExpression& expression) {}
+  void CodeGenerator::visit(const ast::BinaryExpression&) {}
 
-  void CodeGenerator::visit(const ast::BreakExpression& expression) {}
+  void CodeGenerator::visit(const ast::CastExpression&) {}
 
-  void CodeGenerator::visit(const ast::ContinueExpression& expression) {}
+  void CodeGenerator::visit(const ast::IfThenExpression&) {}
 
-  void CodeGenerator::visit(const ast::ImplicitConversionExpression& expression) {}
+  void CodeGenerator::visit(const ast::IfElseExpression&) {}
 
-  void CodeGenerator::visit(const ast::LoadExpression& expression) {}
+  void CodeGenerator::visit(const ast::BlockExpression&) {}
 
-  void CodeGenerator::visit(const ast::AddressOfExpression& expression) {}
+  void CodeGenerator::visit(const ast::LoopExpression&) {}
 
-  void CodeGenerator::visit(const ast::BindingStatement& statement) {}
+  void CodeGenerator::visit(const ast::WhileExpression&) {}
 
-  void CodeGenerator::visit(const ast::ExpressionStatement& statement) {}
+  void CodeGenerator::visit(const ast::ForExpression&) {}
 
-  void CodeGenerator::visit(const ast::AssertStatement& statement) {}
+  void CodeGenerator::visit(const ast::ReturnExpression&) {}
+
+  void CodeGenerator::visit(const ast::BreakExpression&) {}
+
+  void CodeGenerator::visit(const ast::ContinueExpression&) {}
+
+  void CodeGenerator::visit(const ast::ImplicitConversionExpression&) {}
+
+  void CodeGenerator::visit(const ast::LoadExpression&) {}
+
+  void CodeGenerator::visit(const ast::AddressOfExpression&) {}
+
+  void CodeGenerator::visit(const ast::BindingStatement&) {}
+
+  void CodeGenerator::visit(const ast::ExpressionStatement&) {}
+
+  void CodeGenerator::visit(const ast::AssertStatement&) {}
 
   std::string CodeGenerator::label_name() noexcept {
     return absl::StrCat(".L", gal::to_digits(curr_label_++));
@@ -465,7 +527,9 @@ namespace gal::backend {
   }
 
   llvm::Type* CodeGenerator::slice_of(llvm::Type* type) noexcept {
-    return llvm::StructType::get(*context_, {native_type(), type});
+    auto* slice = llvm::StructType::get(*context_, {native_type(), type});
+    slice->setName("slice");
+    return slice;
   }
 
   llvm::Type* CodeGenerator::array_of(llvm::Type* type, std::uint64_t length) noexcept {
@@ -566,19 +630,23 @@ namespace gal::backend {
 
     auto fields = from_structure(gal::as<ast::StructDeclaration>(type.decl()));
     auto* llvm_type = struct_from(fields);
+    llvm::cast<llvm::StructType>(llvm_type)->setName(
+        absl::StrCat("struct", absl::StrReplaceAll(entity, {{"::", "."}})));
 
     user_types_.emplace(std::string{entity}, llvm_type);
     create_user_type_mapping(entity, fields);
+
+    return llvm_type;
   }
 
-  std::size_t CodeGenerator::field_index(const ast::UserDefinedType& type, std::string_view name) noexcept {
+  std::int32_t CodeGenerator::field_index(const ast::UserDefinedType& type, std::string_view name) noexcept {
     (void)struct_for(type);
 
     // default construct and then insert in
     auto& result = user_type_mapping_[type.id().as_string()];
 
     // the index of `name` is the index in the LLVM type of that field
-    return std::distance(result.begin(), std::find(result.begin(), result.end(), name));
+    return static_cast<std::int32_t>(std::distance(result.begin(), std::find(result.begin(), result.end(), name)));
   }
 
   llvm::SmallVector<std::pair<llvm::Type*, std::string_view>, 8> CodeGenerator::from_structure(
@@ -594,6 +662,8 @@ namespace gal::backend {
     std::stable_sort(fields.begin(), fields.end(), [this](const TypeNamePair& lhs, const TypeNamePair& rhs) {
       return layout_.getTypeAllocSize(lhs.first).getFixedSize() < layout_.getTypeAllocSize(rhs.first).getFixedSize();
     });
+
+    return fields;
   }
 
   void CodeGenerator::create_user_type_mapping(std::string_view entity,
@@ -620,5 +690,36 @@ namespace gal::backend {
     auto constant_generator = IntoConstant{this, type};
 
     return expr.accept(&constant_generator);
+  }
+
+  llvm::Constant* CodeGenerator::int64_constant(std::int64_t value) noexcept {
+    return llvm::ConstantInt::get(integer_of_width(64), value);
+  }
+
+  llvm::Constant* CodeGenerator::int32_constant(std::int32_t value) noexcept {
+    return llvm::ConstantInt::get(integer_of_width(32), value);
+  }
+
+  llvm::Value* CodeGenerator::codegen_into_reg(const ast::Expression& expr, llvm::Type* type) noexcept {
+    auto* inst = expr.accept(this);
+
+    // if it's not a register value, create a load to it and return that
+    if (llvm::isa<llvm::AllocaInst>(inst)) {
+      return builder_->CreateLoad(type, inst);
+    }
+
+    return inst;
+  }
+
+  llvm::Value* CodeGenerator::codegen_into_reg(const ast::Expression& expr) noexcept {
+    auto* inst = expr.accept(this);
+
+    // if it's not a register value, create a load to it and return that
+    if (llvm::isa<llvm::AllocaInst>(inst)) {
+      // lazily generate the LLVM type if possible
+      return builder_->CreateLoad(map_type(expr.result()), inst);
+    }
+
+    return inst;
   }
 } // namespace gal::backend
