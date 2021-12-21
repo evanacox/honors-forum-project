@@ -487,6 +487,10 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
           {"right-hand of assignment expression must be of a compatible type",
               "cannot assign an object to a value of an incompatible type",
               gal::DiagnosticType::error}},
+      {51,
+          {"call does not have a matching overload",
+              "there must exist a function in the overload set with the **same** type of arguments",
+              gal::DiagnosticType::error}},
   };
 
   return lookup.at(code);

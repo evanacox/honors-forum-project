@@ -138,13 +138,19 @@ namespace {
         return;
       }
 
+      if (identical(*expected_, decl->body())) {
+        return;
+      }
+
       // if we can do an implicit conversion on the **last** block member to fix type errors
       // we do it here, and then early return
-      if (!identical(*expected_, decl->body()) && !decl->body().statements().empty()) {
+      if (!decl->body().statements().empty()) {
         if (auto& back = decl->body_mut()->statements_mut().back(); back->is(ST::expr)) {
           auto* expr = gal::as_mut<ast::ExpressionStatement>(back.get());
 
           if (try_make_compatible(*expected_, expr->expr_owner())) {
+            decl->body_mut()->result_update(expr->expr().result().clone());
+
             return Expr::return_value(expr->expr_mut()->result_mut());
           }
         }
@@ -401,7 +407,9 @@ namespace {
 
       // if it's not an identifier, it could be an identifier-local that gets translated to an identifier
       if (!expr->callee().is(ET::identifier)) {
+        ignore_ambiguous_fn_ref_ = true;
         Base::accept(expr->callee_owner());
+        ignore_ambiguous_fn_ref_ = false;
       }
 
       // we need to do special handling here in order to not break over function overloading n whatnot
@@ -424,12 +432,20 @@ namespace {
         return update_return(expr, error_type());
       }
 
+      // we picked up on one single overload, but it got resolved earlier
       if (expr->callee().result().is(TT::fn_pointer)) {
         auto& callee = expr->callee();
         auto& fn_ptr_type = gal::as<ast::FnPointerType>(callee.result());
 
-        if (callable(callee.loc(), callee, fn_ptr_type.args(), expr->args_mut())) {
+        if (callable(fn_ptr_type.args(), expr->args_mut())) {
           return update_return(expr, fn_ptr_type.return_type().clone());
+        }
+
+        if (expr->callee().is(ET::static_global)) {
+          auto& global = gal::as<ast::StaticGlobalExpression>(expr->callee());
+          report_uncallable(global.decl().loc(), callee, fn_ptr_type.args(), expr->args_mut());
+        } else {
+          report_uncallable(callee.loc(), callee, fn_ptr_type.args(), expr->args_mut());
         }
       } else {
         auto a = gal::point_out_list(type_was_err(expr->callee()));
@@ -630,13 +646,12 @@ namespace {
           }
 
           auto type = expr->expr().result().clone();
+          auto op = expr->op();
           replace_self(std::make_unique<ast::AddressOfExpression>(expr->loc(), std::move(*expr->expr_owner())));
           auto* self = self_expr();
 
           return update_return(self,
-              std::make_unique<ast::ReferenceType>(self->loc(),
-                  expr->op() == ast::UnaryOp::mut_ref_to,
-                  std::move(type)));
+              std::make_unique<ast::ReferenceType>(self->loc(), op == ast::UnaryOp::mut_ref_to, std::move(type)));
         }
         case ast::UnaryOp::dereference: {
           auto& type = expr->expr().result();
@@ -1457,6 +1472,15 @@ namespace {
             return true;
           }
 
+          if (ignore_ambiguous_fn_ref_) {
+            auto held = std::move(*expr);
+            *expr = std::make_unique<ast::IdentifierExpression>(held->loc(), id);
+            update_return(expr->get(), std::make_unique<ast::ErrorType>());
+            // intentionally not put a return type here, we're inside a call expr, and it will handle it
+
+            return true;
+          }
+
           auto a = gal::point_out(**expr, gal::DiagnosticType::error, "usage was here");
           auto b = gal::single_message(absl::StrCat("there were ", fns.size(), " potential overloads"));
 
@@ -1481,14 +1505,13 @@ namespace {
     }
 
     template <typename Arg, typename Fn = gal::Deref>
-    [[nodiscard]] bool callable(const ast::SourceLoc& fn_loc,
+    void report_uncallable(const ast::SourceLoc& fn_loc,
         const ast::Expression& call_expr,
         absl::Span<const Arg> fn_args,
         absl::Span<std::unique_ptr<ast::Expression>> given_args,
         Fn mapper = {}) noexcept {
       auto fn_it = fn_args.begin();
       auto given_it = given_args.begin();
-      auto had_failure = false;
 
       for (; fn_it != fn_args.end() && given_it != given_args.end(); ++fn_it, ++given_it) {
         auto& type = mapper(*fn_it);
@@ -1501,14 +1524,10 @@ namespace {
               absl::StrCat("expected type `", gal::to_string(type), "` based on this"));
 
           diagnostics_->report_emplace(23, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
-
-          had_failure = true;
         }
       }
 
       if (fn_it != fn_args.end() || given_it != given_args.end()) {
-        had_failure = true;
-
         auto vec = std::vector<gal::PointedOut>{};
         vec.push_back(gal::point_out_part(fn_loc, gal::DiagnosticType::note, "function signature is here"));
         vec.push_back(gal::point_out_part(call_expr,
@@ -1524,6 +1543,25 @@ namespace {
 
         diagnostics_->report_emplace(error_code, gal::into_list(gal::point_out_list(std::move(vec))));
       }
+    }
+
+    template <typename Arg, typename Fn = gal::Deref>
+    [[nodiscard]] bool callable(absl::Span<const Arg> fn_args,
+        absl::Span<std::unique_ptr<ast::Expression>> given_args,
+        Fn mapper = {}) noexcept {
+      auto fn_it = fn_args.begin();
+      auto given_it = given_args.begin();
+      auto had_failure = false;
+
+      for (; fn_it != fn_args.end() && given_it != given_args.end(); ++fn_it, ++given_it) {
+        if (!try_make_compatible(mapper(*fn_it), &*given_it)) {
+          had_failure = true;
+        }
+      }
+
+      if (fn_it != fn_args.end() || given_it != given_args.end()) {
+        had_failure = true;
+      }
 
       return !had_failure;
     }
@@ -1537,13 +1575,33 @@ namespace {
       };
 
       for (auto& overload : set.fns()) {
-        if (callable(overload.loc(), expr, overload.proto().args(), args, mapper)) {
+        if (callable(overload.proto().args(), args, mapper)) {
           vec.push_back(gal::point_out_part(overload.decl_base(), gal::DiagnosticType::note, "candidate is here"));
         }
       }
 
       vec.push_back(gal::point_out_part(expr, gal::DiagnosticType::error, "ambiguous call was here"));
       diagnostics_->report_emplace(27, gal::into_list(gal::point_out_list(std::move(vec))));
+    }
+
+    GALLIUM_COLD void report_no_overload(const ast::Expression& expr,
+        const gal::OverloadSet& set,
+        absl::Span<std::unique_ptr<ast::Expression>> args) noexcept {
+      auto vec = std::vector<gal::PointedOut>{};
+
+      for (auto& overload : set.fns()) {
+        vec.push_back(gal::point_out_part(overload.decl_base(), gal::DiagnosticType::note, "candidate is here"));
+      }
+
+      vec.push_back(gal::point_out_part(expr, gal::DiagnosticType::error, "no matching overload for this call"));
+      auto a = gal::single_message(absl::StrCat("arguments were of type (",
+          absl::StrJoin(args,
+              "",
+              [](std::string* out, const std::unique_ptr<ast::Expression>& arg) {
+                absl::StrAppend(out, gal::to_string(arg->result()));
+              }),
+          ")"));
+      diagnostics_->report_emplace(51, gal::into_list(gal::point_out_list(std::move(vec)), std::move(a)));
     }
 
     std::optional<const gal::Overload*> select_overload(const ast::Expression& expr,
@@ -1555,7 +1613,7 @@ namespace {
       };
 
       for (auto& overload : set.fns()) {
-        if (callable(overload.loc(), expr, overload.proto().args(), args, mapper)) {
+        if (callable(overload.proto().args(), args, mapper)) {
           if (ptr != nullptr) {
             report_ambiguous(expr, set, args);
 
@@ -1564,6 +1622,10 @@ namespace {
 
           ptr = &overload;
         }
+      }
+
+      if (ptr == nullptr) {
+        report_no_overload(expr, set, args);
       }
 
       return (ptr != nullptr) ? std::make_optional(ptr) : std::nullopt;
@@ -1651,6 +1713,7 @@ namespace {
     bool constant_only_ = false;
     bool in_loop_ = false;
     bool can_break_with_value_ = false;
+    bool ignore_ambiguous_fn_ref_ = false;
   }; // namespace
 } // namespace
 
