@@ -39,21 +39,21 @@ This has several interesting side effects
 ### Blocks
 Blocks evaluate to the last expression in them
 
-```
+~~~ 
 let result = {
   let x = ... 
   let y = ...
   
   (y * 5 + 3.3352835)
 }
-```
+~~~
 
 ### If-Else
 If-else chains evaluate to whatever the block that was executed evaluates to.
 
 Mind you, if there isn't an `else`, they are not considered "evaluable."
 
-```
+~~~ 
 let result = if thing {
   5
 } elif thing2 {
@@ -61,16 +61,16 @@ let result = if thing {
 } else {
   7
 }
-```
+~~~
 
 ### If-Then
 There is an extra form of `if` provided to avoid the line noise of `if thing { a } else { b }`
 
-```
+~~~ 
 let result = if thing 
   then a 
   else b
-```
+~~~
 
 
 ## Dereferencing
@@ -78,7 +78,7 @@ let result = if thing
 If you have a reference to a type (i.e a `&T` or a `&mut T`) and
 you use `.` on it, dereferencing is performed automatically.
 
-~~~
+~~~ 
 let ref: &Point = ...;
 
 // exactly the same as (*ref).x and (*ref).y

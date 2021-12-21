@@ -15,7 +15,7 @@ all of them into a true globally unique "name" for the entity.
 All the code that gets linked into an executable ends up with a large amount of overlap. Say you
 link in the C runtime library, and you try to combine it with the following Gallium code:
 
-```
+~~~
 fn exit() -> void {
   // ...
 }
@@ -23,7 +23,7 @@ fn exit() -> void {
 fn main() -> void {
   // ...
 }
-```
+~~~
 
 The C runtime library will try to invoke `main`, and will probably break everything
 due to the initialization it does / how it calls `main`. In addition, you will almost certainly
@@ -31,7 +31,7 @@ end up with duplicate symbols for `exit`, because C defines `exit`.
 
 The other issue is with function overloading. How do we put two symbols in the same binary with the same name?
 
-```
+~~~
 fn to_string(x: f64) -> String { 
   ...
 }
@@ -39,7 +39,7 @@ fn to_string(x: f64) -> String {
 fn to_string(x: usize) -> String {
   ...
 }
-```
+~~~
 
 In order to solve this, we need to somehow make our symbol names *unique*, name mangling is the process
 that accomplishes this. 
