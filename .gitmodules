@@ -1,2 +1,0 @@
-[submodule "compiler/vendor/abseil-cpp"]
-	url = https://github.com/abseil/abseil-cpp.git
