@@ -29,11 +29,10 @@ struct DynamicBuffer {
 One possible memory layout (on a 64-bit architecture) could be:
 
 ```
-%DynamicBuffer = struct { i8*, i64, i64 }
+%DynamicBuffer = type { i8*, i64, i64 }
 ```
 
 > Note: The current implementation minimizes padding by sorting fields largest-to-smallest (according to their size) to put smaller fields in the area that would be padding otherwise, but the relative order of **same-sized fields** is preserved with a stable-sort algorithm. 
->
 > **This is not guaranteed to continue**.
 
 ## Slices
@@ -41,7 +40,7 @@ One possible memory layout (on a 64-bit architecture) could be:
 Given a slice `[T]` (or `[mut T]`, the layout is the same), a structure equivalent to the following Gallium struct is generated:
 
 ```
-struct __Slice {
+struct __SliceT {
   __ptr: *mut T
   __size: usize
 }
@@ -50,9 +49,15 @@ struct __Slice {
 This would be translated to this in LLVM (for a 64-bit architecture):
 
 ```
-%__Slice = struct { *T, i64 }
+%Slice = type { T*, i64 }
 ```
 
 In this particular case, the order is pointer first and size later, in order to not pessimize the common case of simply indexing into the array. 
 
-#
+The actual layout at runtime would look something like this:
+
+![layout #1](../assets/images/slice-layout-1.png)
+
+Note that slices don't have to point to the beginning of an array, they could also look like this at runtime:
+
+![layout #2](../assets/images/slice-layout-2.png)
