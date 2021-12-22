@@ -9,4 +9,4 @@
 # ======---------------------------------------------------------------====== #
 
 # Load Abseil pretty-printers for `absl::[flat|node]_hash_[set|map]`
-source tools/gdb/absl_pretty_printers.py
+source compiler/tools/gdb/absl_pretty_printers.py
