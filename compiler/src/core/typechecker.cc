@@ -489,7 +489,7 @@ namespace {
         return update_return(expr, error_type());
       }
 
-      auto args = expr->args_mut();
+      auto args = expr->indices_mut();
 
       // there is infrastructure for multi-dimensional array
       // lookups, but it doesn't do anything right now
@@ -509,7 +509,10 @@ namespace {
         return update_return(expr, error_type());
       }
 
-      return update_return(expr, array_type(expr->callee_mut()->result_mut())->clone());
+      return update_return(expr,
+          std::make_unique<ast::IndirectionType>(expr->loc(),
+              array_type(expr->callee_mut()->result_mut())->clone(),
+              mut(expr->callee())));
     }
 
     [[nodiscard]] const ast::Type& accessed_type(const ast::Type& type) noexcept {
@@ -577,7 +580,8 @@ namespace {
           return update_return(expr, error_type());
         }
 
-        return update_return(expr, found->type().clone());
+        return update_return(expr,
+            std::make_unique<ast::IndirectionType>(expr->loc(), found->type().clone(), mut(expr->object())));
       } else {
         assert(false);
       }
@@ -672,8 +676,27 @@ namespace {
             case TT::indirection: {
               auto& indirection = gal::as<ast::IndirectionType>(type);
 
-              return update_return(expr,
-                  std::make_unique<ast::IndirectionType>(expr->loc(), indirection.clone(), mut(expr->expr())));
+              if (indirection.produced().is(TT::reference)) {
+                auto& ref = gal::as<ast::ReferenceType>(indirection.produced());
+
+                *expr->expr_owner() =
+                    std::make_unique<ast::LoadExpression>(expr->expr().loc(), std::move(*expr->expr_owner()));
+                expr->expr_mut()->result_update(ref.clone());
+
+                return update_return(expr,
+                    std::make_unique<ast::IndirectionType>(expr->loc(), ref.referenced().clone(), mut(expr->expr())));
+              } else if (indirection.produced().is(TT::pointer)) {
+                auto& ptr = gal::as<ast::PointerType>(indirection.produced());
+
+                *expr->expr_owner() =
+                    std::make_unique<ast::LoadExpression>(expr->expr().loc(), std::move(*expr->expr_owner()));
+                expr->expr_mut()->result_update(ptr.clone());
+
+                return update_return(expr,
+                    std::make_unique<ast::IndirectionType>(expr->loc(), ptr.pointed().clone(), mut(expr->expr())));
+              } else {
+                [[fallthrough]];
+              }
             }
             default: {
               auto a = type_was_note(expr->expr());
@@ -1182,7 +1205,7 @@ namespace {
         *expr = std::move(*group->expr_owner());
 
         unwrap_indirection(expr);
-      } else {
+      } else if ((*expr)->is(ET::unary)) {
         auto* unary = gal::as_mut<ast::UnaryExpression>(expr->get());
         (void)gal::as<ast::IndirectionType>(unary->result());
 
@@ -1322,6 +1345,7 @@ namespace {
         case TT::reference: return check_mut<ast::ReferenceType>(expr);
         case TT::indirection: return check_mut<ast::IndirectionType>(expr);
         case TT::slice: return check_mut<ast::SliceType>(expr);
+        case TT::error: return true;
         default: break;
       }
 
@@ -1338,16 +1362,6 @@ namespace {
         case ET::string_lit: {
           // always false, string literals are read-only
           return false;
-        }
-        case ET::field_access: {
-          auto& field_access = gal::as<ast::FieldAccessExpression>(expr);
-
-          return mut(field_access.object());
-        }
-        case ET::index: {
-          auto& index = gal::as<ast::IndexExpression>(expr);
-
-          return mut(index.callee());
         }
         default: break;
       }
@@ -1381,8 +1395,8 @@ namespace {
     [[nodiscard]] static bool lvalue(const ast::Expression& expr) noexcept {
       // identifiers all have some sort of address, field-access requires a struct object to exist,
       // array-access requires the array / slice to exist, string literals are magic
-      return expr.is_one_of(ET::identifier, ET::identifier_local, ET::field_access, ET::index, ET::string_lit)
-             || expr.result().is(TT::indirection);
+      return expr.is_one_of(ET::identifier, ET::identifier_local, ET::string_lit)
+             || expr.result().is_one_of(TT::indirection, TT::error);
     }
 
     [[nodiscard]] static bool rvalue(const ast::Expression& expr) noexcept {

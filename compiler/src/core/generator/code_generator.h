@@ -17,19 +17,21 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Target/TargetMachine.h"
 
 namespace gal::backend {
   /// Handles IR generation
   ///
   /// Visits the entire AST and generates code for it
-  class CodeGenerator final : public ast::AnyConstVisitor<void, llvm::Value*, void, llvm::Type*> {
+  class CodeGenerator final : public ast::AnyConstVisitor<void, llvm::Value*, llvm::Value*, llvm::Type*> {
     using Type = ast::ConstTypeVisitor<llvm::Type*>;
     using Expr = ast::ConstExpressionVisitor<llvm::Value*>;
+    using Stmt = ast::ConstStatementVisitor<llvm::Value*>;
 
   public:
     explicit CodeGenerator(llvm::LLVMContext* context,
         const ast::Program& program,
-        const llvm::DataLayout& layout) noexcept;
+        const llvm::TargetMachine& machine) noexcept;
 
     std::unique_ptr<llvm::Module> codegen() noexcept;
 
@@ -187,8 +189,8 @@ namespace gal::backend {
 
     llvm::Type* array_of(llvm::Type* type, std::uint64_t length) noexcept;
 
-    // int32_t because LLVM GEPs for field indices must be 32-bit constants
-    std::int32_t field_index(const ast::UserDefinedType& type, std::string_view name) noexcept;
+    // uint32_t because LLVM GEPs for field indices must be 32-bit constants
+    std::uint32_t field_index(const ast::UserDefinedType& type, std::string_view name) noexcept;
 
   private:
     llvm::SmallVector<std::pair<llvm::Type*, std::string_view>, 8> from_structure(
@@ -209,11 +211,12 @@ namespace gal::backend {
 
     llvm::Value* codegen_into_reg(const ast::Expression& expr) noexcept;
 
+    llvm::LLVMContext* context_;
     const ast::Program& program_;
-    const llvm::DataLayout& layout_;
+    const llvm::TargetMachine& machine_;
+    llvm::DataLayout layout_;
     std::size_t curr_label_ = 0;
     std::size_t curr_str_ = 0;
-    llvm::LLVMContext* context_;
     std::unique_ptr<llvm::Module> module_;
     std::unique_ptr<llvm::IRBuilder<>> builder_;
     VariableResolver variables_;
@@ -221,6 +224,8 @@ namespace gal::backend {
     absl::flat_hash_map<std::string, llvm::Type*> user_types_; // map of `struct name -> LLVM struct`
     absl::flat_hash_map<std::string, std::vector<std::string_view>>
         user_type_mapping_; // `struct name -> [field name]`, the index of the field name = index in the llvm type
+    llvm::BasicBlock* exit_block_ = nullptr;
+    llvm::AllocaInst* return_value_ = nullptr;
     bool want_loaded_ = false;
   };
 } // namespace gal::backend

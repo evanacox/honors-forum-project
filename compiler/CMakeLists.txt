@@ -8,11 +8,6 @@
 #                                                                             #
 ##======---------------------------------------------------------------======##
 
-cmake_minimum_required(VERSION 3.15)
-project(gallium)
-
-set(CMAKE_CXX_STANDARD 17) # need to affect libraries as well, not just gallium
-
 find_package(LLVM REQUIRED)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
@@ -24,41 +19,7 @@ separate_arguments(GALLIUM_LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIO
 
 message(STATUS "Found LLVM libraries ${GALLIUM_LLVM_LIBS}")
 
-set(ABSL_DEFAULT_COPTS)
 add_subdirectory(vendor/abseil-cpp)
-
-option(GALLIUM_DEV "whether or not to build with `-Werror` or the compiler's equivalent" OFF)
-
-function(gallium_configure_target TARGET)
-    list(APPEND GALLIUM_WARNINGS)
-
-    if (${MSVC})
-        list(APPEND GALLIUM_WARNINGS /W3)
-    else ()
-        list(APPEND GALLIUM_WARNINGS
-                -Wall
-                -Wextra
-                -Wcast-qual
-                -Wconversion-null
-                -Wmissing-declarations
-                -Woverlength-strings
-                -Wpointer-arith
-                -Wunused-local-typedefs
-                -Wunused-result
-                -Wvarargs
-                -Wvla
-                -Wwrite-strings
-                -Werror
-                -ftemplate-backtrace-limit=20)
-    endif ()
-
-    # enable warnings and warnings-as-errors in development
-    # there's no reason not to, and its off by default for normal use
-    if (GALLIUM_DEV)
-        target_compile_options(${TARGET} PRIVATE ${GALLIUM_WARNINGS})
-        message(STATUS "adding ${GALLIUM_WARNINGS} to ${TARGET}")
-    endif ()
-endfunction()
 
 add_subdirectory(src)
 

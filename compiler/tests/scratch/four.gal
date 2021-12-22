@@ -1,0 +1,16 @@
+fn lol(array: [i32]) -> i32 {
+    array[12 as i32]
+}
+
+struct Point {
+    x: f64
+    y: f64
+}
+
+fn lol2() -> f64 {
+    Point { x: 0.0, y: 0.0 }.x := 5.0
+}
+
+fn no_ret() -> void {
+    return 5
+}

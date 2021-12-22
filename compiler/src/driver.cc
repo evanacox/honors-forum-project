@@ -16,6 +16,7 @@
 #include "./utility/flags.h"
 #include "./utility/log.h"
 #include "./utility/pretty.h"
+#include "core/codegen.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
@@ -29,7 +30,7 @@ namespace fs = std::filesystem;
 using namespace std::literals;
 
 namespace {
-  std::string read_file(fs::path path) noexcept {
+  std::string read_file(const fs::path& path) noexcept {
     auto in = std::ifstream(path);
     auto file_data = ""s;
 
@@ -40,19 +41,10 @@ namespace {
 
     return file_data;
   }
-} // namespace
 
-namespace gal {
-  int Driver::start(absl::Span<std::string_view> files) noexcept {
-    if (flags().demangle()) {
-      for (auto file : files) {
-        gal::outs() << "demangled for `" << file << "`: " << gal::demangle(file);
-      }
+  thread_local llvm::LLVMContext context;
 
-      return 0;
-    }
-
-    auto triple = llvm::sys::getDefaultTargetTriple();
+  llvm::TargetMachine* llvm_setup(const std::string& triple) noexcept {
     llvm::InitializeAllTargetInfos();
     llvm::InitializeAllTargets();
     llvm::InitializeAllTargetMCs();
@@ -65,10 +57,21 @@ namespace gal {
     if (target == nullptr) {
       gal::errs() << "fatal error while selecting LLVM triple: '" << err << "'";
 
-      return 1;
+      return nullptr;
     }
 
-    auto* machine = target->createTargetMachine(triple, "generic", "", llvm::TargetOptions{}, {});
+    return target->createTargetMachine(triple, "generic", "", llvm::TargetOptions{}, {});
+  }
+} // namespace
+
+namespace gal {
+  int Driver::start(absl::Span<std::string_view> files) noexcept {
+    auto triple = llvm::sys::getDefaultTargetTriple();
+    auto* machine = llvm_setup(triple);
+
+    if (machine == nullptr) {
+      return 1;
+    }
 
     for (auto& file : files) {
       auto path = fs::relative(file);
@@ -83,6 +86,8 @@ namespace gal {
         }
 
         if (valid) {
+          gal::mangle_program(*program);
+          gal::codegen(&context, **program, *machine)->print(llvm::outs(), nullptr);
         }
       }
     }

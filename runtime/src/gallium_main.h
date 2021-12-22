@@ -8,19 +8,11 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "../ast/program.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Target/TargetMachine.h"
+#pragma once
 
-namespace gal {
-  /// Generates an LLVM IR module from an AST module
+namespace gal::runtime {
+  extern "C" {
   ///
-  /// \param context The context to use for the module being returned
-  /// \param program The program to generate code for
-  /// \param machine The target machine to compile/optimize for
-  /// \return A new LLVM IR module
-  std::unique_ptr<llvm::Module> codegen(llvm::LLVMContext* context,
-      const ast::Program& program,
-      const llvm::TargetMachine& machine) noexcept;
-} // namespace gal
+  void __gallium_user_main() noexcept;
+  }
+} // namespace gal::runtime

@@ -190,7 +190,7 @@ namespace gal::ast {
     void visit(IndexExpression* expression) override {
       accept(expression->callee_owner());
 
-      for (auto& arg : expression->args_mut()) {
+      for (auto& arg : expression->indices_mut()) {
         accept(&arg);
       }
     }
@@ -574,7 +574,7 @@ namespace gal::ast {
     void visit(const IndexExpression& expression) override {
       accept(expression.callee());
 
-      for (auto& arg : expression.args()) {
+      for (auto& arg : expression.indices()) {
         accept(arg);
       }
     }

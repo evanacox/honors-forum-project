@@ -191,19 +191,53 @@ namespace {
 namespace gal::backend {
   CodeGenerator::CodeGenerator(llvm::LLVMContext* context,
       const ast::Program& program,
-      const llvm::DataLayout& layout) noexcept
-      : program_{program},
-        layout_{layout},
-        context_{context},
+      const llvm::TargetMachine& machine) noexcept
+      : context_{context},
+        program_{program},
+        machine_{machine},
+        layout_{machine_.createDataLayout()},
         module_{std::make_unique<llvm::Module>("main", *context_)},
         builder_{std::make_unique<llvm::IRBuilder<>>(*context_)},
-        variables_{builder_.get()} {}
+        variables_{builder_.get(), layout_} {}
 
   std::unique_ptr<llvm::Module> CodeGenerator::codegen() noexcept {
+    module_->setTargetTriple(machine_.getTargetTriple().getTriple());
+    module_->setDataLayout(layout_);
+
+    // everything besides functions can be defined right now,
+    // but functions are just declared, so we can call them later
+    for (auto& decl : program_.decls()) {
+      if (decl->is(ast::DeclType::fn_decl)) {
+        auto& fn = gal::as<ast::FnDeclaration>(*decl);
+
+        codegen_proto(fn.proto(), fn.mangled_name());
+      } else {
+        decl->accept(this);
+      }
+    }
+
+    // we now go back and actually codegen for each function now that it's safe to generate calls
+    for (auto& decl : program_.decls()) {
+      if (decl->is(ast::DeclType::fn_decl)) {
+        // cast isn't strictly necessary, but it allows devirtualizing the `accept` call. can't hurt!
+        auto& fn = gal::as<ast::FnDeclaration>(*decl);
+
+        fn.accept(this);
+
+#ifndef NDEBUG
+        assert(!llvm::verifyFunction(*module_->getFunction(fn.mangled_name()), &llvm::outs()));
+#endif
+      }
+    }
+
     return std::move(module_);
   }
 
   llvm::Function* CodeGenerator::codegen_proto(const ast::FnPrototype& proto, std::string_view name) noexcept {
+    if (auto* ptr = module_->getFunction(name); ptr != nullptr) {
+      return ptr;
+    }
+
     auto arg_types = std::vector<llvm::Type*>{};
 
     for (auto& arg : proto.args()) {
@@ -221,15 +255,43 @@ namespace gal::backend {
   void CodeGenerator::visit(const ast::ImportFromDeclaration&) {}
 
   void CodeGenerator::visit(const ast::FnDeclaration& declaration) {
+    auto is_void = declaration.proto().return_type().is(ast::TypeType::builtin_void);
     auto* fn = codegen_proto(declaration.proto(), declaration.mangled_name());
     auto* entry = llvm::BasicBlock::Create(*context_, "entry", fn);
+    exit_block_ = llvm::BasicBlock::Create(*context_, "exit", fn);
     builder_->SetInsertPoint(entry);
+
+    if (!is_void) {
+      auto* type = map_type(declaration.proto().return_type());
+      return_value_ = builder_->CreateAlloca(type);
+      builder_->SetInsertPoint(exit_block_);
+      builder_->CreateRet(builder_->CreateLoad(type, return_value_));
+    } else {
+      builder_->SetInsertPoint(exit_block_);
+      builder_->CreateRetVoid();
+    }
+
+    builder_->SetInsertPoint(entry);
+
+    variables_.enter_scope();
+    auto fn_args = declaration.proto().args();
+    auto it = fn_args.begin();
 
     // copy all args onto stack, so we don't have to special-case when trying to extract from params or whatever
     for (auto& arg : fn->args()) {
       auto* alloca = builder_->CreateAlloca(arg.getType());
+      variables_.set((it++)->name(), alloca);
       builder_->CreateStore(&arg, alloca);
     }
+
+    auto* last_expr = declaration.body().accept(this);
+
+    if (!is_void && last_expr != nullptr) { // returns and similar will give `nullptr`, ignore them
+      builder_->CreateStore(last_expr, return_value_);
+    }
+
+    variables_.leave_scope();
+    builder_->CreateBr(exit_block_);
   }
 
   void CodeGenerator::visit(const ast::StructDeclaration&) {}
@@ -371,7 +433,7 @@ namespace gal::backend {
     for (const auto& expr : expression.elements()) {
       auto* val = expr->accept(this);
 
-      auto* ptr = builder_->CreateGEP(element_type,
+      auto* ptr = builder_->CreateInBoundsGEP(element_type,
           alloca,
           {llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context_), 0),
               llvm::ConstantInt::get(llvm::Type::getInt64Ty(*context_), count++)});
@@ -408,10 +470,11 @@ namespace gal::backend {
 
     for (auto& field : expression.fields()) {
       auto* initializer = codegen_into_reg(field.init());
-      auto* gep = builder_->CreateGEP(type,
+      auto* gep = builder_->CreateInBoundsGEP(type,
           alloca,
           {int64_constant(0),
-              int32_constant(field_index(gal::as<ast::UserDefinedType>(expression.result()), field.name()))});
+              int32_constant(static_cast<std::int32_t>(
+                  field_index(gal::as<ast::UserDefinedType>(expression.result()), field.name())))});
 
       builder_->CreateStore(initializer, gep);
     }
@@ -455,13 +518,27 @@ namespace gal::backend {
 
   void CodeGenerator::visit(const ast::StaticMethodCallExpression&) {}
 
-  void CodeGenerator::visit(const ast::IndexExpression&) {
-    //
+  void CodeGenerator::visit(const ast::IndexExpression& expression) {
+    auto* array_type = map_type(expression.callee().result());
+    auto* array = codegen_into_reg(expression.callee());
+    auto* offset = expression.indices()[0]->accept(this); // TODO: multiple indices?
+    auto* array_ptr = static_cast<llvm::Value*>(nullptr);
+
+    if (expression.callee().result().is(ast::TypeType::slice)) {
+      // extract ptr field
+      array_ptr = builder_->CreateExtractValue(array, {0});
+    } else {
+      array_ptr = array;
+    }
+
+    Expr::return_value(builder_->CreateInBoundsGEP(array_type, array_ptr, {int64_constant(0), offset}));
   }
 
   void CodeGenerator::visit(const ast::FieldAccessExpression&) {}
 
-  void CodeGenerator::visit(const ast::GroupExpression&) {}
+  void CodeGenerator::visit(const ast::GroupExpression& expression) {
+    Expr::return_value(expression.expr().accept(this));
+  }
 
   void CodeGenerator::visit(const ast::UnaryExpression&) {}
 
@@ -473,7 +550,20 @@ namespace gal::backend {
 
   void CodeGenerator::visit(const ast::IfElseExpression&) {}
 
-  void CodeGenerator::visit(const ast::BlockExpression&) {}
+  void CodeGenerator::visit(const ast::BlockExpression& expression) {
+    variables_.enter_scope();
+
+    auto* last_stmt_value = static_cast<llvm::Value*>(nullptr);
+    for (auto& stmt : expression.statements()) {
+      last_stmt_value = stmt->accept(this);
+    }
+
+    variables_.leave_scope();
+
+    // while this will be `nullptr` for non-expr statements, the type checker will ensure
+    // that if we actually need to **use** this "value" it will exist
+    Expr::return_value(last_stmt_value);
+  }
 
   void CodeGenerator::visit(const ast::LoopExpression&) {}
 
@@ -481,7 +571,17 @@ namespace gal::backend {
 
   void CodeGenerator::visit(const ast::ForExpression&) {}
 
-  void CodeGenerator::visit(const ast::ReturnExpression&) {}
+  void CodeGenerator::visit(const ast::ReturnExpression& expression) {
+    if (auto ptr = expression.value()) {
+      auto* value = codegen_into_reg(**ptr);
+
+      builder_->CreateStore(value, return_value_);
+    }
+
+    builder_->CreateBr(exit_block_);
+
+    Expr::return_value(nullptr); // shouldn't be possible to actually *use* this
+  }
 
   void CodeGenerator::visit(const ast::BreakExpression&) {}
 
@@ -495,12 +595,14 @@ namespace gal::backend {
 
   void CodeGenerator::visit(const ast::BindingStatement&) {}
 
-  void CodeGenerator::visit(const ast::ExpressionStatement&) {}
+  void CodeGenerator::visit(const ast::ExpressionStatement& statement) {
+    Stmt::return_value(codegen_into_reg(statement.expr()));
+  }
 
   void CodeGenerator::visit(const ast::AssertStatement&) {}
 
   std::string CodeGenerator::label_name() noexcept {
-    return absl::StrCat(".L", gal::to_digits(curr_label_++));
+    return absl::StrCat("L", gal::to_digits(curr_label_++));
   }
 
   void CodeGenerator::reset_label() noexcept {
@@ -639,7 +741,7 @@ namespace gal::backend {
     return llvm_type;
   }
 
-  std::int32_t CodeGenerator::field_index(const ast::UserDefinedType& type, std::string_view name) noexcept {
+  std::uint32_t CodeGenerator::field_index(const ast::UserDefinedType& type, std::string_view name) noexcept {
     (void)struct_for(type);
 
     // default construct and then insert in
@@ -704,7 +806,7 @@ namespace gal::backend {
     auto* inst = expr.accept(this);
 
     // if it's not a register value, create a load to it and return that
-    if (llvm::isa<llvm::AllocaInst>(inst)) {
+    if (inst->getType()->isPointerTy()) {
       return builder_->CreateLoad(type, inst);
     }
 
@@ -715,7 +817,7 @@ namespace gal::backend {
     auto* inst = expr.accept(this);
 
     // if it's not a register value, create a load to it and return that
-    if (llvm::isa<llvm::AllocaInst>(inst)) {
+    if (inst != nullptr && inst->getType()->isPointerTy()) {
       // lazily generate the LLVM type if possible
       return builder_->CreateLoad(map_type(expr.result()), inst);
     }

@@ -144,7 +144,7 @@ namespace {
         break;
       }
       case ast::DeclType::fn_decl: {
-        auto* fn = gal::as_mut<ast::ExternalFnDeclaration>(entity->decl_mut());
+        auto* fn = gal::as_mut<ast::FnDeclaration>(entity->decl_mut());
 
         fn->set_id(std::move(id));
 
@@ -165,6 +165,14 @@ namespace gal {
 
       for (auto& [name, entity] : env->entities_) {
         annotate_type(&entity, module_name);
+      }
+
+      for (auto& [name, set] : env->overloads_) {
+        for (auto& overload : set.fns()) {
+          auto entity = GlobalEntity{name, overload.decl_base_mut()};
+
+          annotate_type(&entity, module_name);
+        }
       }
     });
 

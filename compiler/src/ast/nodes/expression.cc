@@ -315,8 +315,8 @@ namespace gal::ast {
 
   bool IndexExpression::internal_equals(const Expression& other) const noexcept {
     auto& result = gal::as<IndexExpression>(other);
-    auto self_args = args();
-    auto other_args = result.args();
+    auto self_args = indices();
+    auto other_args = result.indices();
 
     return callee() == result.callee()
            && std::equal(self_args.begin(),

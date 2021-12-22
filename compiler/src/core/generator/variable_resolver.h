@@ -11,6 +11,7 @@
 #pragma once
 
 #include "absl/container/flat_hash_map.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
@@ -22,7 +23,7 @@ namespace gal::backend {
     /// Creates a variable table
     ///
     /// \param builder
-    explicit VariableResolver(llvm::IRBuilder<>* builder) noexcept;
+    explicit VariableResolver(llvm::IRBuilder<>* builder, const llvm::DataLayout& layout) noexcept;
 
     /// Gets an IR value that resolves to the **address** of `name`
     ///
@@ -46,6 +47,7 @@ namespace gal::backend {
 
   private:
     llvm::IRBuilder<>* builder_;
+    const llvm::DataLayout& layout_;
     std::vector<absl::flat_hash_map<std::string, llvm::Value*>> scopes_;
   };
 } // namespace gal::backend

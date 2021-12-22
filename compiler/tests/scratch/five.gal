@@ -1,0 +1,9 @@
+fn lol(x: i32) -> void {
+    
+}
+
+fn lol2(x: i64) -> i64 {
+    return x
+}
+
+fn main() -> void {}

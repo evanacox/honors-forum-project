@@ -18,7 +18,7 @@ namespace ast = gal::ast;
 namespace gal {
   std::unique_ptr<llvm::Module> codegen(llvm::LLVMContext* context,
       const ast::Program& program,
-      const llvm::DataLayout& layout) noexcept {
-    return backend::CodeGenerator(context, program, layout).codegen();
+      const llvm::TargetMachine& machine) noexcept {
+    return backend::CodeGenerator(context, program, machine).codegen();
   }
 } // namespace gal

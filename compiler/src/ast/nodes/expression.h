@@ -1141,14 +1141,14 @@ namespace gal::ast {
     /// Gets the expressions passed as arguments to the []
     ///
     /// \return The expressions passed as arguments
-    [[nodiscard]] absl::Span<const std::unique_ptr<Expression>> args() const noexcept {
+    [[nodiscard]] absl::Span<const std::unique_ptr<Expression>> indices() const noexcept {
       return args_;
     }
 
     /// Gets the expressions passed as arguments to the []
     ///
     /// \return The expressions passed as arguments
-    [[nodiscard]] absl::Span<std::unique_ptr<Expression>> args_mut() noexcept {
+    [[nodiscard]] absl::Span<std::unique_ptr<Expression>> indices_mut() noexcept {
       return absl::MakeSpan(args_);
     }
 

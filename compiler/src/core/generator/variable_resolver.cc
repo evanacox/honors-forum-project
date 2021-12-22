@@ -12,7 +12,9 @@
 #include "../../utility/misc.h"
 
 namespace gal::backend {
-  VariableResolver::VariableResolver(llvm::IRBuilder<>* builder) noexcept : builder_{builder} {}
+  VariableResolver::VariableResolver(llvm::IRBuilder<>* builder, const llvm::DataLayout& layout) noexcept
+      : builder_{builder},
+        layout_{layout} {}
 
   llvm::Value* VariableResolver::get(std::string_view name) noexcept {
     for (auto& scope : gal::reverse(scopes_)) {
@@ -29,8 +31,12 @@ namespace gal::backend {
   void VariableResolver::set(std::string_view name, llvm::Value* value) noexcept {
     assert(!scopes_.empty());
 
+    // auto& ctx = value->getContext();
+    // auto* size = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx),
+    // layout_.getTypeAllocSize(value->getType()->getPointerElementType()));
+
     scopes_.back().emplace(std::string{name}, value);
-    builder_->CreateLifetimeStart(value);
+    // builder_->CreateLifetimeStart(value, size);
   }
 
   void VariableResolver::enter_scope() noexcept {
@@ -38,10 +44,14 @@ namespace gal::backend {
   }
 
   void VariableResolver::leave_scope() noexcept {
-    auto& scope = scopes_.back();
+    // auto& scope = scopes_.back();
 
-    for (auto& [_, value] : scope) {
-      builder_->CreateLifetimeEnd(value);
-    }
+    // for (auto& [_, value] : scope) {
+    // auto& ctx = value->getContext();
+    // auto* size = llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx),
+    // layout_.getTypeAllocSize(value->getType()->getPointerElementType())); builder_->CreateLifetimeEnd(value, size);
+    // }
+
+    scopes_.pop_back();
   }
 } // namespace gal::backend

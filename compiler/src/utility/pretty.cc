@@ -248,7 +248,7 @@ namespace {
     void visit(const ast::IndexExpression& node) final {
       print_expr("index", node);
       accept_member("callee: ", node.callee());
-      print_last_list("args: ", node.args(), [this](const std::unique_ptr<ast::Expression>& ptr) {
+      print_last_list("args: ", node.indices(), [this](const std::unique_ptr<ast::Expression>& ptr) {
         print_initial("index argument");
         accept_last_member("value: ", *ptr);
       });
@@ -401,7 +401,7 @@ namespace {
       auto rest = node.sliced().accept(this);
 
       if (node.mut()) {
-        return_value(absl::StrCat(colors::red("["), colors::magenta("mut"), "(", rest, ")", colors::red("]")));
+        return_value(absl::StrCat(colors::red("["), colors::magenta("mut"), " (", rest, ") ", colors::red("]")));
       } else {
         return_value(absl::StrCat(colors::red("["), "(", rest, ")", colors::red("]")));
       }
@@ -529,10 +529,10 @@ namespace {
       auto rest = type.produced().accept(this);
 
       return_value(absl::StrCat(colors::bold_yellow("indirection -> "),
+          type.mut() ? colors::magenta("mut ") : "",
           "(",
           rest,
-          ")",
-          type.mut() ? colors::magenta("mut") : ""));
+          ")"));
     }
 
   private:
