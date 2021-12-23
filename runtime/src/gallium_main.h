@@ -10,9 +10,10 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace gal::runtime {
-  extern "C" {
   ///
-  void __gallium_user_main() noexcept;
-  }
+  ///
+  extern "C" std::int32_t __gallium_user_main() noexcept;
 } // namespace gal::runtime

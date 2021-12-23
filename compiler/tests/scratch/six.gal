@@ -1,0 +1,7 @@
+fn one(x: i64) -> void {
+
+}
+
+fn one(y: i32) -> void {
+
+}

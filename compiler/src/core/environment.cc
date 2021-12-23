@@ -89,8 +89,15 @@ namespace {
       // or whatever it's just horrible to try to reason about
       for (auto other : it->second.fns()) {
         auto other_args = other.proto().args();
+        auto has_conflicting = std::equal(args.begin(),
+            args.end(),
+            other_args.begin(),
+            other_args.end(),
+            [](const ast::Argument& lhs, const ast::Argument& rhs) {
+              return lhs.type() == rhs.type();
+            });
 
-        if (std::equal(args.begin(), args.end(), other_args.begin(), other_args.end())) {
+        if (has_conflicting) {
           auto a = gal::point_out_part(other.loc(), gal::DiagnosticType::note, "original overload is here");
           auto b = gal::point_out_part(overload.loc(), gal::DiagnosticType::error, "conflicting overload is here");
           auto error = gal::point_out_list(std::move(a), std::move(b));
@@ -118,7 +125,13 @@ namespace gal {
     assert(std::none_of(functions_.begin(), functions_.end(), [args](auto overload) {
       auto other_args = overload.proto().args();
 
-      return std::equal(args.begin(), args.end(), other_args.begin(), other_args.end());
+      return std::equal(args.begin(),
+          args.end(),
+          other_args.begin(),
+          other_args.end(),
+          [](const ast::Argument& lhs, const ast::Argument& rhs) {
+            return lhs.type() == rhs.type();
+          });
     }));
 #endif
 

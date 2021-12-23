@@ -133,6 +133,15 @@ namespace {
       visit_children(decl);
       resolver_.leave_scope();
 
+      if (decl->id().as_string() == "::main") {
+        if (!expected_->is(TT::builtin_integral)
+            || ast::width_of(gal::as<ast::BuiltinIntegralType>(*expected_).width()) != 32) {
+          auto a = gal::point_out(*decl, gal::DiagnosticType::error);
+
+          diagnostics_->report_emplace(51, gal::into_list(std::move(a)));
+        }
+      }
+
       // we can safely ignore any checks if it's void
       if (expected_->is(TT::builtin_void)) {
         return;

@@ -491,6 +491,10 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
           {"call does not have a matching overload",
               "there must exist a function in the overload set with the **same** type of arguments",
               gal::DiagnosticType::error}},
+      {52,
+          {"function `::main` must have signature `fn main() -> i32`",
+              "`main` has to return an `i32`",
+              gal::DiagnosticType::error}},
   };
 
   return lookup.at(code);
