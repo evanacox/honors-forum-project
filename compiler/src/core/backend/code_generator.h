@@ -12,6 +12,9 @@
 
 #include "../../ast/program.h"
 #include "../../ast/visitors.h"
+#include "./constant_pool.h"
+#include "./llvm_state.h"
+#include "./stored_value.h"
 #include "./variable_resolver.h"
 #include "absl/container/flat_hash_map.h"
 #include "llvm/IR/IRBuilder.h"
@@ -23,10 +26,11 @@ namespace gal::backend {
   /// Handles IR generation
   ///
   /// Visits the entire AST and generates code for it
-  class CodeGenerator final : public ast::AnyConstVisitor<void, llvm::Value*, llvm::Value*, llvm::Type*> {
-    using Type = ast::ConstTypeVisitor<llvm::Type*>;
-    using Expr = ast::ConstExpressionVisitor<llvm::Value*>;
-    using Stmt = ast::ConstStatementVisitor<llvm::Value*>;
+  class CodeGenerator final : public ast::ConstDeclarationVisitor<void>,
+                              public ast::ConstExpressionVisitor<backend::StoredValue>,
+                              public ast::ConstStatementVisitor<backend::StoredValue> {
+    using Expr = ast::ConstExpressionVisitor<backend::StoredValue>;
+    using Stmt = ast::ConstStatementVisitor<backend::StoredValue>;
 
   public:
     explicit CodeGenerator(llvm::LLVMContext* context,
@@ -35,8 +39,7 @@ namespace gal::backend {
 
     std::unique_ptr<llvm::Module> codegen() noexcept;
 
-    llvm::Function* codegen_proto(const ast::FnPrototype& proto, std::string_view name) noexcept;
-
+  protected:
     void visit(const ast::ImportDeclaration& declaration) final;
 
     void visit(const ast::ImportFromDeclaration& declaration) final;
@@ -56,44 +59,6 @@ namespace gal::backend {
     void visit(const ast::ExternalDeclaration& declaration) final;
 
     void visit(const ast::ConstantDeclaration& declaration) final;
-
-    void visit(const ast::ReferenceType& type) final;
-
-    void visit(const ast::SliceType& type) final;
-
-    void visit(const ast::PointerType& type) final;
-
-    void visit(const ast::BuiltinIntegralType& type) final;
-
-    void visit(const ast::BuiltinFloatType& type) final;
-
-    void visit(const ast::BuiltinByteType& type) final;
-
-    void visit(const ast::BuiltinBoolType& type) final;
-
-    void visit(const ast::BuiltinCharType& type) final;
-
-    void visit(const ast::UnqualifiedUserDefinedType& type) final;
-
-    void visit(const ast::UserDefinedType& type) final;
-
-    void visit(const ast::FnPointerType& type) final;
-
-    void visit(const ast::UnqualifiedDynInterfaceType& type) final;
-
-    void visit(const ast::DynInterfaceType& type) final;
-
-    void visit(const ast::VoidType& type) final;
-
-    void visit(const ast::NilPointerType& type) final;
-
-    void visit(const ast::ErrorType& type) final;
-
-    void visit(const ast::UnsizedIntegerType& type) final;
-
-    void visit(const ast::ArrayType& type) final;
-
-    void visit(const ast::IndirectionType& type) final;
 
     void visit(const ast::StringLiteralExpression& expression) final;
 
@@ -169,63 +134,87 @@ namespace gal::backend {
 
     void visit(const ast::AssertStatement& statement) final;
 
-    llvm::Constant* generate_string_literal(const ast::StringLiteralExpression& literal) noexcept;
-
-    std::string label_name() noexcept;
-
-    void reset_label() noexcept;
-
-    llvm::Type* native_type() noexcept;
-
-    llvm::Type* integer_of_width(std::int64_t width) noexcept;
-
-    llvm::Type* pointer_to(llvm::Type* type) noexcept;
-
-    llvm::Type* slice_of(llvm::Type* type) noexcept;
-
-    llvm::Type* map_type(const ast::Type& type) noexcept;
-
-    llvm::Type* struct_for(const ast::UserDefinedType& type) noexcept;
-
-    llvm::Type* array_of(llvm::Type* type, std::uint64_t length) noexcept;
-
-    // uint32_t because LLVM GEPs for field indices must be 32-bit constants
-    std::uint32_t field_index(const ast::UserDefinedType& type, std::string_view name) noexcept;
-
   private:
-    llvm::SmallVector<std::pair<llvm::Type*, std::string_view>, 8> from_structure(
-        const ast::StructDeclaration& decl) noexcept;
+    [[nodiscard]] llvm::Value* generate_mul(const ast::Expression& expr, llvm::Value* lhs, llvm::Value* rhs) noexcept;
 
-    void create_user_type_mapping(std::string_view full_name,
-        llvm::ArrayRef<std::pair<llvm::Type*, std::string_view>> array) noexcept;
+    [[nodiscard]] llvm::Value* generate_div(const ast::Expression& expr, llvm::Value* lhs, llvm::Value* rhs) noexcept;
 
-    llvm::Type* struct_from(llvm::ArrayRef<std::pair<llvm::Type*, std::string_view>> array) noexcept;
+    [[nodiscard]] llvm::Value* generate_mod(const ast::Expression& expr, llvm::Value* lhs, llvm::Value* rhs) noexcept;
 
-    llvm::Constant* into_constant(llvm::Type* type, const ast::Expression& expr) noexcept;
+    [[nodiscard]] llvm::Value* generate_add(const ast::Expression& expr, llvm::Value* lhs, llvm::Value* rhs) noexcept;
 
-    llvm::Constant* int64_constant(std::int64_t value) noexcept;
+    [[nodiscard]] llvm::Value* generate_sub(const ast::Expression& expr, llvm::Value* lhs, llvm::Value* rhs) noexcept;
 
-    llvm::Constant* int32_constant(std::int32_t value) noexcept;
+    [[nodiscard]] llvm::Value* generate_left_shift(const ast::Expression& expr,
+        llvm::Value* lhs,
+        llvm::Value* rhs) noexcept;
 
-    llvm::Value* codegen_into_reg(const ast::Expression& expr, llvm::Type* type) noexcept;
+    [[nodiscard]] llvm::Value* generate_right_shift(const ast::Expression& expr,
+        llvm::Value* lhs,
+        llvm::Value* rhs) noexcept;
 
-    llvm::Value* codegen_into_reg(const ast::Expression& expr) noexcept;
+    [[nodiscard]] llvm::Value* generate_bit_and(const ast::Expression& expr,
+        llvm::Value* lhs,
+        llvm::Value* rhs) noexcept;
 
-    llvm::LLVMContext* context_;
+    [[nodiscard]] llvm::Value* generate_bit_or(const ast::Expression& expr,
+        llvm::Value* lhs,
+        llvm::Value* rhs) noexcept;
+
+    [[nodiscard]] llvm::Value* generate_bit_xor(const ast::Expression& expr,
+        llvm::Value* lhs,
+        llvm::Value* rhs) noexcept;
+
+    [[nodiscard]] llvm::Function* codegen_proto(const ast::FnPrototype& proto, std::string_view name) noexcept;
+
+    [[nodiscard]] backend::StoredValue codegen(const ast::Expression& expr) noexcept;
+
+    [[nodiscard]] backend::StoredValue codegen_promoting(const ast::Expression& expr,
+        llvm::Type* type = nullptr) noexcept;
+
+    [[nodiscard]] llvm::Function* current_fn() noexcept;
+
+    [[nodiscard]] std::string next_label() noexcept;
+
+    [[nodiscard]] llvm::BasicBlock* panic_block() noexcept;
+
+    [[nodiscard]] llvm::Value* integer_cast(std::uint32_t to_width,
+        std::uint32_t from_width,
+        bool is_signed,
+        llvm::Value* value) noexcept;
+
+    [[nodiscard]] llvm::Value* panic_if_overflow(const ast::SourceLoc& loc,
+        std::string_view message,
+        llvm::Intrinsic::IndependentIntrinsics intrin,
+        llvm::Value* lhs,
+        llvm::Value* rhs) noexcept;
+
+    void panic_if(const ast::SourceLoc& loc, llvm::Value* cond, std::string_view message) noexcept;
+
+    [[nodiscard]] llvm::Value* source_loc(const ast::SourceLoc& loc, std::string_view message) noexcept;
+
+    [[nodiscard]] llvm::BasicBlock* create_block(std::string_view name = "", bool true_end = false) noexcept;
+
+    void merge_with(llvm::BasicBlock* merge_block) noexcept;
+
+    void emit_terminator() noexcept;
+
+    void reset_labels() noexcept;
+
+    [[nodiscard]] llvm::IRBuilder<>* builder() noexcept;
+
     const ast::Program& program_;
-    const llvm::TargetMachine& machine_;
-    llvm::DataLayout layout_;
-    std::size_t curr_label_ = 0;
-    std::size_t curr_str_ = 0;
-    std::unique_ptr<llvm::Module> module_;
-    std::unique_ptr<llvm::IRBuilder<>> builder_;
+    LLVMState state_;
+    ConstantPool pool_;
     VariableResolver variables_;
-    absl::flat_hash_map<std::string, llvm::Constant*> string_literals_;
-    absl::flat_hash_map<std::string, llvm::Type*> user_types_; // map of `struct name -> LLVM struct`
-    absl::flat_hash_map<std::string, std::vector<std::string_view>>
-        user_type_mapping_; // `struct name -> [field name]`, the index of the field name = index in the llvm type
-    llvm::BasicBlock* exit_block_ = nullptr;
-    llvm::AllocaInst* return_value_ = nullptr;
-    bool want_loaded_ = false;
+    llvm::BasicBlock* loop_start_ = nullptr;       // loop header, e.g the "check loop conditions and jump to body"
+    llvm::BasicBlock* loop_merge_ = nullptr;       // loop merge point, used for breaks
+    llvm::BasicBlock* exit_block_ = nullptr;       // the block that loads the return value and returns
+    llvm::BasicBlock* dead_block_ = nullptr;       // the block that instructions generated after a terminator go
+    llvm::BasicBlock* panic_block_ = nullptr;      // the block that panics with a message
+    llvm::PHINode* panic_phi_ = nullptr;           // the phi node that gets the panic message
+    llvm::AllocaInst* return_value_ = nullptr;     // the return value to be stored into
+    llvm::AllocaInst* loop_break_value_ = nullptr; // the value of a loop to store into
+    std::size_t curr_label_ = 1;
   };
 } // namespace gal::backend

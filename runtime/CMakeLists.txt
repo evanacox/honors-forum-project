@@ -8,7 +8,12 @@
 #                                                                             #
 ##======---------------------------------------------------------------======##
 
-add_subdirectory(src)
+add_library(gallium_runtime STATIC
+        src/startup.cc
+        src/assertions.cc
+        src/panic.cc)
+
+gallium_configure_target(gallium_runtime)
 
 if (GALLIUM_DEV)
     add_subdirectory(tests)

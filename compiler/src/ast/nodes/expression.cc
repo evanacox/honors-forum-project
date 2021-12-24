@@ -347,7 +347,13 @@ namespace gal::ast {
   }
 
   std::unique_ptr<Expression> FieldAccessExpression::internal_clone() const noexcept {
-    return std::make_unique<FieldAccessExpression>(loc(), object().clone(), std::string{field_name()});
+    auto ptr = std::make_unique<FieldAccessExpression>(loc(), object().clone(), std::string{field_name()});
+
+    if (user_type_ != nullptr) {
+      ptr->annotate_type(user_type_->clone());
+    }
+
+    return ptr;
   }
 
   void GroupExpression::internal_accept(ExpressionVisitorBase* visitor) {

@@ -12,7 +12,10 @@
 #include "./log.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
+#include "llvm/Support/CommandLine.h"
 #include <optional>
+
+ABSL_FLAG(std::string, out, "main", "the name of the file to write output to (no extension)");
 
 ABSL_FLAG(std::string, opt, "none", "the optimization level to use (none|some|small|fast)");
 
@@ -27,6 +30,10 @@ ABSL_FLAG(std::uint64_t, jobs, 1, "the number of threads that the compiler can c
 ABSL_FLAG(bool, colored, true, "whether or not to enable ANSI color codes in the compiler output");
 
 ABSL_FLAG(bool, demangle, false, "whether or not to treat all files as symbols to demangle");
+
+ABSL_FLAG(bool, disable_checking, false, "whether or not to disallow any debug panic-generating checks");
+
+ABSL_FLAG(std::string, masm, "intel", "the assembly dialect to use for x86-64 assembly");
 
 namespace {
   std::optional<gal::OptLevel> parse_opt() noexcept {
@@ -75,11 +82,13 @@ namespace {
   }
 
   gal::CompilerConfig generate_config() noexcept {
+    auto out = absl::GetFlag(FLAGS_out);
     auto jobs = absl::GetFlag(FLAGS_jobs);
     auto debug = absl::GetFlag(FLAGS_debug);
     auto verbose = absl::GetFlag(FLAGS_verbose);
     auto colored = absl::GetFlag(FLAGS_colored);
     auto demangle = absl::GetFlag(FLAGS_demangle);
+    auto no_checking = absl::GetFlag(FLAGS_disable_checking);
     auto emit = parse_emit();
     auto opt = parse_opt();
 
@@ -87,25 +96,29 @@ namespace {
       std::abort();
     }
 
-    return gal::CompilerConfig(jobs, *opt, *emit, debug, verbose, colored, demangle);
+    return gal::CompilerConfig(std::move(out), jobs, *opt, *emit, debug, verbose, colored, demangle, no_checking);
   }
 } // namespace
 
 namespace gal {
-  CompilerConfig::CompilerConfig(std::uint64_t jobs,
+  CompilerConfig::CompilerConfig(std::string out,
+      std::uint64_t jobs,
       OptLevel opt,
       OutputFormat emit,
       bool debug,
       bool verbose,
       bool colored,
-      bool demangle) noexcept
-      : jobs_{jobs},
+      bool demangle,
+      bool no_checking) noexcept
+      : out_{std::move(out)},
+        jobs_{jobs},
         opt_level_{opt},
         format_{emit},
         debug_{debug},
         verbose_{verbose},
         colored_{colored},
-        demangle_{demangle} {}
+        demangle_{demangle},
+        no_checking_{no_checking} {}
 
   const CompilerConfig& flags() noexcept {
     static CompilerConfig config = generate_config();
@@ -113,11 +126,15 @@ namespace gal {
     return config;
   }
 
-  std::ostream& operator<<(std::ostream& os, const CompilerConfig& flags) noexcept {
-    os << "flags:"
-       << " emit: " << static_cast<int>(flags.emit()) << ", opt: " << static_cast<int>(flags.opt())
-       << ", jobs: " << flags.jobs() << ", debug: " << flags.debug() << ", verbose: " << flags.verbose();
+  void delegate_flags() noexcept {
+    auto dialect = absl::GetFlag(FLAGS_masm);
+    auto args = std::vector<const char*>{"galliumc"};
 
-    return os;
+    // LLVM defaults to att syntax
+    if (dialect == "intel") {
+      args.push_back("-x86-asm-syntax=intel");
+
+      assert(llvm::cl::ParseCommandLineOptions(static_cast<int>(args.size()), args.data()));
+    }
   }
 } // namespace gal

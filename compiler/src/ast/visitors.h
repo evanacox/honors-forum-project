@@ -103,6 +103,7 @@ namespace gal::ast {
     void visit(ImportFromDeclaration*) override {}
 
     void visit(FnDeclaration* declaration) override {
+      accept_proto(declaration->proto_mut());
       accept(declaration->body_owner());
     }
 
@@ -489,6 +490,7 @@ namespace gal::ast {
     void visit(const ImportFromDeclaration&) override {}
 
     void visit(const FnDeclaration& declaration) override {
+      accept_proto(declaration.proto());
       accept(declaration.body());
     }
 

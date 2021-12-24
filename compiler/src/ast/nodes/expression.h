@@ -1207,6 +1207,14 @@ namespace gal::ast {
       return field_;
     }
 
+    void annotate_type(std::unique_ptr<Type> type) noexcept {
+      user_type_ = std::move(type);
+    }
+
+    [[nodiscard]] const ast::Type& user_type() const noexcept {
+      return *user_type_;
+    }
+
   protected:
     void internal_accept(ExpressionVisitorBase* visitor) final;
 
@@ -1218,6 +1226,7 @@ namespace gal::ast {
 
   private:
     std::unique_ptr<Expression> object_;
+    std::unique_ptr<Type> user_type_;
     std::string field_;
   };
 
@@ -1386,6 +1395,48 @@ namespace gal::ast {
     /// \return The binary operator
     [[nodiscard]] BinaryOp op() const noexcept {
       return op_;
+    }
+
+    /// Checks if the binary operator is one of the **compound** assignment operators
+    ///
+    /// \return Whether `op()` is a compound assignment op
+    [[nodiscard]] bool is_compound_assignment() const noexcept {
+      switch (op()) {
+        case ast::BinaryOp::add_eq:
+        case ast::BinaryOp::sub_eq:
+        case ast::BinaryOp::mul_eq:
+        case ast::BinaryOp::div_eq:
+        case ast::BinaryOp::mod_eq:
+        case ast::BinaryOp::left_shift_eq:
+        case ast::BinaryOp::right_shift_eq:
+        case ast::BinaryOp::bitwise_and_eq:
+        case ast::BinaryOp::bitwise_or_eq:
+        case ast::BinaryOp::bitwise_xor_eq: return true;
+        default: return false;
+      }
+    }
+
+    /// Checks if the binary operator is one of the ordering operators
+    ///
+    /// \return Whether `op()` is an ordering operator
+    [[nodiscard]] bool is_ordering() const noexcept {
+      return op() == ast::BinaryOp::lt || op() == ast::BinaryOp::gt || op() == ast::BinaryOp::lt_eq
+             || op() == ast::BinaryOp::gt_eq;
+    }
+
+    /// Checks if the binary operator is one of the ordering operators
+    ///
+    /// \return Whether `op()` is an ordering operator
+    [[nodiscard]] bool is_equality() const noexcept {
+      return op() == ast::BinaryOp::equals || op() == ast::BinaryOp::not_equal;
+    }
+
+    /// Checks if the binary operator is one of the ordering operators
+    ///
+    /// \return Whether `op()` is an ordering operator
+    [[nodiscard]] bool is_logical() const noexcept {
+      return op() == ast::BinaryOp::logical_and || op() == ast::BinaryOp::logical_or
+             || op() == ast::BinaryOp::logical_xor;
     }
 
   protected:

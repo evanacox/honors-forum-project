@@ -8,8 +8,14 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./gallium_main.h"
+#include "./runtime.h"
+#include <cstdio>
+#include <cstdlib>
 
-int main(int, char**) {
-  gal::runtime::__gallium_user_main();
+extern "C" void gal::runtime::__gallium_assert_fail(const char* file, std::uint64_t line, const char* msg) noexcept {
+  std::fputs("gallium: assertion failure!\n", stderr);
+  std::fprintf(stderr, "  location: %s:%lu\n", file, line);
+  std::fprintf(stderr, "  message: '%s'\n", msg);
+
+  runtime::__gallium_trap();
 }

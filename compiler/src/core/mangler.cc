@@ -288,7 +288,11 @@ namespace {
       declaration->set_mangled(gal::mangle(*declaration));
     }
 
-    void visit(ast::ExternalDeclaration*) final {}
+    void visit(ast::ExternalDeclaration* declaration) final {
+      for (auto& fn : declaration->externals_mut()) {
+        fn->accept(this);
+      }
+    }
 
     void visit(ast::ConstantDeclaration* declaration) final {
       declaration->set_mangled(gal::mangle(*declaration));

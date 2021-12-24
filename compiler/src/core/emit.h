@@ -8,21 +8,16 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./codegen.h"
-#include "../ast/visitors.h"
-#include "./backend/code_generator.h"
-#include "./backend/optimizer.h"
+#pragma once
 
-namespace ast = gal::ast;
+#include "llvm/IR/Module.h"
+#include "llvm/Target/TargetMachine.h"
 
 namespace gal {
-  std::unique_ptr<llvm::Module> codegen(llvm::LLVMContext* context,
-      llvm::TargetMachine* machine,
-      const ast::Program& program) noexcept {
-    auto module = backend::CodeGenerator(context, program, *machine).codegen();
-
-    backend::optimize(module.get(), machine);
-
-    return module;
-  }
+  /// Emits the compiler's generated code (or other format) into a file
+  ///
+  /// \param module The module to output
+  /// \param machine The machine to use when outputting
+  /// \return Returns false if output could not be emitted
+  bool emit(llvm::Module* module, llvm::TargetMachine* machine) noexcept;
 } // namespace gal

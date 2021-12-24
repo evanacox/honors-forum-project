@@ -1,7 +1,30 @@
 fn one(x: i64) -> void {
+    [x as i32, 2 as i32]
+}
+
+fn puts(c: *const u8) -> void {
 
 }
 
-fn one(y: i32) -> void {
+fn ewg(a: &i32) -> void {
+    lol(5)
+}
 
+fn lol(x: byte) -> byte {
+    let a = 5
+    let b = [1, 2, 3, 4, 5]
+    let c = [x, x, x, x, x]
+
+    x
+}
+
+fn one(x: i64, y: i64) -> void {
+    one(y)
+
+    // let a = 5
+    // let b: *const i64 = &a as *mut i64
+
+    return 
+
+    one(x)
 }

@@ -8,21 +8,16 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./codegen.h"
-#include "../ast/visitors.h"
-#include "./backend/code_generator.h"
-#include "./backend/optimizer.h"
+#pragma once
 
-namespace ast = gal::ast;
+#include "llvm/IR/Module.h"
+#include "llvm/Target/TargetMachine.h"
 
-namespace gal {
-  std::unique_ptr<llvm::Module> codegen(llvm::LLVMContext* context,
-      llvm::TargetMachine* machine,
-      const ast::Program& program) noexcept {
-    auto module = backend::CodeGenerator(context, program, *machine).codegen();
-
-    backend::optimize(module.get(), machine);
-
-    return module;
-  }
-} // namespace gal
+namespace gal::backend {
+  /// Puts `module` through the LLVM optimization pipeline
+  /// as requested in the CLI flags
+  ///
+  /// \param module The module to optimize
+  /// \param machine The machine to target for
+  void optimize(llvm::Module* module, llvm::TargetMachine* machine) noexcept;
+} // namespace gal::backend

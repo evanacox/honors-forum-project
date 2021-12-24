@@ -160,6 +160,23 @@ namespace gal::ast {
       return (is(types) || ...);
     }
 
+    /// Checks if the type is one of Gallium's "Integral" types
+    ///
+    /// \return Whether or not the type is an integral type
+    [[nodiscard]] bool is_integral() const noexcept {
+      return is_one_of(TypeType::builtin_integral,
+          TypeType::builtin_bool,
+          TypeType::builtin_byte,
+          TypeType::builtin_bool,
+          TypeType::builtin_char);
+    }
+
+    [[nodiscard]] bool is_indirection_to(const ast::Type& type) const noexcept;
+
+    [[nodiscard]] bool need_address() const noexcept {
+      return is_one_of(TypeType::user_defined, TypeType::array);
+    }
+
   protected:
     /// Initializes the state of the Type base class
     ///

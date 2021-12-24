@@ -356,4 +356,16 @@ namespace gal::ast {
   std::unique_ptr<Type> IndirectionType::internal_clone() const noexcept {
     return std::make_unique<IndirectionType>(loc(), produced().clone(), mut());
   }
+
+  bool Type::is_indirection_to(const Type& type) const noexcept {
+    if (this->type() == TypeType::reference) {
+      return gal::as<ReferenceType>(type).referenced() == type;
+    } else if (this->type() == TypeType::pointer) {
+      return gal::as<PointerType>(type).pointed() == type;
+    } else if (this->type() == TypeType::indirection) {
+      return gal::as<IndirectionType>(type).produced() == type;
+    } else {
+      return false;
+    }
+  }
 } // namespace gal::ast

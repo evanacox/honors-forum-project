@@ -471,7 +471,7 @@ blockExpression
     ;
 
 returnExpr
-    : 'return' WHITESPACE* expr
+    : 'return' (WHITESPACE* expr)?
     ;
 
 breakExpr

@@ -20,11 +20,16 @@ set(GALLIUM_ERRORS_FILES
         errors/reporter.cc)
 
 set(GALLIUM_CORE_FILES
-        core/generator/code_generator.cc
-        core/generator/variable_resolver.cc
+        core/backend/code_generator.cc
+        core/backend/variable_resolver.cc
+        core/backend/llvm_state.cc
+        core/backend/constant_pool.cc
+        core/backend/builtins.cc
+        core/backend/optimizer.cc
         core/codegen.cc
+        core/emit.cc
         core/environment.cc
-        core/typechecker.cc
+        core/type_checker.cc
         core/mangler.cc
         core/name_resolver.cc)
 

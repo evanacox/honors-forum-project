@@ -9,15 +9,18 @@
 //======---------------------------------------------------------------======//
 
 #include "./driver.h"
+#include "./core/codegen.h"
+#include "./core/emit.h"
 #include "./core/mangler.h"
-#include "./core/typechecker.h"
+#include "./core/type_checker.h"
 #include "./errors/console_reporter.h"
 #include "./syntax/parser.h"
 #include "./utility/flags.h"
 #include "./utility/log.h"
 #include "./utility/pretty.h"
-#include "core/codegen.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Host.h"
+#include "llvm/Support/Registry.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
@@ -45,6 +48,9 @@ namespace {
   thread_local llvm::LLVMContext context;
 
   llvm::TargetMachine* llvm_setup(const std::string& triple) noexcept {
+    const char* argv[] = {"galliumc", "-x86-asm-syntax=intel"};
+    assert(llvm::cl::ParseCommandLineOptions(std::size(argv), argv, "", &llvm::outs()));
+
     llvm::InitializeAllTargetInfos();
     llvm::InitializeAllTargets();
     llvm::InitializeAllTargetMCs();
@@ -85,10 +91,13 @@ namespace gal {
           gal::raw_outs() << gal::pretty_print(**program) << '\n';
         }
 
-        if (valid) {
-          gal::mangle_program(*program);
-          gal::codegen(&context, **program, *machine)->print(llvm::outs(), nullptr);
+        if (!valid) {
+          break;
         }
+
+        gal::mangle_program(*program);
+        auto module = gal::codegen(&context, machine, **program);
+        gal::emit(module.get(), machine);
       }
     }
 

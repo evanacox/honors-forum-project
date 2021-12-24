@@ -495,6 +495,10 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
           {"function `::main` must have signature `fn main() -> i32`",
               "`main` has to return an `i32`",
               gal::DiagnosticType::error}},
+      {53,
+          {"cannot negate unsigned type",
+              "negation operator (`-`) can only be applied to signed types",
+              gal::DiagnosticType::error}},
   };
 
   return lookup.at(code);

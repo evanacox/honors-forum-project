@@ -8,21 +8,14 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./codegen.h"
-#include "../ast/visitors.h"
-#include "./backend/code_generator.h"
-#include "./backend/optimizer.h"
+#include "./runtime.h"
+#include <cstdio>
+#include <cstdlib>
 
-namespace ast = gal::ast;
+extern "C" void gal::runtime::__gallium_panic(const char* file, std::uint64_t line, const char* msg) noexcept {
+  std::fputs("gallium: panicked!\n", stderr);
+  std::fprintf(stderr, "  location: %s:%lu\n", file, line);
+  std::fprintf(stderr, "  reason: '%s'\n", msg);
 
-namespace gal {
-  std::unique_ptr<llvm::Module> codegen(llvm::LLVMContext* context,
-      llvm::TargetMachine* machine,
-      const ast::Program& program) noexcept {
-    auto module = backend::CodeGenerator(context, program, *machine).codegen();
-
-    backend::optimize(module.get(), machine);
-
-    return module;
-  }
-} // namespace gal
+  runtime::__gallium_trap();
+}

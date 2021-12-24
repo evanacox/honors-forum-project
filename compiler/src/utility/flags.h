@@ -50,13 +50,19 @@ namespace gal {
   class CompilerConfig {
   public:
     /// Create a CompilerConfig object
-    explicit CompilerConfig(std::uint64_t jobs,
+    explicit CompilerConfig(std::string out,
+        std::uint64_t jobs,
         OptLevel opt,
         OutputFormat emit,
         bool debug,
         bool verbose,
         bool colored,
-        bool demangle) noexcept;
+        bool demangle,
+        bool no_checking) noexcept;
+
+    [[nodiscard]] std::string_view out() const noexcept {
+      return out_;
+    }
 
     /// Gets the number of threads that the compiler is allowed to
     /// create to parse/compile/whatever
@@ -108,7 +114,15 @@ namespace gal {
       return demangle_;
     }
 
+    /// Whether or not to disable generating any panic-generating checks
+    ///
+    /// \return Whether or not to disable generating any panic-generating checks
+    [[nodiscard]] constexpr bool no_checking() const noexcept {
+      return no_checking_;
+    }
+
   private:
+    std::string out_;
     std::uint64_t jobs_;
     OptLevel opt_level_;
     OutputFormat format_;
@@ -116,14 +130,12 @@ namespace gal {
     bool verbose_;
     bool colored_;
     bool demangle_;
+    bool no_checking_;
   };
 
-  /// Pretty-prints the flag state
-  ///
-  /// \param os The stream to print to
-  /// \param config The configuration
-  /// \return os
-  std::ostream& operator<<(std::ostream& os, const CompilerConfig& config) noexcept;
+  /// Handles delegating any other CLI flags that need to go
+  /// into external libraries, i.e LLVM
+  void delegate_flags() noexcept;
 
   /// Parses the command line flags for the compiler and returns a config object
   ///

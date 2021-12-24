@@ -1,0 +1,26 @@
+struct Point {
+    x: f64
+    y: f64
+}
+
+
+external {
+    fn sqrt(x: f64) -> f64
+}
+
+const pi: f64 = 3.141592653589793
+
+
+fn sqrt_x_times_pi(x: f64) -> f64 {
+    sqrt(x) * pi
+}
+
+fn memcpy(src: [i8], dest: [mut i8], len: isize) -> void {
+    mut i = 0 as isize
+
+    while i < len {
+        dest[i] := src[i]
+
+        i += 1
+    }
+}

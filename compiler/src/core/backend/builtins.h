@@ -8,21 +8,14 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./codegen.h"
-#include "../ast/visitors.h"
-#include "./backend/code_generator.h"
-#include "./backend/optimizer.h"
+#pragma once
 
-namespace ast = gal::ast;
+#include "./llvm_state.h"
 
-namespace gal {
-  std::unique_ptr<llvm::Module> codegen(llvm::LLVMContext* context,
-      llvm::TargetMachine* machine,
-      const ast::Program& program) noexcept {
-    auto module = backend::CodeGenerator(context, program, *machine).codegen();
-
-    backend::optimize(module.get(), machine);
-
-    return module;
-  }
-} // namespace gal
+namespace gal::backend {
+  /// Populates the LLVM module with any builtins that
+  /// need to be emitted directly in the IR
+  ///
+  /// \param state The state containing the module
+  void generate_builtins(LLVMState* state) noexcept;
+} // namespace gal::backend

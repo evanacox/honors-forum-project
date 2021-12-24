@@ -8,7 +8,7 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./typechecker.h"
+#include "./type_checker.h"
 #include "../ast/visitors.h"
 #include "../errors/reporter.h"
 #include "../utility/flags.h"
@@ -383,16 +383,16 @@ namespace {
       visit_children(expr);
 
       auto elements = expr->elements_mut();
-      auto it = std::find_if(elements.begin() + 1, elements.end(), [&](const std::unique_ptr<ast::Expression>& expr) {
+      convert_intermediate(&elements.front());
+
+      auto it = std::find_if(elements.begin() + 1, elements.end(), [&](std::unique_ptr<ast::Expression>& expr) {
+        convert_intermediate(&expr);
+
         return expr->result() != elements.front()->result();
       });
 
       // array is guaranteed by the syntax to be larger than 0
       if (it == elements.end()) {
-        for (auto& element : elements) {
-          convert_intermediate(&element);
-        }
-
         update_return(expr,
             std::make_unique<ast::ArrayType>(expr->loc(), elements.size(), elements.front()->result().clone()));
       } else {
@@ -447,7 +447,24 @@ namespace {
         auto& fn_ptr_type = gal::as<ast::FnPointerType>(callee.result());
 
         if (callable(fn_ptr_type.args(), expr->args_mut())) {
-          return update_return(expr, fn_ptr_type.return_type().clone());
+          if (expr->callee().is(ET::static_global)) {
+            auto& global = gal::as<ast::StaticGlobalExpression>(expr->callee());
+            auto& id = (global.decl().is(DT::external_fn_decl))
+                           ? gal::as<ast::ExternalFnDeclaration>(global.decl()).id()
+                           : gal::as<ast::FnDeclaration>(global.decl()).id();
+
+            if (auto overloads = resolver_.overloads(id)) {
+              if (auto overload = select_overload(*expr, **overloads, expr->args_mut())) {
+                *self = ast::StaticCallExpression::from_call(id, **overload, expr);
+
+                return update_return(self->get(), (*overload)->proto().return_type().clone());
+              }
+            }
+
+            assert(false);
+          }
+
+          return update_return(self->get(), fn_ptr_type.return_type().clone());
         }
 
         if (expr->callee().is(ET::static_global)) {
@@ -486,9 +503,8 @@ namespace {
 
       // while we want to get it down to just ids, ptrs and refs, we don't want to allow
       // raw indexing into pointers without a `*`
-      if (is_indirection_to(TT::slice, expr->callee()) || is_indirection_to(TT::array, expr->callee())) {
-        unwrap_indirection(expr->callee_owner());
-      } else if (!expr->callee().result().is_one_of(TT::slice, TT::array)) {
+      if (!is_indirection_to(TT::slice, expr->callee()) && !is_indirection_to(TT::array, expr->callee())
+          && !expr->callee().result().is_one_of(TT::slice, TT::array)) {
         auto a = type_was_err(*callee);
         auto b = gal::point_out_part(*callee, gal::DiagnosticType::note, "tried to index here");
         auto c = gal::point_out_list(std::move(a), std::move(b));
@@ -552,9 +568,7 @@ namespace {
         auto_deref(expr->object_owner());
       }
 
-      if (is_indirection_to(TT::user_defined, expr->object())) {
-        unwrap_indirection(expr->object_owner());
-      } else if (!expr->object().result().is(TT::user_defined)) {
+      if (!is_indirection_to(TT::user_defined, expr->object()) && !expr->object().result().is(TT::user_defined)) {
         auto a = gal::point_out_list(type_was_err(expr->object()));
         auto b = gal::single_message(absl::StrCat("cannot access field `",
             expr->field_name(),
@@ -569,6 +583,9 @@ namespace {
 
       auto& held = accessed_type(expr->object().result());
       auto& type = gal::as<ast::UserDefinedType>(held);
+
+      // TODO: find a better way of doing this
+      expr->annotate_type(type.clone());
 
       if (auto struct_type = resolver_.struct_type(type.id())) {
         auto& decl = **struct_type;
@@ -605,6 +622,8 @@ namespace {
     void visit(ast::UnaryExpression* expr) final {
       visit_children(expr);
 
+      convert_intermediate(expr->expr_owner());
+
       switch (expr->op()) {
         case ast::UnaryOp::logical_not: {
           if (!boolean(expr->expr())) {
@@ -618,7 +637,21 @@ namespace {
             return update_return(expr, bool_type(expr->loc()));
           }
         }
-        case ast::UnaryOp::negate:
+        case ast::UnaryOp::negate: {
+          if (is_unsigned(expr->expr())) {
+            auto a = type_was_note(expr->expr());
+            auto b = gal::point_out_part(*expr, gal::DiagnosticType::error, "expr was not signed");
+            auto c = gal::point_out_list(std::move(a), std::move(b));
+            auto d = gal::single_message(
+                absl::StrCat("operator `", gal::unary_op_string(expr->op()), "` must have a signed integral type"));
+
+            diagnostics_->report_emplace(53, gal::into_list(std::move(c), std::move(d)));
+
+            return update_return(expr, error_type());
+          }
+
+          [[fallthrough]];
+        }
         case ast::UnaryOp::bitwise_not: {
           if (!integral(expr->expr())) {
             auto a = type_was_note(expr->expr());
@@ -762,7 +795,11 @@ namespace {
         }
         case ast::BinaryOp::equals:
         case ast::BinaryOp::not_equal: {
-          if (check_identical(expr)) {
+          if (expr->lhs().result().is(TT::builtin_float) && expr->rhs().result().is(TT::builtin_float)) {
+            return update_return(expr, bool_type(expr->loc()));
+          }
+
+          if (check_binary_conditions(expr, integral, 41, "integral")) {
             return update_return(expr, bool_type(expr->loc()));
           }
 
@@ -879,9 +916,43 @@ namespace {
                 "cannot cast any type besides a `byte` pointer to a fn pointer",
                 "help: try casting to `*const byte` first");
           }
-          case TT::reference:
+          case TT::reference: {
+            if (result.is(TT::pointer)) {
+              auto& ptr = gal::as<ast::PointerType>(result);
+              auto& cast_to = gal::as<ast::ReferenceType>(expr->cast_to());
+
+              if (ptr.mut() != cast_to.mut()) {
+                return cast_error(expr, "when casting references to pointers, `mut` must be preserved");
+              }
+
+              if (ptr.pointed() == cast_to.referenced()) {
+                return update_return(expr, cast_to.clone());
+              }
+
+              return cast_error(expr, "cannot cast a pointer to type `T` to a reference of unrelated type `U`");
+            }
+
+            return cast_error(expr, "only pointers of type `T` can be cast to a reference of type `T`");
+          }
+          case TT::pointer: {
+            if (result.is(TT::reference)) {
+              auto& ref = gal::as<ast::ReferenceType>(result);
+              auto& cast_to = gal::as<ast::PointerType>(expr->cast_to());
+
+              if (ref.mut() != cast_to.mut()) {
+                return cast_error(expr, "when casting pointers to references, `mut` must be preserved");
+              }
+
+              if (ref.referenced() == cast_to.pointed()) {
+                return update_return(expr, cast_to.clone());
+              }
+
+              return cast_error(expr, "cannot cast a reference to type `T` to a reference of unrelated type `U`");
+            }
+
+            return cast_error(expr, "only references of type `T` can be cast to a pointer of type `T`");
+          }
           case TT::slice:
-          case TT::pointer:
           case TT::nil_pointer:
           case TT::error:
           case TT::user_defined_unqualified:
@@ -900,6 +971,9 @@ namespace {
         diagnostics_->report_emplace(15, gal::into_list(std::move(a)));
       }
 
+      convert_intermediate(expr->true_branch_owner());
+      convert_intermediate(expr->false_branch_owner());
+
       // compatible != identical, say its `if thing then nil else &a`. no accidental
       // and severely underpowered type inference is getting in until this compiler is ready!
       if (!identical(expr->true_branch(), expr->false_branch())) {
@@ -911,8 +985,6 @@ namespace {
 
         update_return(expr, error_type());
       } else {
-        convert_intermediate(expr->true_branch_owner());
-
         update_return(expr, expr->true_branch().result().clone());
       }
     }
@@ -1332,6 +1404,15 @@ namespace {
       return integral(expr.result());
     }
 
+    [[nodiscard]] static bool is_unsigned(const ast::Type& type) noexcept {
+      return type.is_one_of(TT::builtin_byte, TT::builtin_bool)
+             || (type.is(TT::builtin_integral) && !gal::as<ast::BuiltinIntegralType>(type).has_sign());
+    }
+
+    [[nodiscard]] static bool is_unsigned(const ast::Expression& expr) noexcept {
+      return is_unsigned(expr.result());
+    }
+
     [[nodiscard]] static bool arithmetic(const ast::Type& type) noexcept {
       return integral(type) || type.is(TT::builtin_float);
     }
@@ -1403,8 +1484,8 @@ namespace {
 
     [[nodiscard]] static bool lvalue(const ast::Expression& expr) noexcept {
       // identifiers all have some sort of address, field-access requires a struct object to exist,
-      // array-access requires the array / slice to exist, string literals are magic
-      return expr.is_one_of(ET::identifier, ET::identifier_local, ET::string_lit)
+      // array-access requires the array / slice to exist
+      return expr.is_one_of(ET::identifier, ET::identifier_local)
              || expr.result().is_one_of(TT::indirection, TT::error);
     }
 
@@ -1655,9 +1736,11 @@ namespace {
     }
 
     GALLIUM_COLD void cast_error(ast::CastExpression* expr, std::string_view msg, std::string_view help = "") noexcept {
-      auto a = gal::point_out(*expr, gal::DiagnosticType::error);
-      auto b = gal::single_message(std::string{msg});
-      auto vec = gal::into_list(std::move(a), std::move(b));
+      auto a = gal::point_out_part(*expr, gal::DiagnosticType::error);
+      auto b = type_was_note(expr->castee());
+      auto c = gal::point_out_list(std::move(a), std::move(b));
+      auto d = gal::single_message(std::string{msg});
+      auto vec = gal::into_list(std::move(c), std::move(d));
 
       if (!help.empty()) {
         vec.push_back(gal::single_message(std::string{help}));
@@ -1683,9 +1766,9 @@ namespace {
     [[nodiscard]] static ast::Type* array_type(ast::Type* type) noexcept {
       switch (type->type()) {
         case TT::reference: {
-          auto* array = gal::as_mut<ast::ReferenceType>(type);
+          auto* ref = gal::as_mut<ast::ReferenceType>(type);
 
-          return array_type(array->referenced_mut());
+          return array_type(ref->referenced_mut());
         }
         case TT::pointer: {
           auto* ptr = gal::as_mut<ast::PointerType>(type);
@@ -1698,9 +1781,14 @@ namespace {
           return slice->sliced_mut();
         }
         case TT::array: {
-          auto* slice = gal::as_mut<ast::ArrayType>(type);
+          auto* array = gal::as_mut<ast::ArrayType>(type);
 
-          return slice->element_type_mut();
+          return array->element_type_mut();
+        }
+        case TT::indirection: {
+          auto* indir = gal::as_mut<ast::IndirectionType>(type);
+
+          return array_type(indir->produced_mut());
         }
         default: assert(false); return nullptr;
       }

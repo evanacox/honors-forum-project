@@ -12,6 +12,7 @@
 #include "absl/flags/usage.h"
 #include "absl/strings/str_cat.h"
 #include "driver.h"
+#include "utility/flags.h"
 #include <string_view>
 #include <vector>
 
@@ -45,6 +46,8 @@ int main(int argc, char** argv) {
 
   auto vec = absl::ParseCommandLine(argc, argv);
   auto files = into_positionals(absl::MakeSpan(vec));
+
+  gal::delegate_flags();
 
   // `files` includes the first positional argument (which is the exe path), need to ignore
   // also need to ignore the final null string, it will always have a string with just \0 in it
