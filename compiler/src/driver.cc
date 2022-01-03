@@ -48,9 +48,6 @@ namespace {
   thread_local llvm::LLVMContext context;
 
   llvm::TargetMachine* llvm_setup(const std::string& triple) noexcept {
-    const char* argv[] = {"galliumc", "-x86-asm-syntax=intel"};
-    assert(llvm::cl::ParseCommandLineOptions(std::size(argv), argv, "", &llvm::outs()));
-
     llvm::InitializeAllTargetInfos();
     llvm::InitializeAllTargets();
     llvm::InitializeAllTargetMCs();

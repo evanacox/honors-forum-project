@@ -199,7 +199,7 @@ namespace gal::backend {
 
     void emit_terminator() noexcept;
 
-    void reset_labels() noexcept;
+    void reset_fn_state() noexcept;
 
     [[nodiscard]] llvm::IRBuilder<>* builder() noexcept;
 

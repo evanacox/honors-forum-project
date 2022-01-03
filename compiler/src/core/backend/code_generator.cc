@@ -120,7 +120,10 @@ namespace gal::backend {
     }
 
     auto* function_type = llvm::FunctionType::get(pool_.map_type(proto.return_type()), arg_types, false);
-    auto* fn = llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, llvm::Twine(name), state_.module());
+    auto* fn =
+        llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, llvm::Twine(name), state_.module());
+
+    fn->setDSOLocal(true);
 
     auto i = 0u;
     for (auto& arg : proto.args()) {
@@ -152,7 +155,7 @@ namespace gal::backend {
   void CodeGenerator::visit(const ast::ImportFromDeclaration&) {}
 
   void CodeGenerator::visit(const ast::FnDeclaration& declaration) {
-    reset_labels();
+    reset_fn_state();
     auto is_void = declaration.proto().return_type().is(ast::TypeType::builtin_void);
     auto* fn = codegen_proto(declaration.proto(), declaration.mangled_name());
 
@@ -839,7 +842,27 @@ namespace gal::backend {
     Expr::return_value(nullptr);
   }
 
-  void CodeGenerator::visit(const ast::ForExpression&) {}
+  void CodeGenerator::visit(const ast::ForExpression& expr) {
+    loop_start_ = create_block();
+    auto* loop_body = create_block();
+    loop_merge_ = create_block();
+
+    auto start = codegen_promoting(expr.init());
+    auto last = codegen_promoting(expr.last());
+
+    builder()->CreateBr(loop_start_);
+    builder()->SetInsertPoint(loop_start_);
+
+    builder()->CreateCondBr(cond, loop_body, loop_merge_);
+
+    builder()->SetInsertPoint(loop_body);
+    expr.body().accept(this);
+    builder()->CreateBr(loop_start_);
+
+    merge_with(loop_merge_);
+
+    Expr::return_value(nullptr);
+  }
 
   void CodeGenerator::visit(const ast::ReturnExpression& expression) {
     if (auto ptr = expression.value()) {
@@ -947,8 +970,16 @@ namespace gal::backend {
     return absl::StrCat(".bb", gal::to_digits(curr_label_++));
   }
 
-  void CodeGenerator::reset_labels() noexcept {
+  void CodeGenerator::reset_fn_state() noexcept {
     curr_label_ = 1;
+    loop_start_ = nullptr;
+    loop_merge_ = nullptr;
+    exit_block_ = nullptr;
+    dead_block_ = nullptr;
+    panic_block_ = nullptr;
+    panic_phi_ = nullptr;
+    return_value_ = nullptr;
+    loop_break_value_ = nullptr;
   }
 
   void CodeGenerator::emit_terminator() noexcept {
