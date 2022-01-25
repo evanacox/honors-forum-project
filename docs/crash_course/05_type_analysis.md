@@ -7,7 +7,7 @@ parent: Compilers Crash Course
 
 # Type Systems: Analyzing and Understanding Programs
 
-As was mentioned in the [High Level Overview]({{ site.baseurl }}{% link ./02_high_level.md %}) section, after we've successfully parsed a program, we need to *analyze* it. We need to ensure that the program actually makes sense in context. 
+As was mentioned in the [High Level Overview](./02_high_level.html) section, after we've successfully parsed a program, we need to *analyze* it. We need to ensure that the program actually makes sense in context. 
 
 ## Background: What Is a "Type"?
 
