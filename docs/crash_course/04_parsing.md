@@ -22,18 +22,14 @@ Consider an imaginary programming language that is written as a series of mathem
 
 > We're going to ignore `xy` as shorthand for `x * y`, it makes the following explanation significantly more complicated and ends up impeding understanding. 
 
-Let's also have some textual equivalents for common mathematical operations:
-  - `sqrt(x)` -> $$ \sqrt{x} $$
-  - `logN(x)` -> $$ \log_N{x} $$
-  - `pi` -> $$ \pi $$ 
-  - `x^N` -> $$ x^N $$
+Let's also say that `pi` is equivalent to the $$ \pi $$ constant.
 
 Here's some simple examples of what this imaginary language looks like: 
 
 ~~~
 f(x) = x * sin(1 / x)
 
-g(x) = sqrt(x^2) * log2(x)
+g(x) = sqrt(x) * 5
 
 8 * sin(pi / 6) + (12 - g(6)) / f(.3)
 ~~~
