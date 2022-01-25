@@ -113,7 +113,7 @@ This is precisely what type checking is supposed to find: places in the AST wher
 
 ## A Correct Example
 
-Let's change up the AST we've been working with slightly, and switch out the offending part of the AST with a number, to make it valid:
+Let's change up the AST we've been working with slightly, and switch out the offending node `"Hello!" of the AST with a number, to make it valid. We'll switch it with `3.1415`:
 
 ![A fixed AST](../assets/images/type-ast-7.png)
 
