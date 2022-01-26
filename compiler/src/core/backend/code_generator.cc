@@ -390,13 +390,10 @@ namespace gal::backend {
     if (expression.callee().result().is(ast::TypeType::slice)) {
       auto array = codegen_promoting(expression.callee());
       array_ptr = builder()->CreateExtractValue(array, {0});
+      auto* size = builder()->CreateExtractValue(array, {1});
+      auto* out_of_bounds = builder()->CreateICmpSGE(size, offset);
 
-      if (should_generate_panics()) {
-        auto* size = builder()->CreateExtractValue(array, {1});
-        auto* out_of_bounds = builder()->CreateICmpSGE(size, offset);
-
-        panic_if(expression.loc(), out_of_bounds, "tried to access out-of-bounds on slice");
-      }
+      panic_if(expression.loc(), out_of_bounds, "tried to access out-of-bounds on slice");
     } else {
       auto array = codegen(expression.callee());
       array_ptr = builder()->CreateBitCast(array, pool_.pointer_to(array_element_type));
@@ -548,7 +545,7 @@ namespace gal::backend {
     auto info = integral_info(&pool_, expr.result());
 
     if (should_generate_panics() && expr.result().is_integral()) {
-      auto* larger_than = builder()->CreateICmpUGT(rhs, pool_.constant_of(info.width, info.width));
+      auto* larger_than = builder()->CreateICmpUGE(rhs, pool_.constant_of(info.width, info.width));
 
       panic_if(expr.loc(), larger_than, "cannot shift left by number larger than the bit-width of the type");
     }
@@ -562,7 +559,7 @@ namespace gal::backend {
     auto info = integral_info(&pool_, expr.result());
 
     if (should_generate_panics() && expr.result().is_integral()) {
-      auto* larger_than = builder()->CreateICmpUGT(rhs, pool_.constant_of(info.width, info.width));
+      auto* larger_than = builder()->CreateICmpUGE(rhs, pool_.constant_of(info.width, info.width));
 
       panic_if(expr.loc(), larger_than, "cannot shift right by number larger than the bit-width of the type");
     }
@@ -843,6 +840,7 @@ namespace gal::backend {
   }
 
   void CodeGenerator::visit(const ast::ForExpression& expr) {
+    auto* loop_header = create_block();
     loop_start_ = create_block();
     auto* loop_body = create_block();
     loop_merge_ = create_block();
@@ -850,17 +848,38 @@ namespace gal::backend {
     auto start = codegen_promoting(expr.init());
     auto last = codegen_promoting(expr.last());
 
+    auto* current_bb = builder()->GetInsertBlock();
+    builder()->CreateBr(loop_header);
+    builder()->SetInsertPoint(loop_header);
+
+    // we don't want to allocate every loop iteration
+    // while we could use a phi here, the object needs to be in memory
+    // for the variable resolver to work correctly
+    auto value = builder()->CreateAlloca(start.type());
+    builder()->CreateStore(start, value);
+    variables_.enter_scope();
+    variables_.set(expr.loop_variable(), value);
     builder()->CreateBr(loop_start_);
     builder()->SetInsertPoint(loop_start_);
 
+    // actual loop header, just loads current value and compares it
+    auto* load = builder()->CreateLoad(start.type(), value);
+    auto* cond = builder()->CreateICmpNE(load, last);
     builder()->CreateCondBr(cond, loop_body, loop_merge_);
 
     builder()->SetInsertPoint(loop_body);
     expr.body().accept(this);
+
+    auto width = start.type()->getIntegerBitWidth();
+    auto next = (expr.loop_direction() == ast::ForDirection::up_to)
+                    ? generate_add(expr.init(), load, pool_.constant_of(width, 1))
+                    : generate_sub(expr.init(), load, pool_.constant_of(width, 1));
+
+    builder()->CreateStore(next, value);
     builder()->CreateBr(loop_start_);
+    variables_.leave_scope();
 
     merge_with(loop_merge_);
-
     Expr::return_value(nullptr);
   }
 

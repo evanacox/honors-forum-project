@@ -499,6 +499,14 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
           {"cannot negate unsigned type",
               "negation operator (`-`) can only be applied to signed types",
               gal::DiagnosticType::error}},
+      {54,
+          {"for loop type must be integral",
+              "the type of the init value, end value and loop variable must be integral types",
+              gal::DiagnosticType::error}},
+      {55,
+          {"for loop initial value and last value must be the same type",
+              "try inserting a cast",
+              gal::DiagnosticType::error}},
   };
 
   return lookup.at(code);

@@ -1079,10 +1079,34 @@ namespace {
     }
 
     void visit(ast::ForExpression* expr) final {
+      expr->init_mut()->accept(this);
+      expr->last_mut()->accept(this);
+
       {
         auto _ = BeforeAfterLoop(this);
-        visit_children(expr);
+        resolver_.enter_scope();
+        resolver_.add_local(expr->loop_variable(),
+            gal::ScopeEntity{expr->loc(), expr->init_mut()->result_mut(), false});
+        expr->body_mut()->accept(this);
+        resolver_.leave_scope();
       }
+
+      convert_intermediate(expr->init_owner());
+      convert_intermediate(expr->last_owner());
+
+      if (!identical(expr->init(), expr->last())) {
+        auto a = gal::point_out_list(type_was_err(expr->init()), type_was_err(expr->last()));
+
+        diagnostics_->report_emplace(55, gal::into_list(std::move(a)));
+      }
+
+      if (!integral(expr->init()) || !integral(expr->last())) {
+        auto a = gal::point_out_list(type_was_err(expr->init()), type_was_err(expr->last()));
+
+        diagnostics_->report_emplace(54, gal::into_list(std::move(a)));
+      }
+
+      update_return(expr, void_type(expr->loc()));
     }
 
     void visit(ast::ReturnExpression* expr) final {

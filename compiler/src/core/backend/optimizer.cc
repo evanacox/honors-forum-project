@@ -57,6 +57,10 @@ namespace gal {
     mpm.addPass(llvm::VerifierPass{});
     (void)builder.parsePassPipeline(mpm, pass_name(level));
 
+    // TODO: dirty hack: I currently have no idea how to properly order phases
+    // TODO: and with bounds checking, LLVM doesn't vectorize if I only run the passes once
+    // TODO: running it again cleans up everything nicely
+    mpm.run(*module, mam);
     mpm.run(*module, mam);
   }
 } // namespace gal
