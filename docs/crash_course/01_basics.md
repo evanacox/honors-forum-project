@@ -2,7 +2,7 @@
 layout: default
 title: Programming Languages Aren't Magic (How Humans Program Computers)
 nav_order: 1
-parent: Compilers Crash Course
+parent: "Crash Course: Compilers"
 usemathjax: true
 ---
 
@@ -30,7 +30,7 @@ def f(x):
 
 If you haven't, maybe you just wrote this into a calculator and somehow the calculator understood it (calculators are computers too!):
 
-$$ f(x) = 2x + 6 $$
+$$ 2x + 6 $$
 
 Whatever the case is, you were writing a glorified text file,
 and *somehow*, the computer understood what it was and what to do with it.
@@ -50,12 +50,11 @@ Those numbers correspond to specific *machine instructions*, which are the opera
 
 Examples:
   - "copy a value from one location to another"
-  - "multiply the values at these 2 locations" 
-  - "compare the values at these 2 locations"
-  - "start executing the instructions at another location"
-  - "update the value at this location to this new value"
-  - "exchange the values at these 2 locations" 
-  - "negate the value at this location" 
+  - "multiply these two values" 
+  - "check if this value is greater than that value"
+  - "add these two values"
+  - "update this location to contain this new value"
+  - "swap the values at these 2 locations" 
 
 To do anything remotely complicated, many of these instructions must be put together in a list that the computer can execute one-by-one. 
  
@@ -87,6 +86,6 @@ Text formats are not the only way of doing this, nor is there anything particula
 
 The same translation process described above happens in "visual" environments like Scratch or Unreal Engine's Blueprints, just in slightly different ways. 
 
-![Forms of Code](../assets/images/forms-of-code.png)
+![Forms of Code](../assets/images/crash-course/whats-a-compiler/forms-of-code.png)
 
 They're all just methods of making the computer do what we want it to do, after all! 

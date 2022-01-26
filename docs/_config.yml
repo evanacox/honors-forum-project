@@ -39,7 +39,7 @@ back_to_top_text: "Back to Top"
 last_edit_timestamp: true # show or hide edit time - page must have `last_modified_date` defined in the frontmatter
 last_edit_time_format: "%b %e %Y at %I:%M %p" # uses ruby's time format: https://ruby-doc.org/stdlib-2.7.0/libdoc/time/rdoc/Time.html
 
-footer_content: "Copyright &copy; 2021, Evan Cox. All rights reserved. Distributed under the <a href=\"https://github.com/evanacox/honors-forum-project/tree/master/LICENSE.txt\">BSD 3-clause license.</a>"
+footer_content: "Copyright &copy; 2021-2022, Evan Cox. All rights reserved. Distributed under the <a href=\"https://github.com/evanacox/honors-forum-project/tree/master/LICENSE.txt\">BSD 3-clause license.</a>"
 
 search_enabled: true
 search:

@@ -2,7 +2,7 @@
 layout: default
 title: High Level Overview of a Compiler's Job
 nav_order: 2
-parent: Compilers Crash Course
+parent: "Crash Course: Compilers"
 ---
 
 # High Level Overview of a Compiler's Job

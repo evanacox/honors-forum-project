@@ -16,5 +16,4 @@ code and instantly aborts, usually with an instruction rather than a call.
 
 ### Notes
 - Callable in user code with `__builtin_trap`
-
-- Implemented by emitting a `weak` function in each LLVM module, relies on `@llvm.trap`
+- Implemented by emitting a `weak` function in each LLVM module, relies on `@llvm.trap`.
