@@ -84,7 +84,7 @@ quite obviously not a number, so we mark it as text.
 
 ![AST with leaf nodes marked](../assets/images/crash-course/types/type-ast-2.png)
 
-Now, we need to look at the more complicated nodesn `*`, `+` and `/`. For each of these, both of the nodes
+Now, we need to look at the more complicated nodes `*`, `+` and `/`. For each of these, both of the nodes
 that are being operated on have to be numbers. After all, you can't multiply `5` by `Muffin`, can you?
 
 For `/`, we know this is fine. Both `42` and `0.3` are numbers, so `42 / 0.3` makes sense. We can mark it as
