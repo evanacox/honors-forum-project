@@ -9,8 +9,6 @@ parent: Compiler Design
 ## Arrays
 Arrays are treated similarly to arrays in C/++, they don't keep track of their own size *at run-time*. Array sizes are encoded at the type level, at run-time they are simply a contiguous list of objects. 
 
-
-
 In LLVM, these are mapped directly to arrays. For example, an array `[T; 64]` would map to `[T x 64]` in LLVM IR. 
 
 ## Structures
@@ -55,8 +53,8 @@ In this particular case, the order is pointer first and size later, in order to 
 
 The actual layout at runtime would look something like this:
 
-![layout #1](../assets/images/slice-layout-1.png)
+![layout #1](../assets/images/compiler-design/layout/slice-layout-1.png)
 
 Note that slices don't have to point to the beginning of an array, they could also look like this at runtime:
 
-![layout #2](../assets/images/slice-layout-2.png)
+![layout #2](../assets/images/compiler-design/layout/slice-layout-2.png)

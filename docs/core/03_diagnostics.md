@@ -5,7 +5,11 @@ nav_order: 3
 parent: Compiler Design
 ---
 
-# 
+# Diagnostic Reporting
+
+Good error messages is one of the most important things a compiler can have in them. After
+all, programmers make a **lot** of mistakes. Being able to easily see exactly what went wrong,
+where it went wrong, and (ideally) how to fix it removes a lot of the friction of writing code.
 
 ~~~
 error [E#403] mismatched return type

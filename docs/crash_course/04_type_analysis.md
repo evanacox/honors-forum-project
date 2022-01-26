@@ -2,7 +2,7 @@
 layout: default
 title: "Type Analysis: Analyzing and Understanding Programs"
 nav_order: 5
-parent: Compilers Crash Course
+parent: "Crash Course: Compilers"
 ---
 
 # Type Analysis: Analyzing and Understanding Programs
@@ -13,7 +13,7 @@ As was mentioned in the [High Level Overview](./02_high_level.html) section, aft
 
 Before we can explain what type-based analysis is and how we do it, we need to establish what a *type* even is. 
 
-You've probably heard before that "computers only understand binary." This is technically correct: the only thing your computer actually operates on is big (as in  lists of 1s and 0s. But, in reality, those sets of 1s and 0s can mean vastly different things depending on the meaning that our *program* assigns to them. 
+You've probably heard before that "computers only understand binary." This is technically correct: the only thing your computer actually operates on is big sets of 1s and 0s. But, in reality, those sets of 1s and 0s can mean vastly different things depending on the meaning that our *program* assigns to them. 
 
 As an example, let's consider the following 64 0s and 1s (a 0 or a 1 will be called a "bit" from now on):
 
@@ -64,68 +64,50 @@ with one slight modification: we will have values that model text, they will be 
 
 Consider the following AST that models `("Hello!" + (42 / 0.3)) * 5`: 
 
-![AST with textual and numeric values](../assets/images/type-ast-1-smaller.png)
+![AST with textual and numeric values](../assets/images/crash-course/types/type-ast-1.png)
 
 Let's pretend for a moment that we just created this AST from parsing some imaginary language, and we aren't sure if it makes sense. In order to check if it does, we need to perform *type checking* it. 
 
-### First Steps
+> *Note: For the sake of correct terminology, I will be calling the circles/squares/rectangles of the AST a "node"*.
 
-When we type-check a program, we start at the "root" (top) of the AST. In this case it's a `*`.
+In type-checking, we are trying to verify that a program *makes sense*. In order to actually do this, we need to start
+trying to figure out what each node of the AST is, what its *type* is, and whether that makes sense in context.
 
-> *Note: For the sake of correct terminology, I will be calling these "parts" of an AST a "node"*.
+Let's color code it. Nodes that are white are nodes that we haven't verified yet, nodes that are blue are text, and nodes
+that are red are numbers. 
 
-In type-checking, we are trying to verify if a program makes sense in context. A common way of doing this starts at the very top of the AST, and tries to verify of the root node. In order verify a node that has "children" (nodes connected with arrows in this case), both children have to be verified and have the type they evaluate to figured out.
+### An Invalid Program
 
-> Note: We'll use a color-coding system to help represent the type of each node. Red is a node marked with the "number" type, blue nodes are marked with the "text" type. Green arrows just signify "we're looking at these nodes."
+As a first step, let's deal with all of the simple nodes and figure out what those are first. We can just look at `5`, 
+`42` and `0.3` and tell that they are numbers, so we mark them as such. We can also look at `"Hello!"` and see that it is
+quite obviously not a number, so we mark it as text.
 
-We start at the root node. In order to verify that the `*` is valid, we need to verify that both children are valid, **and** that both children evaluate to numbers.
+![AST with leaf nodes marked](../assets/images/crash-course/types/type-ast-2.png)
 
-We look at both children, like so: 
+Now, we need to look at the more complicated nodesn `*`, `+` and `/`. For each of these, both of the nodes
+that are being operated on have to be numbers. After all, you can't multiply `5` by `Muffin`, can you?
 
-![Looking at children of root node](../assets/images/type-ast-2.png) 
+For `/`, we know this is fine. Both `42` and `0.3` are numbers, so `42 / 0.3` makes sense. We can mark it as
+being a number, because `42 / 0.3` is equivalent to a number. 
 
+For `+` however, we have a problem! While the `/` node is (equivalent to) a number, `"Hello!"` isn't! It doesn't
+make sense to add `"Hello!"` to a number. We've discovered a place in this program where our expectations were wrong, 
+so we know that this program is *invalid*. It has failed type checking. 
 
-The node containing `5` is simple, we can see that `5` is a number. Therefore, that node is a number (as we expect), and we mark it as a number. The other node however is a `+`: we need to repeat the same steps as with `+`, because addition must operate on two numbers. 
+![AST with error](../assets/images/crash-course/types/type-ast-3.png)
 
-Thus, we look at both children of the `+`:
+### A Valid Program
 
-![Looking at children of addition node](../assets/images/type-ast-3.png) 
+Let's say we switch out that `"Hello!"` node for something that
+actually can be a number, like `3.14`. What would happen in that case?
 
-We see that one child, `"Hello!"`, is quite obviously not a number. It's text data, and we mark it as text. The other node is a `/`, so we repeat the same steps as with `*` and `+`: check both children that they're numbers. 
+Well, we'd be able to verify `+`. After all, the result of `42 / 0.3` is a number, and so is `3.14`. Since addition results in a number, we mark that node as well. 
 
-![Looking at children of division node](../assets/images/type-ast-4.png)
+We can then do the same for `*`: the result of `+` is a number, and so is `5`. We can mark the `*` as a number, since it also results in a number.
 
-`42` and `0.3` are both obviously numbers, so we can mark them as numbers. 
+![AST without an error](../assets/images/crash-course/types/type-ast-4.png)
 
-Now however, we have enough information to start figuring out our other nodes. We start going backwards now, starting with the `/` node. 
-
-![Looking at the division node itself](../assets/images/type-ast-5.png)
-
-Both children are numbers, so we're fine in that regard. Since `42 / 0.3` evaluates to a number, we can mark the `/` operation itself as evaluating to a number. We then move backwards again to the `+` operator:
-
-![Looking at the addition node itself](../assets/images/type-ast-6.png)
-
-However, we have a problem this time! `+` adds two numbers, but one of our children isn't a number! 
-
-We've just found a conflict with what we expect (`+` adding two numbers) and what the AST actually says to do (`+` adding some text and a number). Thus, the AST is not correct, and we have determined that the program does not make sense. 
-
-This is precisely what type checking is supposed to find: places in the AST where the program does something that doesn't make sense. We've finished our job, and can stop now.
-
-## A Correct Example
-
-Let's change up the AST we've been working with slightly, and switch out the offending node `"Hello!" of the AST with a number, to make it valid. We'll switch it with `3.1415`:
-
-![A fixed AST](../assets/images/type-ast-7.png)
-
-Now, when we look at the `+` node again, we have fulfilled our expectations: both children are numbers. Since adding two numbers yields a number, we mark the `+` as evaluating to a number, and go back up another layer. 
-
-![Looking at the multiply node](../assets/images/type-ast-8.png)
-
-Just like `+` and `/`, both of our children are numbers, and multiplying two numbers yields a number so we mark it as a number. 
-
-![Finalized AST](../assets/images/type-ast-9.png)
-
-We've verified the root node! This time, we've type checked and found no issues in the AST. Our program is valid, and is ready to be used by the compiler later now that we know for certain that it is correct.
+This time, we didn't find anything weird! It successfully passed type checking without anything weird being found, so we know that the program makes sense. We can say that it is *valid*.
 
 ## Conclusion
 

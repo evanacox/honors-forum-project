@@ -30,6 +30,8 @@ due to the initialization it does / how it calls `main`. In addition, you will a
 end up with duplicate symbols for `exit`, because C defines `exit`. 
 
 The other issue is with function overloading. How do we put two symbols in the same binary with the same name?
+If we just blindly output the names the user gave us, we'd end up with two `to_string` symbols, which is a hard error
+at link time.
 
 ~~~
 fn to_string(x: f64) -> String { 
@@ -67,16 +69,16 @@ least unique in the ABIs that end up linked into a Gallium executable), we *shou
 ### Examples
 Here are some examples of mangled symbol names, and the entity that they map to:
 
-| Entity Signature                                                                | Mangled Name                                  |
-|---------------------------------------------------------------------------------|-----------------------------------------------|
-| `fn ::foo(i32, i64) -> void`                                                    | `_GF3fooNlmEv`                                |
-| `fn ::square(isize, isize) throws -> isize`                                     | `_GF6squareTooEo`                             |
-| `fn ::read_file(&::core::fs::Path) throws -> ::core::String`                    | `_GF9read_fileTR4core2fsU4PathE4coreU6String` |
-| `fn ::core::mem::copy(*const byte, *mut byte) -> void`                          | `_G4core3memF4copyNPaQaEv`                    |
-| `fn ::__arch::__amd64::__save_fpu_state() -> void`                              | `_G6__arch7__amd64F16__save_fpu_stateNEv`     |
-| `const ::core::math::pi: f64`                                                   | `_G4core4mathC2piq`                           |
-| `const ::n_threads: usize`                                                      | `_GC9n_threadsi`                              |
-| `fn ::whatever(&::long::Name, &::LongType, ::long::Name) throws -> ::LongType`  | `_GF8whateverTR4longU4NameRU8LongTypeZ0_EZ1_` |
+| Entity Signature                                                               | Mangled Name                                  |
+| ------------------------------------------------------------------------------ | --------------------------------------------- |
+| `fn ::foo(i32, i64) -> void`                                                   | `_GF3fooNlmEv`                                |
+| `fn ::square(isize, isize) throws -> isize`                                    | `_GF6squareTooEo`                             |
+| `fn ::read_file(&::core::fs::Path) throws -> ::core::String`                   | `_GF9read_fileTR4core2fsU4PathE4coreU6String` |
+| `fn ::core::mem::copy(*const byte, *mut byte) -> void`                         | `_G4core3memF4copyNPaQaEv`                    |
+| `fn ::__arch::__amd64::__save_fpu_state() -> void`                             | `_G6__arch7__amd64F16__save_fpu_stateNEv`     |
+| `const ::core::math::pi: f64`                                                  | `_G4core4mathC2piq`                           |
+| `const ::n_threads: usize`                                                     | `_GC9n_threadsi`                              |
+| `fn ::whatever(&::long::Name, &::LongType, ::long::Name) throws -> ::LongType` | `_GF8whateverTR4longU4NameRU8LongTypeZ0_EZ1_` |
 
 ### Pattern
 *MangledName* := `_G` *ModulePrefix* (*FnPattern* | *ConstantPattern*) 
@@ -100,7 +102,7 @@ size still mangle to different symbols, due to the fact that they can
 be overloaded on. User-defined types are identified by their names. 
 
 | Type                  | Mangled Name                                                                    |
-|-----------------------|---------------------------------------------------------------------------------|
+| --------------------- | ------------------------------------------------------------------------------- |
 | `void`                | `v`                                                                             |
 | `byte`                | `a`                                                                             |
 | `bool`                | `b`                                                                             |
@@ -139,7 +141,7 @@ Functions encode whether they are throwing (`T`) or non-throwing (`N`) at the AB
 The following functions are special-cased for mangling:
 
 | Function Signature    | Mangled Name          |
-|-----------------------|-----------------------|
+| --------------------- | --------------------- |
 | `fn ::main() -> void` | `__gallium_user_main` |
 
 ## Constants
