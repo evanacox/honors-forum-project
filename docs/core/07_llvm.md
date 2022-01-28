@@ -156,13 +156,13 @@ you can pretty easily figure out "yea, I could use a `select` here" for example,
 much simpler to remove the code that matches special cases where the more specialized instructions
 would work as expected and just emit the branching code that you'd use otherwise.
 
-Optimization passes work a lot on *canonicalization*, which is in normal terms "making all the possible
+Optimization passes work a lot on *canonicalization*, which in normal terms means "making all the possible
 ways of expressing this idea look the same" so it's simpler for optimization passes to find the
 patterns in the IR that they are able to optimize. 
 
-As an example, consider the different ways of checking that something `!= 5`:
+As an example, consider the near infinite number of different ways to check that `x != 5`:
 
-~~~
+~~~ llvm
 ; v1
 %0 = icmp eq i32 %x, 5 ; check if == 5
 %1 = xor i1 %0, true   ; invert the result
@@ -175,6 +175,11 @@ As an example, consider the different ways of checking that something `!= 5`:
 %1 = icmp sgt %x, 5  
 %2 = or i1 %0, %1      ; check if x > 5 or x < 5
 
+; v4
+%0 = icmp eq i32 %x, 5 ; check if x == 5
+%1 = sub i1 %0, 1      ; subtract 1, rely on wrapping to invert
+
+; vN 
 ; ...
 ~~~
 
