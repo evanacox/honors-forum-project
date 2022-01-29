@@ -1,7 +1,7 @@
 ---
 layout: default
 title: LLVM
-nav_order: 2
+nav_order: 7
 parent: Compiler Design
 ---
 

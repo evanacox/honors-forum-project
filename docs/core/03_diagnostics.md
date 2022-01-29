@@ -22,15 +22,28 @@ error [E#403] mismatched return type
   6 |   return 0.4
     |          ~~~ expression is of type `f64` instead of `i32` 
     |
-  note: return
 ~~~
 
-~~~
-error [E#0494] :: method signature incompatible with trait method 
-  >>> file.gal:2668:4
-       |
-  2668 |     fn print(&mut self, printer: &dyn Writeable) -> void { 
-       |              ^^^^^^^^^ trait signature uses `&self`, not `&mut self`
-       |
-  note: full trait signature is `fn print(&self, &dyn Writeable) -> void` 
-~~~
+## API
+
+Diagnostics are reported through a `DiagnosticReporter*`, an abstract 
+interface that takes in diagnostic objects and reports them *somehow* (the
+method is irrelevant to the usage). 
+
+> *Note: as of right now there is only a console reporter, but in theory*
+> *the errors could be reported through LSP or an IDE's API.*
+
+Diagnostics themselves are considered a set of `DiagnosticPart`s. Each part
+represents a single portion of an error message, e.g a single note message,
+a list of source locations to point out somehow, etc. These are all
+flagged with the *type* of diagnostic (e.g warning, note, error) and
+any additional information specific to that type of `DiagnosticPart`.
+
+These are created by various parts of the compiler and then fed into a
+reporter when they are encountered. It is up to the reporter to enforce any
+ordering invariants. 
+
+### Files
+
+The error reporting infrastructure is located in `compiler/src/errors`.
+
