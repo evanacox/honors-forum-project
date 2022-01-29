@@ -427,7 +427,7 @@ namespace gal::ast {
   public:
     virtual void walk_ast(const Program& program) {
       for (auto& decl : program.decls()) {
-        accept(decl);
+        accept(*decl);
       }
     }
 
@@ -459,7 +459,7 @@ namespace gal::ast {
 
     void visit(const FnPointerType& type) override {
       for (auto& arg : type.args()) {
-        accept(arg);
+        accept(*arg);
       }
 
       accept(type.return_type());
@@ -514,7 +514,7 @@ namespace gal::ast {
 
     void visit(const ExternalDeclaration& declaration) override {
       for (auto& fn : declaration.externals()) {
-        accept(fn);
+        accept(*fn);
       }
     }
 
@@ -545,6 +545,8 @@ namespace gal::ast {
 
     void visit(const IdentifierExpression&) override {}
 
+    void visit(const LocalIdentifierExpression&) override{};
+
     void visit(const StaticGlobalExpression&) override {}
 
     void visit(const StructExpression& expression) override {
@@ -559,13 +561,13 @@ namespace gal::ast {
       accept(expression.callee());
 
       for (auto& arg : expression.args()) {
-        accept(arg);
+        accept(*arg);
       }
     }
 
     void visit(const StaticCallExpression& expression) override {
       for (auto& arg : expression.args()) {
-        accept(arg);
+        accept(*arg);
       }
     }
 
@@ -577,7 +579,7 @@ namespace gal::ast {
       accept(expression.callee());
 
       for (auto& arg : expression.indices()) {
-        accept(arg);
+        accept(*arg);
       }
     }
 
@@ -632,13 +634,13 @@ namespace gal::ast {
       }
 
       if (auto else_block = expression.else_block()) {
-        accept(*else_block);
+        accept(**else_block);
       }
     }
 
     void visit(const BlockExpression& expression) override {
       for (auto& stmt : expression.statements()) {
-        accept(&stmt);
+        accept(*stmt);
       }
     }
 
@@ -660,13 +662,13 @@ namespace gal::ast {
 
     void visit(const ReturnExpression& expression) override {
       if (auto value = expression.value()) {
-        accept(*value);
+        accept(**value);
       }
     }
 
     void visit(const BreakExpression& expression) override {
       if (auto value = expression.value()) {
-        accept(*value);
+        accept(**value);
       }
     }
 
@@ -674,7 +676,7 @@ namespace gal::ast {
 
     void visit(const BindingStatement& statement) override {
       if (auto hint = statement.hint()) {
-        accept(*hint);
+        accept(**hint);
       }
 
       accept(statement.initializer());
@@ -719,4 +721,11 @@ namespace gal::ast {
       accept(proto.return_type());
     }
   };
+
+  void f() {
+    AnyConstVisitorBase<void> v;
+  }
+
+  static_assert(!std::is_abstract_v<AnyVisitorBase<void>>);
+  static_assert(!std::is_abstract_v<AnyConstVisitorBase<void>>);
 } // namespace gal::ast
