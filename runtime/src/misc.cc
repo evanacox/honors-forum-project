@@ -8,23 +8,9 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#pragma once
+#include "./runtime.h"
+#include <cstdio>
 
-#include "./llvm_state.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/IR/Value.h"
-
-namespace gal::backend {
-  /// Populates the LLVM module with any builtins that
-  /// need to be emitted directly in the IR
-  ///
-  /// \param state The state containing the module
-  void generate_builtins(LLVMState* state) noexcept;
-
-  /// Generates code to correctly "call" a compiler intrinsic
-  ///
-  /// \param name The name of the builtin being called
-  /// \param state The current LLVM state
-  /// \param args The arguments that were being passed to the builtin
-  llvm::Value* call_builtin(std::string_view name, LLVMState* state, llvm::ArrayRef<llvm::Value*> args) noexcept;
-} // namespace gal::backend
+extern "C" void gal::runtime::__gallium_puts(const char* data, std::size_t length) noexcept {
+  std::fwrite(data, sizeof(char), length, stdout);
+}

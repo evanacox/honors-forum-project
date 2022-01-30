@@ -12,6 +12,7 @@
 #include "../ast/visitors.h"
 #include "./backend/code_generator.h"
 #include "./backend/optimizer.h"
+#include "llvm/IR/Verifier.h"
 
 namespace ast = gal::ast;
 

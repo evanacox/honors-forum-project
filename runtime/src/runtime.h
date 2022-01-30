@@ -33,6 +33,15 @@ namespace gal::runtime {
   /// \param msg The message to display before aborting
   extern "C" [[noreturn]] void __gallium_assert_fail(const char* file, std::uint64_t line, const char* msg) noexcept;
 
-  /// Effectively `__builtin_trap` but emitted by LLVM directly
+  /// Called to print out a string literal
+  ///
+  /// \param data The data to print out
+  /// \param length The number of bytes to print out
+  extern "C" void __gallium_puts(const char* data, std::size_t length) noexcept;
+
+  /// Effectively `__builtin_trap` but emitted by LLVM directly.
+  ///
+  /// This function **does not exist** in this object file, it is defined
+  /// as a weak symbol in every LLVM module emitted by the compiler
   extern "C" [[noreturn]] void __gallium_trap() noexcept;
 } // namespace gal::runtime

@@ -69,6 +69,14 @@ namespace {
 
 namespace gal {
   int Driver::start(absl::Span<std::string_view> files) noexcept {
+    if (gal::flags().demangle()) {
+      for (auto mangled_name : files) {
+        gal::outs() << gal::demangle(mangled_name);
+      }
+
+      return 0;
+    }
+
     auto triple = llvm::sys::getDefaultTargetTriple();
     auto* machine = llvm_setup(triple);
 

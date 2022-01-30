@@ -178,6 +178,8 @@ namespace gal::backend {
 
     [[nodiscard]] llvm::BasicBlock* panic_block() noexcept;
 
+    [[nodiscard]] llvm::BasicBlock* assert_block() noexcept;
+
     [[nodiscard]] llvm::Value* integer_cast(std::uint32_t to_width,
         std::uint32_t from_width,
         bool is_signed,
@@ -212,7 +214,9 @@ namespace gal::backend {
     llvm::BasicBlock* exit_block_ = nullptr;       // the block that loads the return value and returns
     llvm::BasicBlock* dead_block_ = nullptr;       // the block that instructions generated after a terminator go
     llvm::BasicBlock* panic_block_ = nullptr;      // the block that panics with a message
+    llvm::BasicBlock* assert_block_ = nullptr;     // the block that panics with a message
     llvm::PHINode* panic_phi_ = nullptr;           // the phi node that gets the panic message
+    llvm::PHINode* assert_phi_ = nullptr;          // the phi node that gets the panic message
     llvm::AllocaInst* return_value_ = nullptr;     // the return value to be stored into
     llvm::AllocaInst* loop_break_value_ = nullptr; // the value of a loop to store into
     std::size_t curr_label_ = 1;

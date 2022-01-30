@@ -722,10 +722,6 @@ namespace gal::ast {
     }
   };
 
-  void f() {
-    AnyConstVisitorBase<void> v;
-  }
-
   static_assert(!std::is_abstract_v<AnyVisitorBase<void>>);
   static_assert(!std::is_abstract_v<AnyConstVisitorBase<void>>);
 } // namespace gal::ast

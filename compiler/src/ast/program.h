@@ -28,6 +28,10 @@ namespace gal::ast {
       return absl::MakeSpan(declarations_);
     }
 
+    void add_decl(std::unique_ptr<Declaration> node) noexcept {
+      declarations_.push_back(std::move(node));
+    }
+
   private:
     std::vector<std::unique_ptr<Declaration>> declarations_;
   };

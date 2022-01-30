@@ -54,7 +54,6 @@ namespace gal {
 
     auto mpm = llvm::ModulePassManager{};
 
-    mpm.addPass(llvm::VerifierPass{});
     (void)builder.parsePassPipeline(mpm, pass_name(level));
 
     // TODO: dirty hack: I currently have no idea how to properly order phases

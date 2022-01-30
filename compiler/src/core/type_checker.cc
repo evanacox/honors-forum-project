@@ -94,6 +94,41 @@ namespace {
 
   static ast::BuiltinIntegralType ptr_width_int{ast::SourceLoc::nonexistent(), true, ast::IntegerWidth::native_width};
 
+  std::unique_ptr<ast::Declaration> create_builtin(std::string_view name, std::vector<ast::Argument> args) noexcept {
+    auto proto = ast::FnPrototype(std::string{name},
+        std::nullopt,
+        std::move(args),
+        std::vector<ast::Attribute>{},
+        void_type(ast::SourceLoc::nonexistent()));
+
+    return std::make_unique<ast::ExternalFnDeclaration>(ast::SourceLoc::nonexistent(), false, std::move(proto));
+  }
+
+  std::unique_ptr<ast::Declaration> create_builtin(std::string_view name,
+      std::vector<ast::Attribute> attributes) noexcept {
+    auto proto = ast::FnPrototype(std::string{name},
+        std::nullopt,
+        std::vector<ast::Argument>{},
+        std::move(attributes),
+        void_type(ast::SourceLoc::nonexistent()));
+
+    return std::make_unique<ast::ExternalFnDeclaration>(ast::SourceLoc::nonexistent(), false, std::move(proto));
+  }
+
+  void register_builtins(ast::Program* program) noexcept {
+    auto loc = ast::SourceLoc::nonexistent();
+
+    auto externals = gal::into_list(
+        create_builtin("__builtin_trap", std::vector{ast::Attribute{ast::AttributeType::builtin_noreturn, {}}}),
+        create_builtin("__builtin_puts",
+            std::vector{ast::Argument(loc, "__1", slice_of(loc, uint_type(loc, 8), false))}),
+        create_builtin("__builtin_black_box", std::vector{ast::Argument(loc, "__1", byte_ptr.clone())}));
+
+    auto node = std::make_unique<ast::ExternalDeclaration>(ast::SourceLoc::nonexistent(), false, std::move(externals));
+
+    program->add_decl(std::move(node));
+  }
+
   class TypeChecker final : public ast::AnyVisitorBase<void, ast::Type*> {
     using Expr = ast::ExpressionVisitor<ast::Type*>;
     using Base = ast::AnyVisitorBase<void, ast::Type*>;
@@ -650,6 +685,11 @@ namespace {
             return update_return(expr, error_type());
           }
 
+          // floats and ints
+          if (arithmetic(expr->expr())) {
+            return update_return(expr, expr->expr().result().clone());
+          }
+
           [[fallthrough]];
         }
         case ast::UnaryOp::bitwise_not: {
@@ -759,6 +799,9 @@ namespace {
 
     void visit(ast::BinaryExpression* expr) final {
       visit_children(expr);
+
+      convert_intermediate(expr->lhs_owner());
+      convert_intermediate(expr->rhs_owner());
 
       switch (expr->op()) {
         case ast::BinaryOp::mul:
@@ -1082,6 +1125,9 @@ namespace {
       expr->init_mut()->accept(this);
       expr->last_mut()->accept(this);
 
+      convert_intermediate(expr->init_owner());
+      convert_intermediate(expr->last_owner());
+
       {
         auto _ = BeforeAfterLoop(this);
         resolver_.enter_scope();
@@ -1090,9 +1136,6 @@ namespace {
         expr->body_mut()->accept(this);
         resolver_.leave_scope();
       }
-
-      convert_intermediate(expr->init_owner());
-      convert_intermediate(expr->last_owner());
 
       if (!identical(expr->init(), expr->last())) {
         auto a = gal::point_out_list(type_was_err(expr->init()), type_was_err(expr->last()));
@@ -1349,6 +1392,14 @@ namespace {
             return array.element_type() == slice.sliced();
           }
         }
+      }
+
+      if (into.is(TT::pointer) && expr.result().is(TT::reference)) {
+        auto& ref = gal::as<ast::ReferenceType>(expr.result());
+        auto& pt = gal::as<ast::PointerType>(into);
+
+        // &mut T -> *mut T | *mut byte, &T -> *const T | *const byte
+        return ref.mut() == pt.mut() && (pt.pointed().is(TT::builtin_byte) || pt.pointed() == ref.referenced());
       }
 
       // we can convert the magic literal type -> integral types
@@ -1855,5 +1906,7 @@ namespace {
 bool gal::type_check(ast::Program* program,
     const llvm::TargetMachine& machine,
     gal::DiagnosticReporter* reporter) noexcept {
+  register_builtins(program);
+
   return TypeChecker(program, machine, reporter).type_check();
 }

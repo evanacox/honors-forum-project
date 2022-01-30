@@ -249,14 +249,19 @@ namespace gal::backend {
     });
   }
 
-  llvm::Type* ConstantPool::struct_from(llvm::ArrayRef<std::pair<llvm::Type*, std::string_view>> array) noexcept {
+  llvm::Type* ConstantPool::struct_from(std::string_view name,
+      llvm::ArrayRef<std::pair<llvm::Type*, std::string_view>> array) noexcept {
+    if (auto* ptr = llvm::StructType::getTypeByName(state_->context(), name)) {
+      return ptr;
+    }
+
     auto field_types = llvm::SmallVector<llvm::Type*, 8>{};
     field_types.reserve(array.size());
     std::transform(array.begin(), array.end(), std::back_inserter(field_types), [](const TypeNamePair& pair) {
       return pair.first;
     });
 
-    return llvm::StructType::get(state_->context(), field_types);
+    return llvm::StructType::create(state_->context(), field_types, name);
   }
 
   llvm::Constant* ConstantPool::constant(llvm::Type* type, const ast::Expression& expr) noexcept {
@@ -319,9 +324,7 @@ namespace gal::backend {
     }
 
     auto fields = from_structure(gal::as<ast::StructDeclaration>(type.decl()));
-    auto* llvm_type = struct_from(fields);
-    llvm::cast<llvm::StructType>(llvm_type)->setName(
-        absl::StrCat("struct", absl::StrReplaceAll(entity, {{"::", "."}})));
+    auto* llvm_type = struct_from(absl::StrCat("struct", absl::StrReplaceAll(entity, {{"::", "."}})), fields);
 
     user_types_.emplace(std::string{entity}, llvm_type);
     create_user_type_mapping(entity, fields);
@@ -376,8 +379,11 @@ namespace gal::backend {
   }
 
   llvm::Type* ConstantPool::slice_of(llvm::Type* type) noexcept {
-    // TODO: figure out how to make LLVM actually **show** these names
-    return llvm::StructType::create(state_->context(), {pointer_to(type), native_type()}, "__slice");
+    if (auto* ptr = llvm::StructType::getTypeByName(state_->context(), "__GalliumSlice")) {
+      return ptr;
+    }
+
+    return llvm::StructType::create(state_->context(), {pointer_to(type), native_type()}, "__GalliumSlice");
   }
 
   llvm::Type* ConstantPool::array_of(llvm::Type* type, std::uint64_t length) noexcept {
@@ -397,14 +403,18 @@ namespace gal::backend {
   }
 
   llvm::Type* ConstantPool::source_info_type() noexcept {
+    if (auto* ptr = llvm::StructType::getTypeByName(state_->context(), "__GalliumSourceInfo")) {
+      return ptr;
+    }
+
     auto* msg_type = llvm::Type::getInt8PtrTy(state_->context());
     auto* line_type = llvm::Type::getInt64Ty(state_->context());
 
-    return llvm::StructType::get(state_->context(), {msg_type, line_type, msg_type});
+    return llvm::StructType::create(state_->context(), {msg_type, line_type, msg_type}, "__GalliumSourceInfo");
   }
 
   llvm::Constant* ConstantPool::zero(llvm::Type* type) noexcept {
-    return llvm::ConstantInt::get(type, 0);
+    return llvm::Constant::getNullValue(type);
   }
 
   llvm::Value* ConstantPool::c_string_literal(std::string_view data) noexcept {

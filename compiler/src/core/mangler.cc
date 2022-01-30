@@ -67,7 +67,8 @@ namespace {
 
       mangle(proto.return_type());
 
-      if (builder_ == "_GF4mainNEv") {
+      // TODO: fix dirty hack
+      if (builder_ == "_GF4mainNEl") {
         Decl::return_value("__gallium_user_main");
       } else {
         Decl::return_value(std::move(builder_));

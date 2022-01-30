@@ -1,0 +1,30 @@
+struct Point2D {
+    x: f64
+    y: f64
+}
+
+external {
+    fn sqrt(x: f64) -> f64
+    fn pow(x: f64, y: f64) -> f64
+}
+
+fn distance(a: Point2D, b: Point2D) -> f64 {
+    assert a.x != a.x, "Hello!"
+
+    let x2 = ::pow(b.x - a.x, 2.0)
+    let y2 = ::pow(b.y - a.y, 2.0)
+
+    ::sqrt(x2 + y2)
+}
+
+fn main() -> i32 {
+    let value = 0 as i32
+    let pt1 = Point2D { x: 1.532, y: 3.141592 }
+    let pt2 = Point2D { x: 532.333333, y: -1.12222 }
+    let dist = distance(pt1, pt2)
+
+    __builtin_black_box(&value)
+    __builtin_puts("Hello!")
+
+    value
+}

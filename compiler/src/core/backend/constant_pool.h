@@ -101,7 +101,8 @@ namespace gal::backend {
     void create_user_type_mapping(std::string_view full_name,
         llvm::ArrayRef<std::pair<llvm::Type*, std::string_view>> array) noexcept;
 
-    llvm::Type* struct_from(llvm::ArrayRef<std::pair<llvm::Type*, std::string_view>> array) noexcept;
+    llvm::Type* struct_from(std::string_view name,
+        llvm::ArrayRef<std::pair<llvm::Type*, std::string_view>> array) noexcept;
 
     LLVMState* state_;
     std::size_t curr_str_ = 0;

@@ -12,6 +12,7 @@
 #include "../../utility/flags.h"
 #include "../name_resolver.h"
 #include "../type_checker.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_replace.h"
 #include "builtins.h"
@@ -60,6 +61,13 @@ namespace {
 
     return IntegralInfo{};
   }
+
+#if !defined(NDEBUG) && defined(__GNUC__)
+  // can't actually just print IR from gdb, need this to exist to call from GDB
+  __attribute__((unused)) void print_ir(gal::backend::LLVMState* state) {
+    state->module()->print(llvm::outs(), nullptr);
+  }
+#endif
 } // namespace
 
 namespace gal::backend {
@@ -69,9 +77,7 @@ namespace gal::backend {
       : program_{program},
         state_{context, machine, program},
         pool_{&state_},
-        variables_{state_.builder(), state_.layout()} {
-    backend::generate_builtins(&state_);
-  }
+        variables_{state_.builder(), state_.layout()} {}
 
   std::unique_ptr<llvm::Module> CodeGenerator::codegen() noexcept {
     // everything besides functions can be defined right now,
@@ -86,22 +92,24 @@ namespace gal::backend {
       }
     }
 
+    // generate the builtins after everything else, to avoid polluting top of the file
+    backend::generate_builtins(&state_);
+
     // we now go back and actually codegen for each function now that it's safe to generate calls
     for (auto& decl : program_.decls()) {
       if (decl->is(ast::DeclType::fn_decl)) {
-        // cast isn't strictly necessary, but it allows devirtualizing the `accept` call. can't hurt!
+        // cast isn't strictly necessary, but it allows devirtualizing the `accept` call. let's
+        // micro-optimize for no reason!
         auto& fn = gal::as<ast::FnDeclaration>(*decl);
 
         fn.accept(this);
 
-#ifndef NDEBUG
         // why is it *true* on error instead of false on error? the verbiage is completely backwards
         if (llvm::verifyFunction(*state_.module()->getFunction(fn.mangled_name()), &llvm::errs())) {
           state_.module()->print(llvm::outs(), nullptr);
 
           assert(false);
         }
-#endif
       }
     }
 
@@ -213,7 +221,10 @@ namespace gal::backend {
   void CodeGenerator::visit(const ast::MethodDeclaration&) {}
 
   void CodeGenerator::visit(const ast::ExternalFnDeclaration& declaration) {
-    (void)codegen_proto(declaration.proto(), declaration.mangled_name());
+    // `__builtin` functions may or may not exist at the IR level
+    if (!absl::StartsWith(declaration.mangled_name(), "__builtin")) {
+      (void)codegen_proto(declaration.proto(), declaration.mangled_name());
+    }
   }
 
   void CodeGenerator::visit(const ast::ExternalDeclaration& declaration) {
@@ -240,7 +251,9 @@ namespace gal::backend {
         {pool_.constant64(0), pool_.constant64(0)});
 
     auto* insert_1 = builder()->CreateInsertValue(llvm::UndefValue::get(type), pointer_to_first, {0});
-    auto* insert_2 = builder()->CreateInsertValue(insert_1, pool_.constant64(0), {1});
+    auto* insert_2 = builder()->CreateInsertValue(insert_1,
+        pool_.constant64(static_cast<std::int64_t>(expression.text_unquoted().size())),
+        {1});
 
     Expr::return_value(insert_2);
   }
@@ -363,6 +376,11 @@ namespace gal::backend {
         },
         expression.callee().decl());
 
+    // need to handle builtins, they will all be static-call exprs
+    if (absl::StartsWith(name, "__builtin")) {
+      return Expr::return_value(backend::call_builtin(name, &state_, args));
+    }
+
     auto* fn = state_.module()->getFunction(name);
     auto* call = builder()->CreateCall(fn, args);
 
@@ -445,7 +463,7 @@ namespace gal::backend {
         // "logical not" is just bool negation after all! why special-case it
         return Expr::return_value(builder()->CreateNeg(value));
       case ast::UnaryOp::negate: {
-        if (should_generate_panics()) {
+        if (should_generate_panics() && expr.result().is_integral()) {
           auto* result = panic_if_overflow(expr.loc(),
               "underflowed while negating",
               llvm::Intrinsic::ssub_with_overflow,
@@ -455,7 +473,11 @@ namespace gal::backend {
           return Expr::return_value(result);
         }
 
-        return Expr::return_value(builder()->CreateNSWNeg(value));
+        if (expr.result().is_integral()) {
+          return Expr::return_value(builder()->CreateNSWNeg(value));
+        } else {
+          return Expr::return_value(builder()->CreateFNeg(value));
+        }
       }
       default: assert(false); break;
     }
@@ -848,7 +870,6 @@ namespace gal::backend {
     auto start = codegen_promoting(expr.init());
     auto last = codegen_promoting(expr.last());
 
-    auto* current_bb = builder()->GetInsertBlock();
     builder()->CreateBr(loop_header);
     builder()->SetInsertPoint(loop_header);
 
@@ -917,7 +938,10 @@ namespace gal::backend {
   }
 
   void CodeGenerator::visit(const ast::ImplicitConversionExpression& expr) {
-    auto value = codegen_promoting(expr.expr());
+    auto value =
+        (expr.expr().is(ast::ExprType::address_of)) // fix bug where variable would get promoted and codegen would break
+            ? codegen(expr.expr())
+            : codegen_promoting(expr.expr());
 
     // integer literals get implicitly converted into compatible integer types
     if (expr.expr().result().is(ast::TypeType::unsized_integer)) {
@@ -939,7 +963,9 @@ namespace gal::backend {
   }
 
   void CodeGenerator::visit(const ast::AddressOfExpression& expr) {
-    Expr::return_value(codegen(expr.expr())); // anything we take & of will have an address
+    auto value = codegen(expr.expr());
+
+    Expr::return_value(value); // anything we take & of will have an address
   }
 
   void CodeGenerator::visit(const ast::BindingStatement& statement) {
@@ -959,7 +985,22 @@ namespace gal::backend {
     Stmt::return_value(codegen_promoting(statement.expr()));
   }
 
-  void CodeGenerator::visit(const ast::AssertStatement&) {}
+  void CodeGenerator::visit(const ast::AssertStatement& statement) {
+    auto cond = codegen_promoting(statement.assertion());
+
+    if (builder()->GetInsertBlock() != dead_block_) {
+      auto* merge = create_block();
+      auto* assert_fail = assert_block();
+
+      assert_phi_->addIncoming(source_loc(statement.loc(), statement.message().text_unquoted()),
+          builder()->GetInsertBlock());
+
+      builder()->CreateCondBr(cond, assert_fail, merge);
+      builder()->SetInsertPoint(merge);
+    }
+
+    Stmt::return_value(nullptr);
+  }
 
   backend::StoredValue CodeGenerator::codegen(const ast::Expression& expr) noexcept {
     return expr.accept(this);
@@ -1026,6 +1067,27 @@ namespace gal::backend {
     return panic_block_;
   }
 
+  llvm::BasicBlock* CodeGenerator::assert_block() noexcept {
+    if (assert_block_ == nullptr) {
+      auto* current_bb = builder()->GetInsertBlock();
+
+      assert_block_ = llvm::BasicBlock::Create(state_.context(), "assert_fail", current_fn());
+      builder()->SetInsertPoint(assert_block_);
+      assert_phi_ = builder()->CreatePHI(pool_.source_info_type(), 0);
+
+      auto* file = builder()->CreateExtractValue(assert_phi_, {0});
+      auto* line = builder()->CreateExtractValue(assert_phi_, {1});
+      auto* msg = builder()->CreateExtractValue(assert_phi_, {2});
+
+      builder()->CreateCall(state_.module()->getFunction("__gallium_assert_fail"), {file, line, msg});
+      builder()->CreateUnreachable();
+
+      builder()->SetInsertPoint(current_bb);
+    }
+
+    return assert_block_;
+  }
+
   llvm::Value* CodeGenerator::integer_cast(std::uint32_t to, std::uint32_t from, bool sign, llvm::Value* val) noexcept {
     // no need to generate code to cast in this case, they're literally already
     // both the right type
@@ -1055,6 +1117,7 @@ namespace gal::backend {
 
     return value;
   }
+
   void CodeGenerator::panic_if(const ast::SourceLoc& loc, llvm::Value* cond, std::string_view message) noexcept {
     // hack, if we returned before ending up down here we may end up generating
     // a phi incoming from dead_block_, and it will later get nuked and screw up the phi

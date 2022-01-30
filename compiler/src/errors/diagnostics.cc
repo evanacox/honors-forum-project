@@ -146,6 +146,14 @@ namespace gal {
   }
 
   UnderlineList::UnderlineList(std::vector<PointedOut> locs) noexcept : list_{std::move(locs)} {
+    // remove any "nonexistent" locations
+    list_.erase(std::remove_if(list_.begin(),
+                    list_.end(),
+                    [](const PointedOut& p) {
+                      return p.loc == ast::SourceLoc::nonexistent();
+                    }),
+        list_.end());
+
 #ifndef NDEBUG
     assert(!list_.empty());
 

@@ -11,7 +11,8 @@
 add_library(gallium_runtime STATIC
         src/startup.cc
         src/assertions.cc
-        src/panic.cc)
+        src/panic.cc
+        src/misc.cc)
 
 gallium_configure_target(gallium_runtime)
 
