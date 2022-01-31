@@ -18,7 +18,9 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetMachine.h"
+#include <cstdlib>
 #include <string>
+#include <utility>
 
 namespace {
   std::string filename() {
@@ -46,6 +48,13 @@ namespace {
       case gal::OutputFormat::ast_graphviz: return absl::StrCat(name, ".dot");
       default: assert(false); return "";
     }
+  }
+
+  void compile_with_system(std::string_view path) noexcept {
+    auto compiler = std::string{std::getenv("CC")};
+    auto command = absl::StrCat(compiler, " ", path, " -o ", path);
+
+    std::system(command.c_str());
   }
 } // namespace
 
@@ -75,6 +84,8 @@ bool gal::emit(llvm::Module* module, llvm::TargetMachine* machine) noexcept {
     case OutputFormat::ast_graphviz: assert(false); break;
   }
 
+  // I don't know a better way to do this for any target, and I also can't seem to
+  // find a way to hook this into the earlier pass manager
   auto emitter = llvm::legacy::PassManager{};
 
   if (machine->addPassesToEmitFile(emitter, fd, nullptr, emit_type)) {
@@ -85,6 +96,10 @@ bool gal::emit(llvm::Module* module, llvm::TargetMachine* machine) noexcept {
 
   emitter.run(*module);
   fd.flush();
+
+  if (gal::flags().emit() == OutputFormat::exe) {
+    compile_with_system(file);
+  }
 
   return true;
 }
