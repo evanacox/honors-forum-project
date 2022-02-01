@@ -1,6 +1,6 @@
 //======---------------------------------------------------------------======//
 //                                                                           //
-// Copyright 2021 Evan Cox <evanacox00@gmail.com>. All rights reserved.      //
+// Copyright 2021-2022 Evan Cox <evanacox00@gmail.com>. All rights reserved. //
 //                                                                           //
 // Use of this source code is governed by a BSD-style license that can be    //
 // found in the LICENSE.txt file at the root of this project, or at the      //
@@ -8,9 +8,11 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./runtime.h"
-#include <cstdio>
+#pragma once
 
-extern "C" void gal::runtime::__gallium_puts(const char* data, std::size_t length) noexcept {
-  std::fwrite(data, sizeof(char), length, stdout);
-}
+#include "../ast/program.h"
+
+namespace gal {
+  /// Registers any Gallium builtin functions and `__builtin`s in the AST
+  void register_predefined(ast::Program* program) noexcept;
+} // namespace gal

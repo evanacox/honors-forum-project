@@ -31,7 +31,8 @@ set(GALLIUM_CORE_FILES
         core/environment.cc
         core/type_checker.cc
         core/mangler.cc
-        core/name_resolver.cc)
+        core/name_resolver.cc
+        core/predefined.cc)
 
 set(GALLIUM_UTILITY_FILES
         utility/flags.cc

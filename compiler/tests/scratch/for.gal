@@ -24,7 +24,12 @@ fn main() -> i32 {
     let dist = distance(pt1, pt2)
 
     __builtin_black_box(&value)
-    __builtin_puts("Hello!")
+
+    println("I dont care")
+
+    print("The distance is: ")
+    println(dist, 15)
+    println(' ')
 
     value
 }

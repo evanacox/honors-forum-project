@@ -218,6 +218,7 @@ namespace {
           {"__hot", Type::builtin_hot},
           {"__cold", Type::builtin_cold},
           {"__noreturn", Type::builtin_noreturn},
+          {"__stdlib", Type::builtin_stdlib},
       };
 
       // will throw and end up crashing if one is ever not in the map
@@ -933,7 +934,7 @@ namespace {
 
     static std::variant<std::uint8_t, std::string> parse_single_char(std::string_view full) noexcept {
       if (full[0] != '\\') {
-        return static_cast<std::uint8_t>(full[1]);
+        return static_cast<std::uint8_t>(full[0]);
       }
 
       if (full[1] == 'o' || full[1] == 'x' || std::isdigit(full[1])) {
@@ -972,7 +973,7 @@ namespace {
     std::unique_ptr<ast::Expression> parse_char_lit(antlr4::ParserRuleContext* ctx,
         antlr4::tree::TerminalNode* lit) noexcept {
       auto full = lit->toString();
-      auto parsed = parse_single_char(full);
+      auto parsed = parse_single_char(std::string_view{full}.substr(1, full.size() - 2));
 
       if (auto* ptr = std::get_if<std::string>(&parsed)) {
         return error_expr(2, loc_from(ctx), {*ptr});

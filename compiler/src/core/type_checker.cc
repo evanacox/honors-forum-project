@@ -15,6 +15,7 @@
 #include "../utility/pretty.h"
 #include "./environment.h"
 #include "./name_resolver.h"
+#include "./predefined.h"
 #include "absl/container/flat_hash_map.h"
 #include "llvm/Target/TargetMachine.h"
 #include <stack>
@@ -93,41 +94,6 @@ namespace {
   static ast::BuiltinIntegralType default_int{ast::SourceLoc::nonexistent(), true, static_cast<ast::IntegerWidth>(64)};
 
   static ast::BuiltinIntegralType ptr_width_int{ast::SourceLoc::nonexistent(), true, ast::IntegerWidth::native_width};
-
-  std::unique_ptr<ast::Declaration> create_builtin(std::string_view name, std::vector<ast::Argument> args) noexcept {
-    auto proto = ast::FnPrototype(std::string{name},
-        std::nullopt,
-        std::move(args),
-        std::vector<ast::Attribute>{},
-        void_type(ast::SourceLoc::nonexistent()));
-
-    return std::make_unique<ast::ExternalFnDeclaration>(ast::SourceLoc::nonexistent(), false, std::move(proto));
-  }
-
-  std::unique_ptr<ast::Declaration> create_builtin(std::string_view name,
-      std::vector<ast::Attribute> attributes) noexcept {
-    auto proto = ast::FnPrototype(std::string{name},
-        std::nullopt,
-        std::vector<ast::Argument>{},
-        std::move(attributes),
-        void_type(ast::SourceLoc::nonexistent()));
-
-    return std::make_unique<ast::ExternalFnDeclaration>(ast::SourceLoc::nonexistent(), false, std::move(proto));
-  }
-
-  void register_builtins(ast::Program* program) noexcept {
-    auto loc = ast::SourceLoc::nonexistent();
-
-    auto externals = gal::into_list(
-        create_builtin("__builtin_trap", std::vector{ast::Attribute{ast::AttributeType::builtin_noreturn, {}}}),
-        create_builtin("__builtin_puts",
-            std::vector{ast::Argument(loc, "__1", slice_of(loc, uint_type(loc, 8), false))}),
-        create_builtin("__builtin_black_box", std::vector{ast::Argument(loc, "__1", byte_ptr.clone())}));
-
-    auto node = std::make_unique<ast::ExternalDeclaration>(ast::SourceLoc::nonexistent(), false, std::move(externals));
-
-    program->add_decl(std::move(node));
-  }
 
   class TypeChecker final : public ast::AnyVisitorBase<void, ast::Type*> {
     using Expr = ast::ExpressionVisitor<ast::Type*>;
@@ -280,7 +246,7 @@ namespace {
     }
 
     void visit(ast::StringLiteralExpression* expr) final {
-      update_return(expr, slice_of(expr->loc(), uint_type(expr->loc(), 8), false));
+      update_return(expr, slice_of(expr->loc(), std::make_unique<ast::BuiltinCharType>(expr->loc()), false));
     }
 
     void visit(ast::IntegerLiteralExpression* expr) final {
@@ -296,7 +262,7 @@ namespace {
     }
 
     void visit(ast::CharLiteralExpression* expr) final {
-      update_return(expr, uint_type(expr->loc(), 8));
+      update_return(expr, std::make_unique<ast::BuiltinCharType>(expr->loc()));
     }
 
     void visit(ast::NilLiteralExpression* expr) final {
@@ -1906,7 +1872,11 @@ namespace {
 bool gal::type_check(ast::Program* program,
     const llvm::TargetMachine& machine,
     gal::DiagnosticReporter* reporter) noexcept {
-  register_builtins(program);
+  register_predefined(program);
+
+  if (gal::flags().verbose()) {
+    gal::outs() << gal::pretty_print(*program);
+  }
 
   return TypeChecker(program, machine, reporter).type_check();
 }

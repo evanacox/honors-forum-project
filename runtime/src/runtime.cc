@@ -1,6 +1,6 @@
 //======---------------------------------------------------------------======//
 //                                                                           //
-// Copyright 2021 Evan Cox <evanacox00@gmail.com>. All rights reserved.      //
+// Copyright 2021-2022 Evan Cox <evanacox00@gmail.com>. All rights reserved. //
 //                                                                           //
 // Use of this source code is governed by a BSD-style license that can be    //
 // found in the LICENSE.txt file at the root of this project, or at the      //
@@ -11,11 +11,20 @@
 #include "./runtime.h"
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 
 extern "C" void gal::runtime::__gallium_assert_fail(const char* file, std::uint64_t line, const char* msg) noexcept {
-  std::fputs("gallium: assertion failure!\n", stderr);
-  std::fprintf(stderr, "  location: %s:%lu\n", file, line);
-  std::fprintf(stderr, "  message: '%s'\n", msg);
+  std::cerr << "gallium: assertion failure!\n";
+  std::cerr << "  location: " << file << ", line: " << line << '\n';
+  std::cerr << "  message: '" << msg << "'\n" << std::flush;
+
+  runtime::__gallium_trap();
+}
+
+extern "C" void gal::runtime::__gallium_panic(const char* file, std::uint64_t line, const char* msg) noexcept {
+  std::cerr << "gallium: panicked!\n";
+  std::cerr << "  location: " << file << ", line: " << line << '\n';
+  std::cerr << "  message: '" << msg << "'\n" << std::flush;
 
   runtime::__gallium_trap();
 }

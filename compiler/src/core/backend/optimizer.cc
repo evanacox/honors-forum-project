@@ -16,6 +16,7 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/Transforms/IPO/GlobalDCE.h"
 
 namespace {
   std::string_view pass_name(gal::OptLevel level) {
@@ -56,10 +57,18 @@ namespace gal {
 
     (void)builder.parsePassPipeline(mpm, pass_name(level));
 
+    if (level == OptLevel::none) {
+      // remove unused stdlib code
+      mpm.addPass(llvm::GlobalDCEPass());
+    }
+
     // TODO: dirty hack: I currently have no idea how to properly order phases
     // TODO: and with bounds checking, LLVM doesn't vectorize if I only run the passes once
     // TODO: running it again cleans up everything nicely
-    mpm.run(*module, mam);
+    if (level != OptLevel::none) {
+      mpm.run(*module, mam);
+    }
+
     mpm.run(*module, mam);
   }
 } // namespace gal

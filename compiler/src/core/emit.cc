@@ -19,10 +19,25 @@
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetMachine.h"
 #include <cstdlib>
+#include <filesystem>
+#include <iostream>
 #include <string>
-#include <utility>
+
+#ifdef _WIN64
+#include <windows.h>
+#endif
 
 namespace {
+  std::string path_to_runtime() {
+#ifdef _WIN64
+
+#else
+
+#endif
+
+    return "";
+  }
+
   std::string filename() {
     auto name = gal::flags().out();
 
@@ -39,11 +54,7 @@ namespace {
 #endif
       }
       case gal::OutputFormat::exe: {
-#ifdef _WIN64
-        return absl::StrCat(name, ".exe");
-#else
-        return std::string{name};
-#endif
+        return absl::StrCat(name, ".o.tmp");
       }
       case gal::OutputFormat::ast_graphviz: return absl::StrCat(name, ".dot");
       default: assert(false); return "";
@@ -52,9 +63,21 @@ namespace {
 
   void compile_with_system(std::string_view path) noexcept {
     auto compiler = std::string{std::getenv("CC")};
-    auto command = absl::StrCat(compiler, " ", path, " -o ", path);
+    auto output = absl::StrCat(path.substr(0, path.find(".o"))
+    // clang-format off
+#ifdef _WIN64
+            , ".exe"); // exe suffix
+#else
+            ); // no suffix for *nix
+#endif
+    // clang-format on
 
+    auto command = absl::StrCat(compiler, " ", path, " -o ", output);
+
+    // TODO: find better way of doing this
+    std::cout.flush();
     std::system(command.c_str());
+    std::filesystem::remove(path);
   }
 } // namespace
 

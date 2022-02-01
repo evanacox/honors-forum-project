@@ -155,6 +155,24 @@ namespace gal::backend {
     // try to unwind into Gallium code it's UB anyway
     fn->setDoesNotThrow();
 
+    for (auto& attribute : proto.attributes()) {
+      switch (attribute.type) {
+        case ast::AttributeType::builtin_pure: fn->addFnAttr(llvm::Attribute::ReadOnly); break;
+        case ast::AttributeType::builtin_throws: assert(false); break;
+        case ast::AttributeType::builtin_always_inline: fn->addFnAttr(llvm::Attribute::AlwaysInline); break;
+        case ast::AttributeType::builtin_inline: fn->addFnAttr(llvm::Attribute::InlineHint); break;
+        case ast::AttributeType::builtin_no_inline: fn->addFnAttr(llvm::Attribute::NoInline); break;
+        case ast::AttributeType::builtin_malloc:
+          fn->addAttribute(llvm::AttributeList::ReturnIndex, llvm::Attribute::NoAlias);
+          break;
+        case ast::AttributeType::builtin_hot: fn->addFnAttr(llvm::Attribute::Hot); break;
+        case ast::AttributeType::builtin_cold: fn->addFnAttr(llvm::Attribute::Cold); break;
+        case ast::AttributeType::builtin_arch: assert(false); break;
+        case ast::AttributeType::builtin_noreturn: fn->setDoesNotReturn(); break;
+        case ast::AttributeType::builtin_stdlib: fn->setLinkage(llvm::Function::LinkOnceODRLinkage); break;
+      }
+    }
+
     return fn;
   }
 

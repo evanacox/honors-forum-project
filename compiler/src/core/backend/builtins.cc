@@ -80,15 +80,18 @@ namespace gal {
       return state->builder()->CreateCall(fn);
     }
 
-    llvm::Value* call_puts(backend::LLVMState* state, llvm::ArrayRef<llvm::Value*> args) noexcept {
+    llvm::Value* call_str_ptr(backend::LLVMState* state, llvm::ArrayRef<llvm::Value*> args) noexcept {
       auto* builder = state->builder();
       assert(args.size() == 1);
 
-      auto* fn = state->module()->getFunction("__gallium_puts");
-      auto* ptr = builder->CreateExtractValue(args.front(), 0);
-      auto* size = builder->CreateExtractValue(args.front(), 1);
+      return builder->CreateExtractValue(args.front(), 0);
+    }
 
-      return builder->CreateCall(fn, {ptr, size});
+    llvm::Value* call_str_len(backend::LLVMState* state, llvm::ArrayRef<llvm::Value*> args) noexcept {
+      auto* builder = state->builder();
+      assert(args.size() == 1);
+
+      return builder->CreateExtractValue(args.front(), 1);
     }
 
     llvm::Value* call_black_box(backend::LLVMState* state, llvm::ArrayRef<llvm::Value*> args) noexcept {
@@ -106,8 +109,10 @@ namespace gal {
       llvm::ArrayRef<llvm::Value*> args) noexcept {
     if (name == "__builtin_trap") {
       return call_trap(state);
-    } else if (name == "__builtin_puts") {
-      return call_puts(state, args);
+    } else if (name == "__builtin_string_ptr") {
+      return call_str_ptr(state, args);
+    } else if (name == "__builtin_string_len") {
+      return call_str_len(state, args);
     } else if (name == "__builtin_black_box") {
       return call_black_box(state, args);
     } else {

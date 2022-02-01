@@ -9,10 +9,9 @@
 ##======---------------------------------------------------------------======##
 
 add_library(gallium_runtime STATIC
-        src/startup.cc
-        src/assertions.cc
-        src/panic.cc
-        src/misc.cc)
+        src/entry.cc
+        src/runtime.cc
+        src/gallium_stdlib.cc)
 
 gallium_configure_target(gallium_runtime)
 

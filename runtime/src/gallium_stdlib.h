@@ -1,6 +1,6 @@
 //======---------------------------------------------------------------======//
 //                                                                           //
-// Copyright 2021 Evan Cox <evanacox00@gmail.com>. All rights reserved.      //
+// Copyright 2021-2022 Evan Cox <evanacox00@gmail.com>. All rights reserved. //
 //                                                                           //
 // Use of this source code is governed by a BSD-style license that can be    //
 // found in the LICENSE.txt file at the root of this project, or at the      //
@@ -8,14 +8,20 @@
 //                                                                           //
 //======---------------------------------------------------------------======//
 
-#include "./runtime.h"
-#include <cstdio>
-#include <cstdlib>
+#pragma once
 
-extern "C" void gal::runtime::__gallium_panic(const char* file, std::uint64_t line, const char* msg) noexcept {
-  std::fputs("gallium: panicked!\n", stderr);
-  std::fprintf(stderr, "  location: %s:%lu\n", file, line);
-  std::fprintf(stderr, "  reason: '%s'\n", msg);
+#include <cstdint>
 
-  runtime::__gallium_trap();
-}
+namespace gal::runtime {
+  extern "C" void __gallium_print_f32(float x, int precision) noexcept;
+
+  extern "C" void __gallium_print_f64(double x, int precision) noexcept;
+
+  extern "C" void __gallium_print_int(std::int64_t x) noexcept;
+
+  extern "C" void __gallium_print_uint(std::uint64_t x) noexcept;
+
+  extern "C" void __gallium_print_char(std::uint8_t x) noexcept;
+
+  extern "C" void __gallium_print_string(const char* data, std::size_t length) noexcept;
+} // namespace gal::runtime

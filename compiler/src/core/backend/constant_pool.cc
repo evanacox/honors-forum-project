@@ -379,11 +379,7 @@ namespace gal::backend {
   }
 
   llvm::Type* ConstantPool::slice_of(llvm::Type* type) noexcept {
-    if (auto* ptr = llvm::StructType::getTypeByName(state_->context(), "__GalliumSlice")) {
-      return ptr;
-    }
-
-    return llvm::StructType::create(state_->context(), {pointer_to(type), native_type()}, "__GalliumSlice");
+    return llvm::StructType::get(state_->context(), {pointer_to(type), native_type()});
   }
 
   llvm::Type* ConstantPool::array_of(llvm::Type* type, std::uint64_t length) noexcept {
