@@ -733,6 +733,15 @@ namespace gal::backend {
       return Expr::return_value(cast);
     }
 
+    if (expr.cast_to().is(ast::TypeType::builtin_float) && expr.castee().result().is_integral()) {
+      auto info = integral_info(&pool_, expr.castee().result());
+
+      auto* cast = (info.is_signed) ? builder()->CreateSIToFP(value, pool_.map_type(expr.cast_to()))
+                                    : builder()->CreateUIToFP(value, pool_.map_type(expr.cast_to()));
+
+      return Expr::return_value(cast);
+    }
+
     // other casts are just bitcasts effectively, the only real concerns are with types
     auto* cast = builder()->CreateBitCast(value, pool_.map_type(expr.cast_to()));
 
@@ -1013,7 +1022,7 @@ namespace gal::backend {
       assert_phi_->addIncoming(source_loc(statement.loc(), statement.message().text_unquoted()),
           builder()->GetInsertBlock());
 
-      builder()->CreateCondBr(cond, assert_fail, merge);
+      builder()->CreateCondBr(cond, merge, assert_fail);
       builder()->SetInsertPoint(merge);
     }
 
