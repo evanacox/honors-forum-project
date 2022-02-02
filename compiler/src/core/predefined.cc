@@ -154,8 +154,13 @@ namespace {
     return create_call(name, create_id(arg1), arg2.empty() ? nullptr : create_id(arg2));
   }
 
+  std::unique_ptr<ast::Expression> create_cast(std::unique_ptr<ast::Expression> expr,
+      std::unique_ptr<ast::Type> to) noexcept {
+    return std::make_unique<ast::CastExpression>(ast::SourceLoc::nonexistent(), false, std::move(expr), std::move(to));
+  }
+
   std::unique_ptr<ast::Expression> create_cast(std::string_view id, std::unique_ptr<ast::Type> to) noexcept {
-    return std::make_unique<ast::CastExpression>(ast::SourceLoc::nonexistent(), false, create_id(id), std::move(to));
+    return create_cast(create_id(id), std::move(to));
   }
 
   std::unique_ptr<ast::BlockExpression> expr_into_block(std::vector<std::unique_ptr<ast::Expression>> exprs) noexcept {
@@ -281,10 +286,28 @@ namespace {
     }
 
     {
+      // print(__1: f32) -> void
+      auto precision = std::make_unique<ast::IntegerLiteralExpression>(ast::SourceLoc::nonexistent(), 5);
+      auto call = create_call("__gallium_print_f32", create_id("__1"), create_cast(std::move(precision), int_type(32)));
+
+      program->add_decl(create_print(gal::into_list(float_type(ast::FloatWidth::ieee_single)),
+          expr_into_block(gal::into_list(std::move(call)))));
+    }
+
+    {
       // print(__1: f64, __2: i32) -> void
       auto call = create_call("__gallium_print_f64", "__1", "__2");
 
       program->add_decl(create_print(gal::into_list(float_type(ast::FloatWidth::ieee_double), int_type(32)),
+          expr_into_block(gal::into_list(std::move(call)))));
+    }
+
+    {
+      // print(__1: f64) -> void
+      auto precision = std::make_unique<ast::IntegerLiteralExpression>(ast::SourceLoc::nonexistent(), 5);
+      auto call = create_call("__gallium_print_f64", create_id("__1"), create_cast(std::move(precision), int_type(32)));
+
+      program->add_decl(create_print(gal::into_list(float_type(ast::FloatWidth::ieee_double)),
           expr_into_block(gal::into_list(std::move(call)))));
     }
 
@@ -339,8 +362,14 @@ namespace {
     // println(__1: f32, __2: i32) -> void
     program->add_decl(create_println(float_type(ast::FloatWidth::ieee_single), int_type(32)));
 
+    // println(__1: f32) -> void
+    program->add_decl(create_println(float_type(ast::FloatWidth::ieee_single)));
+
     // println(__1: f64, __2: i32) -> void
     program->add_decl(create_println(float_type(ast::FloatWidth::ieee_double), int_type(32)));
+
+    // println(__1: f64) -> void
+    program->add_decl(create_println(float_type(ast::FloatWidth::ieee_double)));
 
     // println(__1: i32) -> void
     program->add_decl(create_println(int_type(32)));
