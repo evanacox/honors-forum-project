@@ -12,6 +12,7 @@
 #include "../utility/flags.h"
 #include "../utility/log.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/strip.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Support/CommandLine.h"
@@ -25,17 +26,27 @@
 
 #ifdef _WIN64
 #include <windows.h>
+#else
+#include <unistd.h>
 #endif
+
+namespace fs = std::filesystem;
 
 namespace {
   std::string path_to_runtime() {
 #ifdef _WIN64
+    auto buffer = std::string(MAX_PATH * 4, ' ');
 
+    GetModuleFileNameA(nullptr, buffer.data(), buffer.size());
+    absl::StripAsciiWhitespace(&buffer);
+    auto path = fs::path(buffer);
+
+    path.remove_filename();
+
+    return fs::absolute(path / "../../runtime").string();
 #else
-
+    return (fs::read_symlink("/proc/self/exe") / "../runtime/").string();
 #endif
-
-    return "";
   }
 
   std::string filename() {
@@ -72,7 +83,8 @@ namespace {
 #endif
     // clang-format on
 
-    auto command = absl::StrCat(compiler, " ", path, " -o ", output);
+    auto current = path_to_runtime();
+    auto command = absl::StrCat(compiler, " ", path, " -o ", output, " -L", current, " -lgallium_runtime");
 
     // TODO: find better way of doing this
     std::cout.flush();

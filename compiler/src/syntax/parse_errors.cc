@@ -42,10 +42,12 @@ namespace gal {
       size_t col,
       const std::string& msg,
       std::exception_ptr) {
-    auto loc = ast::SourceLoc(token->getText(), line, col, file_);
     auto diagnostics = std::vector<std::unique_ptr<gal::DiagnosticPart>>{};
-    diagnostics.push_back(underline_for(std::move(loc), gal::DiagnosticType::error));
 
+    if (token != nullptr) {
+      auto loc = ast::SourceLoc(token->getText(), line, col, file_);
+      diagnostics.push_back(underline_for(std::move(loc), gal::DiagnosticType::error));
+    }
     if (auto idx = msg.find('{'); idx != std::string::npos) {
       auto expected_tokens = std::string_view{msg}.substr(idx, msg.find('}') - idx);
       auto expected = absl::StrSplit(expected_tokens, ",");
