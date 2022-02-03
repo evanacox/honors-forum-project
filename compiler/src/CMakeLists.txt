@@ -72,7 +72,7 @@ add_library(gallium_core STATIC ${GALLIUM_AST_FILES}
         ${GALLIUM_CORE_FILES}
         ${GALLIUM_UTILITY_FILES}
         ${GALLIUM_SYNTAX_FILES})
-gallium_configure_target(gallium_core)
+gallium_configure_target(gallium_core ON)
 target_include_directories(gallium_core SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
 target_compile_definitions(gallium_core PUBLIC ${GALLIUM_LLVM_DEFINITIONS_LIST})
 target_link_directories(gallium_core PUBLIC ${LLVM_LIBRARY_DIRS})
@@ -87,5 +87,5 @@ target_link_libraries(gallium_core PUBLIC
 add_executable(gallium
         ./main.cc
         ./driver.cc)
-gallium_configure_target(gallium)
+gallium_configure_target(gallium ON)
 target_link_libraries(gallium PRIVATE gallium_core)

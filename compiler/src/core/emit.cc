@@ -45,7 +45,7 @@ namespace {
 
     return fs::absolute(path / "../../runtime").string();
 #else
-    return (fs::read_symlink("/proc/self/exe") / "../runtime/").string();
+    return fs::absolute((fs::read_symlink("/proc/self/exe").remove_filename() / "../../runtime/")).string();
 #endif
   }
 
@@ -73,7 +73,14 @@ namespace {
   }
 
   void compile_with_system(std::string_view path) noexcept {
-    auto compiler = std::string{std::getenv("CC")};
+    auto* cc = std::getenv("CC");
+
+    if (cc == nullptr) {
+      gal::errs() << "$CC must be set to a C++ compiler!";
+
+      std::abort();
+    }
+
     auto output = absl::StrCat(path.substr(0, path.find(".o"))
     // clang-format off
 #ifdef _WIN64
@@ -84,7 +91,7 @@ namespace {
     // clang-format on
 
     auto current = path_to_runtime();
-    auto command = absl::StrCat(compiler, " ", path, " -o ", output, " -L", current, " -lgallium_runtime");
+    auto command = absl::StrCat(std::string{cc}, " ", path, " -o ", output, " -L", current, " -lgallium_runtime");
 
     // TODO: find better way of doing this
     std::cout.flush();

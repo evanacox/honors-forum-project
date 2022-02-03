@@ -13,7 +13,7 @@ add_library(gallium_runtime STATIC
         src/runtime.cc
         src/gallium_stdlib.cc)
 
-gallium_configure_target(gallium_runtime)
+gallium_configure_target(gallium_runtime OFF)
 
 if (GALLIUM_DEV)
     add_subdirectory(tests)

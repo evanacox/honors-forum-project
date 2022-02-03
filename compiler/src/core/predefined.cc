@@ -54,14 +54,6 @@ namespace {
     return std::make_unique<ast::PointerType>(ast::SourceLoc::nonexistent(), mut, std::move(type));
   }
 
-  std::unique_ptr<ast::Type> ref_to(std::unique_ptr<ast::Type> type, bool mut) noexcept {
-    return std::make_unique<ast::ReferenceType>(ast::SourceLoc::nonexistent(), mut, std::move(type));
-  }
-
-  std::unique_ptr<ast::Type> bool_type() noexcept {
-    return std::make_unique<ast::BuiltinBoolType>(ast::SourceLoc::nonexistent());
-  }
-
   std::unique_ptr<ast::Type> void_type() noexcept {
     return std::make_unique<ast::VoidType>(ast::SourceLoc::nonexistent());
   }
@@ -188,7 +180,7 @@ namespace {
     auto proto = ast::FnPrototype(std::string{name},
         std::nullopt,
         std::move(args),
-        std::vector{ast::Attribute{ast::AttributeType::builtin_stdlib}},
+        std::vector{ast::Attribute{ast::AttributeType::builtin_stdlib, std::vector<std::string>{}}},
         void_type());
 
     return std::make_unique<ast::FnDeclaration>(ast::SourceLoc::nonexistent(),

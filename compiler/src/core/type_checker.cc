@@ -30,10 +30,6 @@ namespace {
   using TT = ast::TypeType;
   using ST = ast::StmtType;
 
-  std::unique_ptr<ast::Type> uint_type(ast::SourceLoc loc, int width) noexcept {
-    return std::make_unique<ast::BuiltinIntegralType>(std::move(loc), false, static_cast<ast::IntegerWidth>(width));
-  }
-
   std::unique_ptr<ast::Type> slice_of(ast::SourceLoc loc, std::unique_ptr<ast::Type> type, bool mut) noexcept {
     return std::make_unique<ast::SliceType>(std::move(loc), mut, std::move(type));
   }

@@ -15,33 +15,37 @@ set(CMAKE_CXX_STANDARD 17) # need to affect libraries as well, not just gallium
 
 option(GALLIUM_DEV "whether or not to build with `-Werror` or the compiler's equivalent" OFF)
 
-function(gallium_configure_target TARGET)
+function(gallium_configure_target TARGET SHOULD_SANITIZE)
     list(APPEND GALLIUM_WARNINGS)
-
-    if (${MSVC})
-        list(APPEND GALLIUM_WARNINGS /W3)
-    else ()
-        list(APPEND GALLIUM_WARNINGS
-                -Wall
-                -Wextra
-                -Wcast-qual
-                -Wconversion-null
-                -Wmissing-declarations
-                -Woverlength-strings
-                -Wpointer-arith
-                -Wunused-local-typedefs
-                -Wunused-result
-                -Wvarargs
-                -Wvla
-                -Wwrite-strings
-                -Werror
-                -ftemplate-backtrace-limit=20)
-    endif ()
 
     # enable warnings and warnings-as-errors in development
     # there's no reason not to, and its off by default for normal use
     if (GALLIUM_DEV)
-        target_compile_options(${TARGET} PRIVATE ${GALLIUM_WARNINGS})
+        if (${MSVC})
+            target_compile_options(${TARGET} PRIVATE /W3)
+        else ()
+            target_compile_options(${TARGET} PRIVATE
+                    -Wall
+                    -Wextra
+                    -Wcast-qual
+                    -Wconversion-null
+                    -Wmissing-declarations
+                    -Woverlength-strings
+                    -Wpointer-arith
+                    -Wunused-local-typedefs
+                    -Wunused-result
+                    -Wvarargs
+                    -Wvla
+                    -Wwrite-strings
+                    -Werror
+                    -ftemplate-backtrace-limit=20)
+
+            if (SHOULD_SANITIZE)
+                target_compile_options(${TARGET} PRIVATE -fsanitize=undefined,address)
+                target_link_options(${TARGET} PRIVATE -fsanitize=undefined,address)
+            endif ()
+        endif ()
+
         message(STATUS "adding ${GALLIUM_WARNINGS} to ${TARGET}")
     endif ()
 
