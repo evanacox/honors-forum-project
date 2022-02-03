@@ -110,8 +110,31 @@ While this expression may be quite a bit more muddled than the previous, it stil
 
 ![AST for (pi + 6) / 0.352 * (12.01 - 0.776)](../assets/images/crash-course/parsing/ast-2.png)
 
+## End Goal
+
+The end goal of this process of lexing/parsing is simply to do one of the following:
+
+1. Create an AST from a given list of characters
+2. Tell the "programmer" (the human using our tool) that they made a mistake
+
+Every example so far has been hitting #1, because all of our equations have "made sense."
+
+However, it's just as important to be able to tell the user when their equations (or programs)
+*don't* make sense, and ideally exactly how to fix it. 
+
+Let's say the user gave us the following equation:
+
+~~~
+5 ++ 1
+~~~
+
+We don't know what `++` means, so we need to tell the user about it in an error of some sort. This 
+is the other important job of parsing: we need to make sure that a program is "grammatically correct,"
+in our case "grammatically correct" means "valid mathematical notation."
+
 ## Beyond Math Expressions
-> **Note: Past this point assumes some basic programming knowledge.**
+
+> *Note: Past this point assumes some basic programming knowledge.*
 
 While every example so far has been just math, parsing is used for *far* more than just math expressions. 
 
@@ -121,8 +144,8 @@ Consider the following Java code:
 
 ~~~ cs
 class Employee {
-  public String name;
-  public int hourlyPay;
+  private String name;
+  private int hourlyPay;
 
   public int dailyPay(int hoursWorked) {
     return hourlyPay * hoursWorked;  
@@ -138,5 +161,9 @@ While it's a *much* more complex AST than the ones for the simple math expressio
 we were considering earlier, it still models the same idea: it's a rigid hierarchical
 structure that is being used to model an entire program (or in this case, an entire class).
 
-Real production-grade compilers usually cram a huge amount of information into their ASTs, but at
-the end of the day, it's still the same fundamental concept.
+> *Note: Real production-grade compilers usually cram a huge amount of information into their ASTs, but* 
+> *at the end of the day, it's still the same fundamental concept.*
+
+The basic idea of representing a program in a tree format has remained, and likely
+will remain for a long time. It's a simple, elegant, and relatively easy-to-analyze
+format that can model almost every aspect of a language.
