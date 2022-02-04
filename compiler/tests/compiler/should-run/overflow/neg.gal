@@ -1,0 +1,18 @@
+// test: should-panic
+// reason: underflowed while negating
+
+fn ipow(x: i64, y: i64) -> i64 {
+    mut result = x
+
+    for i := 1 to y {
+        result *= x
+    }
+
+    result
+}
+
+fn main() -> i32 {
+    let min = (-ipow(2, 31)) as i32
+
+    -min
+}

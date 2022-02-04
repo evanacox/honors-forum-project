@@ -1,0 +1,7 @@
+// test: should-run
+// returns: 0
+// outputs: none
+
+fn main() -> i32 {
+    0
+}

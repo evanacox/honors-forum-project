@@ -1,0 +1,6 @@
+// test: should-panic
+// reason: overflowed in multiplication
+
+fn main() -> i32 {
+    50000 as i32 * 50000 as i32
+}
