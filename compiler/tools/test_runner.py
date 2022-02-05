@@ -97,8 +97,14 @@ def execute_test(tup: (str, str, List[str])) -> str | None:
 
     match test:
         case "should-run":
+            if len(compile_output.strip()) != 0:
+                return f"error from compiler!"
+
             return execute_should_run(out, args)
         case "should-panic":
+            if len(compile_output.strip()) != 0:
+                return f"error from compiler!"
+
             return execute_should_panic(out, args)
         case _:
             assert False

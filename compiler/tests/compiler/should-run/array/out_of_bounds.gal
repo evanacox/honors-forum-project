@@ -1,0 +1,14 @@
+// test: should-panic
+// reason: tried to access out-of-bounds on slice
+
+fn access(s: [i64]) -> i64 {
+    s[100]
+}
+
+fn main() -> i32 {
+    let array = [1, 2, 3, 4, 5]
+
+    access(&array)
+
+    0
+}

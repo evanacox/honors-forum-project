@@ -11,6 +11,7 @@
 #include "./pretty.h"
 #include "../ast/visitors.h"
 #include "../core/environment.h"
+#include "./flags.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/charconv.h"
 #include "absl/strings/str_cat.h"
@@ -53,6 +54,17 @@ namespace {
     }
 
     void visit(const ast::FnDeclaration& node) final {
+      auto attributes = node.proto().attributes();
+
+      if (!gal::flags().debug_stdlib_verbose()) {
+        if (node.proto().name().find("__builtin") != std::string_view::npos
+            || std::find_if(attributes.begin(), attributes.end(), [](const ast::Attribute& attr) {
+                 return attr.type == ast::AttributeType::builtin_stdlib;
+               })) {
+          return;
+        }
+      }
+
       print_initial(colors::bold_red("fn decl"));
       print_member("exported: ", lit_str(node.exported()));
       print_member("external: ", lit_str(node.external()));

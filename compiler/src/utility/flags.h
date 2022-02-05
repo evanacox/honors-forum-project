@@ -58,7 +58,8 @@ namespace gal {
         bool verbose,
         bool colored,
         bool demangle,
-        bool no_checking) noexcept;
+        bool no_checking,
+        bool debug_stdlib) noexcept;
 
     [[nodiscard]] std::string_view out() const noexcept {
       return out_;
@@ -121,6 +122,13 @@ namespace gal {
       return no_checking_;
     }
 
+    /// Whether or not to enable the stdlib in verbose logging
+    ///
+    /// \return Ditto
+    [[nodiscard]] constexpr bool debug_stdlib_verbose() const noexcept {
+      return debug_stdlib_verbose_;
+    }
+
   private:
     std::string out_;
     std::uint64_t jobs_;
@@ -131,6 +139,7 @@ namespace gal {
     bool colored_;
     bool demangle_;
     bool no_checking_;
+    bool debug_stdlib_verbose_;
   };
 
   /// Handles delegating any other CLI flags that need to go

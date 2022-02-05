@@ -1,0 +1,6 @@
+// test: should-panic
+// reason: cannot shift left by number larger than the bit-width of the type
+
+fn main() -> i32 {
+    (1 << 65) as i32
+}

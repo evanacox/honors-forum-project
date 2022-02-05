@@ -427,7 +427,7 @@ namespace gal::backend {
       auto array = codegen_promoting(expression.callee());
       array_ptr = builder()->CreateExtractValue(array, {0});
       auto* size = builder()->CreateExtractValue(array, {1});
-      auto* out_of_bounds = builder()->CreateICmpSGE(size, offset);
+      auto* out_of_bounds = builder()->CreateICmpSGE(offset, size);
 
       panic_if(expression.loc(), out_of_bounds, "tried to access out-of-bounds on slice");
     } else {
@@ -976,6 +976,19 @@ namespace gal::backend {
       auto* cast = integer_cast(result_info.width, value.type()->getIntegerBitWidth(), false, value);
 
       return Expr::return_value(cast);
+    }
+
+    if (expr.expr().result().is(ast::TypeType::reference) && expr.cast_to().is(ast::TypeType::slice)) {
+      auto& ref = gal::as<ast::ReferenceType>(expr.expr().result());
+      auto& array = gal::as<ast::ArrayType>(ref.referenced());
+      auto* slice_type = pool_.slice_of(pool_.map_type(array.element_type()));
+      auto* data =
+          builder()->CreateInBoundsGEP(pool_.map_type(array), value, {pool_.constant64(0), pool_.constant64(0)});
+      auto* insert = builder()->CreateInsertValue(llvm::UndefValue::get(slice_type), data, {0});
+
+      return Expr::return_value(builder()->CreateInsertValue(insert,
+          pool_.constant_of(pool_.native_type()->getIntegerBitWidth(), static_cast<std::int64_t>(array.size())),
+          {1}));
     }
 
     Expr::return_value(builder()->CreateBitCast(value, pool_.map_type(expr.cast_to())));

@@ -33,6 +33,8 @@ ABSL_FLAG(bool, demangle, false, "whether or not to treat all files as symbols t
 
 ABSL_FLAG(bool, disable_checking, false, "whether or not to disallow any debug panic-generating checks");
 
+ABSL_FLAG(bool, debug_stdlib, false, "whether or not to include 'stdlib' in verbose logging");
+
 ABSL_FLAG(std::string, masm, "intel", "the assembly dialect to use for x86-64 assembly");
 
 namespace {
@@ -89,6 +91,7 @@ namespace {
     auto colored = absl::GetFlag(FLAGS_colored);
     auto demangle = absl::GetFlag(FLAGS_demangle);
     auto no_checking = absl::GetFlag(FLAGS_disable_checking);
+    auto debug_stdlib = absl::GetFlag(FLAGS_debug_stdlib);
     auto emit = parse_emit();
     auto opt = parse_opt();
 
@@ -96,7 +99,16 @@ namespace {
       std::abort();
     }
 
-    return gal::CompilerConfig(std::move(out), jobs, *opt, *emit, debug, verbose, colored, demangle, no_checking);
+    return gal::CompilerConfig(std::move(out),
+        jobs,
+        *opt,
+        *emit,
+        debug,
+        verbose,
+        colored,
+        demangle,
+        no_checking,
+        debug_stdlib);
   }
 } // namespace
 
@@ -109,7 +121,8 @@ namespace gal {
       bool verbose,
       bool colored,
       bool demangle,
-      bool no_checking) noexcept
+      bool no_checking,
+      bool debug_stdlib) noexcept
       : out_{std::move(out)},
         jobs_{jobs},
         opt_level_{opt},
@@ -118,7 +131,8 @@ namespace gal {
         verbose_{verbose},
         colored_{colored},
         demangle_{demangle},
-        no_checking_{no_checking} {}
+        no_checking_{no_checking},
+        debug_stdlib_verbose_{debug_stdlib} {}
 
   const CompilerConfig& flags() noexcept {
     static CompilerConfig config = generate_config();
