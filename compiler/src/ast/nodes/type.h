@@ -177,6 +177,8 @@ namespace gal::ast {
       return is_one_of(TypeType::user_defined, TypeType::array);
     }
 
+    [[nodiscard]] const ast::Type& accessed_type() const noexcept;
+
   protected:
     /// Initializes the state of the Type base class
     ///

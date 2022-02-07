@@ -368,4 +368,25 @@ namespace gal::ast {
       return false;
     }
   }
+
+  const ast::Type& Type::accessed_type() const noexcept {
+    switch (type()) {
+      case TypeType::pointer: {
+        auto& p = gal::as<ast::PointerType>(*this);
+
+        return p.pointed();
+      }
+      case TypeType::reference: {
+        auto& r = gal::as<ast::ReferenceType>(*this);
+
+        return r.referenced();
+      }
+      case TypeType::indirection: {
+        auto& i = gal::as<ast::IndirectionType>(*this);
+
+        return i.produced();
+      }
+      default: return *this;
+    }
+  }
 } // namespace gal::ast

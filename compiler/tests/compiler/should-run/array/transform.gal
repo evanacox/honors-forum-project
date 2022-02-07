@@ -1,0 +1,35 @@
+// test: should-run
+// returns: 0
+// outputs: [4718088, 106, 66, 160, 8442, 3186]
+
+fn transform(arr: [mut i64]) -> void {
+    for i := 0 to arr.len {
+        arr[i] *= 2
+    }
+
+    for i := 0 to arr.len {
+        arr[i] += 42
+    }
+
+    for i := 0 to arr.len {
+        arr[i] &= 0xFFFFFFFF
+    }
+}
+
+fn main() -> i32 {
+    mut arr = [2359023, 32, 12, 59, 4200, 1572]
+    let slice: [mut i64] = &mut arr
+    transform(slice)
+
+    print('[')
+
+    for i := 0 to slice.len - 1 {
+        print(slice[i])
+        print(", ")
+    } 
+
+    print(slice[slice.len - 1])
+    print("]")
+
+    0
+}

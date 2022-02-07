@@ -641,7 +641,8 @@ namespace gal::backend {
       }
 
       // we're only supposed to evaluate the lhs once!
-      auto* lhs = builder()->CreateLoad(pool_.map_type(expr.lhs().result()), dest);
+      auto& lhs_type = expr.lhs().result().accessed_type();
+      auto* lhs = builder()->CreateLoad(pool_.map_type(lhs_type), dest);
       auto* final_value = static_cast<llvm::Value*>(nullptr);
 
       switch (expr.op()) {

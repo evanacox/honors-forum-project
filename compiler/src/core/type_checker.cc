@@ -545,27 +545,6 @@ namespace {
               mut(expr->callee())));
     }
 
-    [[nodiscard]] const ast::Type& accessed_type(const ast::Type& type) noexcept {
-      switch (type.type()) {
-        case TT::pointer: {
-          auto& p = gal::as<ast::PointerType>(type);
-
-          return p.pointed();
-        }
-        case TT::reference: {
-          auto& r = gal::as<ast::ReferenceType>(type);
-
-          return r.referenced();
-        }
-        case TT::indirection: {
-          auto& i = gal::as<ast::IndirectionType>(type);
-
-          return i.produced();
-        }
-        default: return type;
-      }
-    }
-
     void visit(ast::FieldAccessExpression* expr) final {
       visit_children(expr);
 
@@ -574,7 +553,7 @@ namespace {
       }
 
       if (is_indirection_to(TT::slice, expr->object()) || expr->object().result().is(TT::slice)) {
-        auto& type = accessed_type(expr->object().result());
+        auto& type = expr->object().result().accessed_type();
         auto& slice = gal::as<ast::SliceType>(type);
 
         if (expr->field_name() == "len") {
@@ -582,7 +561,7 @@ namespace {
 
           return update_return(expr,
               std::make_unique<ast::BuiltinIntegralType>(ast::SourceLoc::nonexistent(),
-                  false,
+                  true,
                   ast::IntegerWidth::native_width));
         }
 
@@ -607,7 +586,7 @@ namespace {
         return update_return(expr, error_type());
       }
 
-      auto& held = accessed_type(expr->object().result());
+      auto& held = expr->object().result().accessed_type();
       auto& type = gal::as<ast::UserDefinedType>(held);
 
       // TODO: find a better way of doing this
@@ -791,16 +770,16 @@ namespace {
     void visit(ast::BinaryExpression* expr) final {
       visit_children(expr);
 
-      convert_intermediate(expr->lhs_owner());
-      convert_intermediate(expr->rhs_owner());
-
       switch (expr->op()) {
         case ast::BinaryOp::mul:
         case ast::BinaryOp::div:
         case ast::BinaryOp::mod:
         case ast::BinaryOp::add:
         case ast::BinaryOp::sub: {
-          if (check_binary_conditions(expr, arithmetic, 39, "arithmetic")) {
+          convert_intermediate(expr->lhs_owner());
+
+          if (try_make_compatible(expr->lhs().result(), expr->rhs_owner())
+              && check_binary_conditions(expr, arithmetic, 39, "arithmetic")) {
             return update_return(expr, expr->lhs().result().clone());
           }
 
@@ -811,7 +790,10 @@ namespace {
         case ast::BinaryOp::bitwise_and:
         case ast::BinaryOp::bitwise_or:
         case ast::BinaryOp::bitwise_xor: {
-          if (check_binary_conditions(expr, integral, 41, "integral")) {
+          convert_intermediate(expr->lhs_owner());
+
+          if (try_make_compatible(expr->lhs().result(), expr->rhs_owner())
+              && check_binary_conditions(expr, integral, 41, "integral")) {
             return update_return(expr, expr->lhs().result().clone());
           }
 
@@ -821,14 +803,26 @@ namespace {
         case ast::BinaryOp::gt:
         case ast::BinaryOp::lt_eq:
         case ast::BinaryOp::gt_eq: {
+          convert_intermediate(expr->lhs_owner());
+
+          if (!try_make_compatible(expr->lhs().result(), expr->rhs_owner())) {
+            break;
+          }
+
           if (!check_condition(expr, arithmetic, 39, "arithmetic")) {
-            return;
+            return update_return(expr, error_type());
           }
 
           [[fallthrough]];
         }
         case ast::BinaryOp::equals:
         case ast::BinaryOp::not_equal: {
+          convert_intermediate(expr->lhs_owner());
+
+          if (!try_make_compatible(expr->lhs().result(), expr->rhs_owner())) {
+            break;
+          }
+
           if (expr->lhs().result().is(TT::builtin_float) && expr->rhs().result().is(TT::builtin_float)) {
             return update_return(expr, bool_type(expr->loc()));
           }
@@ -842,7 +836,10 @@ namespace {
         case ast::BinaryOp::logical_and:
         case ast::BinaryOp::logical_or:
         case ast::BinaryOp::logical_xor: {
-          if (check_binary_conditions(expr, boolean, 38, "boolean")) {
+          convert_intermediate(expr->lhs_owner());
+
+          if (try_make_compatible(expr->lhs().result(), expr->rhs_owner())
+              && check_binary_conditions(expr, boolean, 38, "boolean")) {
             return update_return(expr, bool_type(expr->loc()));
           }
 
@@ -853,7 +850,9 @@ namespace {
         case ast::BinaryOp::bitwise_and_eq:
         case ast::BinaryOp::bitwise_or_eq:
         case ast::BinaryOp::bitwise_xor_eq: {
-          if (!check_condition(expr, integral, 41, "integral")) {
+          convert_intermediate(expr->rhs_owner());
+
+          if (!check_condition(expr, integral_unwrapping, 41, "integral")) {
             return update_return(expr, error_type());
           }
 
@@ -864,13 +863,17 @@ namespace {
         case ast::BinaryOp::mul_eq:
         case ast::BinaryOp::div_eq:
         case ast::BinaryOp::mod_eq: {
-          if (!check_condition(expr, arithmetic, 41, "integral")) {
-            return;
+          convert_intermediate(expr->rhs_owner());
+
+          if (!check_condition(expr, arithmetic_unwrapping, 41, "integral")) {
+            return update_return(expr, error_type());
           }
 
           [[fallthrough]];
         }
         case ast::BinaryOp::assignment: {
+          convert_intermediate(expr->rhs_owner());
+
           if (!lvalue(expr->lhs())) {
             auto a = gal::point_out_list(type_was_err(expr->lhs()));
             auto b =
@@ -887,7 +890,7 @@ namespace {
             diagnostics_->report_emplace(49, gal::into_list(std::move(a), std::move(b)));
           }
 
-          if (!try_make_compatible(accessed_type(expr->lhs().result()), expr->rhs_owner())) {
+          if (!try_make_compatible(expr->lhs().result().accessed_type(), expr->rhs_owner())) {
             auto a = type_was_err(expr->rhs());
             auto b = type_was_note(expr->lhs());
             auto c = gal::point_out_list(std::move(a), std::move(b));
@@ -899,6 +902,14 @@ namespace {
         }
         default: assert(false); break;
       }
+
+      auto a = type_was_err(expr->rhs());
+      auto b = type_was_note(expr->lhs());
+      auto c = gal::point_out_list(std::move(a), std::move(b));
+
+      diagnostics_->report_emplace(40, gal::into_list(std::move(c)));
+
+      return update_return(expr, error_type());
     }
 
     void visit(ast::CastExpression* expr) final {
@@ -910,7 +921,9 @@ namespace {
         // this falls apart if the expected type given gets deleted, like it does when
         // we try to replace `expr`. we need to do it manually, and pin our own `expected`
         // type so that we don't end up referencing a deleted object
-        implicit_convert(*pinned, self_expr_owner(), expr->castee_owner());
+        if (!implicit_convert(*pinned, self_expr_owner(), expr->castee_owner())) {
+          update_return(self_expr(), error_type());
+        }
 
         return Expr::return_value(self_expr()->result_mut());
       }
@@ -1298,6 +1311,10 @@ namespace {
     return name(lhs.result(), rhs.result());                                                                           \
   }
 
+    [[nodiscard]] static bool type_is_signed(const ast::Type& type) noexcept {
+      return (type.is(TT::builtin_integral)) && gal::as<ast::BuiltinIntegralType>(type).has_sign();
+    }
+
     [[nodiscard]] std::uint64_t builtin_size_of_bits(const ast::Type& type) noexcept {
       switch (type.type()) {
         case TT::builtin_integral: {
@@ -1398,13 +1415,20 @@ namespace {
              || (expr.result().is(TT::nil_pointer) && into.is_one_of(TT::fn_pointer, TT::pointer));
     }
 
+    static constexpr std::uint64_t max_of(std::uint64_t bits, bool sign) noexcept {
+      auto real_bits = (sign) ? bits : bits - 1;
+
+      // may wrap to 0, but we go back properly with - 1 anyway
+      return gal::ipow(std::uint64_t{2}, bits - 1) - 1;
+    }
+
     bool implicit_convert(const ast::Type& expected,
         std::unique_ptr<ast::Expression>* self,
         std::unique_ptr<ast::Expression>* expr) noexcept {
       if (expected.is_one_of(TT::builtin_integral, TT::builtin_byte) && (*expr)->result().is(TT::unsized_integer)) {
         auto& literal = gal::as<ast::UnsizedIntegerType>((*expr)->result());
 
-        if (gal::ipow(std::uint64_t{2}, builtin_size_of_bits(expected)) < literal.value()) {
+        if (max_of(builtin_size_of_bits(expected), type_is_signed(expected)) < literal.value()) {
           auto a = gal::point_out_part(expected, gal::DiagnosticType::note, "converting based on this");
           auto b = gal::point_out_part(**expr,
               gal::DiagnosticType::error,
@@ -1469,6 +1493,14 @@ namespace {
       return integral(expr.result());
     }
 
+    [[nodiscard]] static bool integral_unwrapping(const ast::Type& type) noexcept {
+      return integral(type.accessed_type());
+    }
+
+    [[nodiscard]] static bool integral_unwrapping(const ast::Expression& expr) noexcept {
+      return integral_unwrapping(expr.result());
+    }
+
     [[nodiscard]] static bool is_unsigned(const ast::Type& type) noexcept {
       return type.is_one_of(TT::builtin_byte, TT::builtin_bool)
              || (type.is(TT::builtin_integral) && !gal::as<ast::BuiltinIntegralType>(type).has_sign());
@@ -1484,6 +1516,14 @@ namespace {
 
     [[nodiscard]] static bool arithmetic(const ast::Expression& expr) noexcept {
       return arithmetic(expr.result());
+    }
+
+    [[nodiscard]] static bool arithmetic_unwrapping(const ast::Type& type) noexcept {
+      return arithmetic(type.accessed_type());
+    }
+
+    [[nodiscard]] static bool arithmetic_unwrapping(const ast::Expression& expr) noexcept {
+      return arithmetic_unwrapping(expr.result());
     }
 
     template <typename T> bool check_mut(const ast::Expression& expr) noexcept {
