@@ -441,15 +441,25 @@ namespace gal::backend {
   }
 
   void CodeGenerator::visit(const ast::FieldAccessExpression& expr) {
-    auto value = codegen(expr.object());
-    auto* struct_type = pool_.map_type(expr.user_type());
+    if (expr.slice_access()) {
+      auto value = codegen_promoting(expr.object());
 
-    auto field_idx = pool_.field_index(gal::as<ast::UserDefinedType>(expr.user_type()), expr.field_name());
-    auto* gep = builder()->CreateInBoundsGEP(struct_type,
-        value,
-        {pool_.constant64(0), pool_.constant32(static_cast<std::int32_t>(field_idx))});
+      if (expr.field_name() == "data") {
+        Expr::return_value(builder()->CreateExtractValue(value, {0}));
+      } else {
+        Expr::return_value(builder()->CreateExtractValue(value, {1}));
+      }
+    } else {
+      auto value = codegen(expr.object());
+      auto* struct_type = pool_.map_type(expr.user_type());
 
-    Expr::return_value(gep);
+      auto field_idx = pool_.field_index(gal::as<ast::UserDefinedType>(expr.user_type()), expr.field_name());
+      auto* gep = builder()->CreateInBoundsGEP(struct_type,
+          value,
+          {pool_.constant64(0), pool_.constant32(static_cast<std::int32_t>(field_idx))});
+
+      Expr::return_value(gep);
+    }
   }
 
   void CodeGenerator::visit(const ast::GroupExpression& expression) {

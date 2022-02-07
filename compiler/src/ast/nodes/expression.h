@@ -1215,6 +1215,14 @@ namespace gal::ast {
       return *user_type_;
     }
 
+    [[nodiscard]] bool slice_access() const noexcept {
+      return slice_;
+    }
+
+    void set_slice() noexcept {
+      slice_ = true;
+    }
+
   protected:
     void internal_accept(ExpressionVisitorBase* visitor) final;
 
@@ -1228,6 +1236,7 @@ namespace gal::ast {
     std::unique_ptr<Expression> object_;
     std::unique_ptr<Type> user_type_;
     std::string field_;
+    bool slice_;
   };
 
   /// Represents a grouped expression, i.e `(a + b)`

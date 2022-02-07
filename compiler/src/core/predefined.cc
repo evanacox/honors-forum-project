@@ -10,6 +10,7 @@
 
 #include "./predefined.h"
 #include "../ast/program.h"
+#include "absl/strings/match.h"
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -387,4 +388,14 @@ void gal::register_predefined(ast::Program* program) noexcept {
   register_builtins(program);
   register_io_ffi(program);
   register_io(program);
+}
+
+std::optional<std::unique_ptr<ast::Type>> gal::check_builtin(std::string_view name,
+    absl::Span<const std::unique_ptr<ast::Expression>> args) noexcept {
+  if (!absl::StartsWith(name, "__builtin")) {
+    return std::nullopt;
+  }
+
+  // TODO
+  return {};
 }

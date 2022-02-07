@@ -11,8 +11,15 @@
 #pragma once
 
 #include "../ast/program.h"
+#include "absl/types/span.h"
+#include <optional>
 
 namespace gal {
   /// Registers any Gallium builtin functions and `__builtin`s in the AST
   void register_predefined(ast::Program* program) noexcept;
+
+  /// Tries to type-check a 'builtin', returns the type that it evaluates to if
+  /// the call is valid, otherwise returns a nullopt
+  std::optional<std::unique_ptr<ast::Type>> check_builtin(std::string_view name,
+      absl::Span<const std::unique_ptr<ast::Expression>> args) noexcept;
 } // namespace gal

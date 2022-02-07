@@ -411,6 +411,14 @@ namespace {
         Base::accept(&arg);
       }
 
+      if (expr->callee().is(ET::identifier_local)) {
+        auto& id = gal::as<ast::LocalIdentifierExpression>(expr->callee());
+
+        if (auto type = gal::check_builtin(id.name(), expr->args())) {
+          return update_return(expr, std::move(*type));
+        }
+      }
+
       // if it's not an identifier, it could be an identifier-local that gets translated to an identifier
       if (!expr->callee().is(ET::identifier)) {
         ignore_ambiguous_fn_ref_ = true;
@@ -563,6 +571,27 @@ namespace {
 
       if (expr->object().result().is(TT::reference)) {
         auto_deref(expr->object_owner());
+      }
+
+      if (is_indirection_to(TT::slice, expr->object()) || expr->object().result().is(TT::slice)) {
+        auto& type = accessed_type(expr->object().result());
+        auto& slice = gal::as<ast::SliceType>(type);
+
+        if (expr->field_name() == "len") {
+          expr->set_slice();
+
+          return update_return(expr,
+              std::make_unique<ast::BuiltinIntegralType>(ast::SourceLoc::nonexistent(),
+                  false,
+                  ast::IntegerWidth::native_width));
+        }
+
+        if (expr->field_name() == "data") {
+          expr->set_slice();
+
+          return update_return(expr,
+              std::make_unique<ast::PointerType>(ast::SourceLoc::nonexistent(), slice.mut(), slice.sliced().clone()));
+        }
       }
 
       if (!is_indirection_to(TT::user_defined, expr->object()) && !expr->object().result().is(TT::user_defined)) {
@@ -1087,7 +1116,6 @@ namespace {
       expr->init_mut()->accept(this);
       expr->last_mut()->accept(this);
 
-      convert_intermediate(expr->init_owner());
       convert_intermediate(expr->last_owner());
 
       {
@@ -1099,7 +1127,7 @@ namespace {
         resolver_.leave_scope();
       }
 
-      if (!identical(expr->init(), expr->last())) {
+      if (!try_make_compatible(expr->last().result(), expr->init_owner())) {
         auto a = gal::point_out_list(type_was_err(expr->init()), type_was_err(expr->last()));
 
         diagnostics_->report_emplace(55, gal::into_list(std::move(a)));
@@ -1722,7 +1750,7 @@ namespace {
       }
 
       vec.push_back(gal::point_out_part(expr, gal::DiagnosticType::error, "ambiguous call was here"));
-      diagnostics_->report_emplace(27, gal::into_list(gal::point_out_list(std::move(vec))));
+      diagnostics_->report_emplace(28, gal::into_list(gal::point_out_list(std::move(vec))));
     }
 
     GALLIUM_COLD void report_no_overload(const ast::Expression& expr,
