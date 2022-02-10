@@ -1,0 +1,31 @@
+// test: should-run
+// returns: 0
+// outputs: x = 1.358, x = -4.508
+
+external {
+    fn sqrt(x: f64) -> f64 
+    fn pow(x: f64, power: f64) -> f64
+}
+
+fn quadratic_internal(a: f64, b: f64, c: f64, add: bool) -> f64 {
+    let root = sqrt(pow(b, 2.0) - (4.0 * a * c))
+    let top = if add then -b + root else -b - root
+
+    top / (2.0 * a)
+}
+
+fn quadratic_formula(a: f64, b: f64, c: f64) -> [f64; 2] {
+    [quadratic_internal(a, b, c, true), 
+     quadratic_internal(a, b, c, false)]
+}
+
+fn main() -> i32 {
+    let result = quadratic_formula(2.0, 6.3, -12.2399)
+
+    print("x = ")
+    print(result[0], 3)
+    print(", x = ")
+    print(result[1], 3)
+
+    0
+}

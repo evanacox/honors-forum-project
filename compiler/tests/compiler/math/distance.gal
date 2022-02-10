@@ -1,0 +1,29 @@
+// test: should-run
+// returns: 0
+// outputs: 13.049
+
+struct Point2D {
+    x: f64
+    y: f64
+}
+
+external {
+    fn sqrt(x: f64) -> f64
+    fn pow(x: f64, exp: f64) -> f64 
+}
+
+fn distance(a: Point2D, b: Point2D) -> f64 {
+    let x2 = pow(b.x - a.x, 2.0)
+    let y2 = pow(b.y - a.y, 2.0)
+
+    sqrt(x2 + y2) 
+}
+
+fn main() -> i32 {
+    let a = Point2D { x: 6.3, y: 9.1 }
+    let b = Point2D { x: 12.59, y: -2.333333 }
+
+    print(distance(a, b), 3)
+
+    0
+}

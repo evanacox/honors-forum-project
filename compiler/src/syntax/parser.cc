@@ -311,11 +311,18 @@ namespace {
 
     antlrcpp::Any visitAssertStatement(GalliumParser::AssertStatementContext* ctx) final {
       auto condition = parse_expr(ctx->expr());
-      auto lit = parse_string_lit(ctx, ctx->STRING_LITERAL());
 
-      RETURN(std::make_unique<ast::AssertStatement>(loc_from(ctx),
-          std::move(condition),
-          gal::static_unique_cast<ast::StringLiteralExpression>(std::move(lit))));
+      if (ctx->STRING_LITERAL() != nullptr) {
+        auto lit = parse_string_lit(ctx, ctx->STRING_LITERAL());
+
+        RETURN(std::make_unique<ast::AssertStatement>(loc_from(ctx),
+            std::move(condition),
+            gal::static_unique_cast<ast::StringLiteralExpression>(std::move(lit))));
+      } else {
+        RETURN(std::make_unique<ast::AssertStatement>(loc_from(ctx),
+            std::move(condition),
+            std::make_unique<ast::StringLiteralExpression>(loc_from(ctx), "<no message given>")));
+      }
     }
 
     antlrcpp::Any visitBindingStatement(GalliumParser::BindingStatementContext* ctx) final {

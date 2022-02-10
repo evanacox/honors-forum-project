@@ -823,7 +823,9 @@ namespace {
             break;
           }
 
-          if (expr->lhs().result().is(TT::builtin_float) && expr->rhs().result().is(TT::builtin_float)) {
+          if ((expr->lhs().result().is(TT::builtin_float) && expr->rhs().result().is(TT::builtin_float))
+              || (expr->lhs().result().is(TT::builtin_bool) && expr->rhs().result().is(TT::builtin_bool))
+              || (expr->lhs().result().is(TT::builtin_char)) && expr->rhs().result().is(TT::builtin_char)) {
             return update_return(expr, bool_type(expr->loc()));
           }
 
@@ -1131,15 +1133,6 @@ namespace {
 
       convert_intermediate(expr->last_owner());
 
-      {
-        auto _ = BeforeAfterLoop(this);
-        resolver_.enter_scope();
-        resolver_.add_local(expr->loop_variable(),
-            gal::ScopeEntity{expr->loc(), expr->init_mut()->result_mut(), false});
-        expr->body_mut()->accept(this);
-        resolver_.leave_scope();
-      }
-
       if (!try_make_compatible(expr->last().result(), expr->init_owner())) {
         auto a = gal::point_out_list(type_was_err(expr->init()), type_was_err(expr->last()));
 
@@ -1150,6 +1143,15 @@ namespace {
         auto a = gal::point_out_list(type_was_err(expr->init()), type_was_err(expr->last()));
 
         diagnostics_->report_emplace(54, gal::into_list(std::move(a)));
+      }
+
+      {
+        auto _ = BeforeAfterLoop(this);
+        resolver_.enter_scope();
+        resolver_.add_local(expr->loop_variable(),
+            gal::ScopeEntity{expr->loc(), expr->init_mut()->result_mut(), false});
+        expr->body_mut()->accept(this);
+        resolver_.leave_scope();
       }
 
       update_return(expr, void_type(expr->loc()));

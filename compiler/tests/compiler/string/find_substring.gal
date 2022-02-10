@@ -1,0 +1,36 @@
+// test: should-run
+// returns: 0
+// outputs: none
+
+fn matches(str: [char], substr: [char], start: isize) -> bool {
+    for i := 0 to substr.len {
+        if str[start + i] != substr[i] {
+            return false 
+        }
+    }
+
+    true
+}
+
+fn find(str: [char], substr: [char]) -> isize {
+    for i := 0 to str.len {
+        if (i + substr.len - 1) >= str.len {
+            break
+        } 
+
+        if matches(str, substr, i) {
+            return i 
+        }
+    }
+
+    -1 as isize
+}
+
+fn main() -> i32 {
+    assert find("Hello", "ello") == 1
+    assert find("", "Hello") == -1 as isize
+    assert find("Hello", "") == 0
+    assert find("abcccccdef", "cccdef") == 4
+
+    0
+}

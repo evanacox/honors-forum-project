@@ -122,29 +122,33 @@ def main(args):
     path = os.path.join(os.curdir, "__tmp/")
     os.mkdir(path)
 
-    for root, folders, files in os.walk("./tests/compiler/"):
-        for file in files:
-            test, args = read_test(os.path.join(root, file))
-            tests.append((os.path.join(root, file), test, args))
+    try:
+        for root, folders, files in os.walk("./tests/compiler/"):
+            for file in files:
+                test, args = read_test(os.path.join(root, file))
+                tests.append((os.path.join(root, file), test, args))
 
-    failures = []
+        failures = []
 
-    for i, result in enumerate(parallel_execute(tests)):
-        test_path = os.path.relpath(tests[i][0], "./tests/compiler/")
-
-        if result is None:
-            print(f"\u001b[32m[passed!]\u001b[37m test {test_path}")
-        else:
-            print(f"\u001b[31m[failed!]\u001b[37m test {test_path}")
-            failures.append((i, result))
-
-    if len(failures) != 0:
-        for i, result in failures:
+        for i, result in enumerate(parallel_execute(tests)):
             test_path = os.path.relpath(tests[i][0], "./tests/compiler/")
-            print(f"\u001b[31mfailure\u001b[37m: {test_path}")
-            print(f"    \u001b[34mtest type\u001b[37m: '{tests[i][1]}'")
-            print(f"    \u001b[34mreason\u001b[37m: {result}")
 
+            if result is None:
+                print(f"\u001b[32m[passed!]\u001b[37m test {test_path}")
+            else:
+                print(f"\u001b[31m[failed!]\u001b[37m test {test_path}")
+                failures.append((i, result))
+
+        if len(failures) != 0:
+            for i, result in failures:
+                test_path = os.path.relpath(tests[i][0], "./tests/compiler/")
+                print(f"\u001b[31mfailure\u001b[37m: {test_path}")
+                print(f"    \u001b[34mtest type\u001b[37m: '{tests[i][1]}'")
+                print(f"    \u001b[34mreason\u001b[37m: {result}")
+    except:
+        shutil.rmtree(path)
+        raise
+    
     shutil.rmtree(path)
 
 

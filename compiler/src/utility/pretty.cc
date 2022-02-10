@@ -56,15 +56,6 @@ namespace {
     void visit(const ast::FnDeclaration& node) final {
       auto attributes = node.proto().attributes();
 
-      if (!gal::flags().debug_stdlib_verbose()) {
-        if (node.proto().name().find("__builtin") != std::string_view::npos
-            || std::find_if(attributes.begin(), attributes.end(), [](const ast::Attribute& attr) {
-                 return attr.type == ast::AttributeType::builtin_stdlib;
-               })) {
-          return;
-        }
-      }
-
       print_initial(colors::bold_red("fn decl"));
       print_member("exported: ", lit_str(node.exported()));
       print_member("external: ", lit_str(node.external()));
@@ -269,6 +260,7 @@ namespace {
     void visit(const ast::FieldAccessExpression& node) final {
       print_expr("field access", node);
       accept_member("object: ", node.object());
+      print_member("slice: ", node.slice_access());
       print_last_member("field name: ", node.field_name());
     }
 
@@ -362,6 +354,7 @@ namespace {
       print_member("loop var name: ", node.loop_variable());
       print_member("loop direction: ", node.loop_direction() == gal::ast::ForDirection::up_to ? "up-to" : "down-to");
       accept_member("loop initializer: ", node.init());
+      accept_member("loop end: ", node.last());
       accept_last_member("body: ", node.body());
     }
 
@@ -705,6 +698,14 @@ namespace {
       auto count = 0;
       for (auto it = data.begin(); it != data.end(); ++it, ++count) {
         auto message = std::string_view{};
+
+        if constexpr (std::is_same_v<std::remove_const_t<T>, std::unique_ptr<ast::Declaration>>) {
+          const std::unique_ptr<ast::Declaration>& ptr = *it;
+
+          if (!gal::flags().debug_stdlib_verbose() && ptr->injected()) {
+            continue;
+          }
+        }
 
         if ((it + 1) == data.end()) {
           absl::StrAppend(&final_, padding_, "└─ [", count, "]: ");

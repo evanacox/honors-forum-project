@@ -63,6 +63,10 @@ namespace {
     return std::make_unique<ast::BuiltinByteType>(ast::SourceLoc::nonexistent());
   }
 
+  std::unique_ptr<ast::Type> bool_type() noexcept {
+    return std::make_unique<ast::BuiltinBoolType>(ast::SourceLoc::nonexistent());
+  }
+
   std::unique_ptr<ast::Type> char_type() noexcept {
     return std::make_unique<ast::BuiltinCharType>(ast::SourceLoc::nonexistent());
   }
@@ -77,7 +81,11 @@ namespace {
         std::move(attributes).value_or(std::vector<ast::Attribute>{}),
         std::move(ret_type).value_or(void_type()));
 
-    return std::make_unique<ast::ExternalFnDeclaration>(ast::SourceLoc::nonexistent(), false, std::move(proto));
+    auto decl = std::make_unique<ast::ExternalFnDeclaration>(ast::SourceLoc::nonexistent(), false, std::move(proto));
+
+    decl->set_injected();
+
+    return decl;
   }
 
   void register_builtins(ast::Program* program) noexcept {
@@ -106,7 +114,7 @@ namespace {
         std::move(builtin_black_box));
 
     auto node = std::make_unique<ast::ExternalDeclaration>(ast::SourceLoc::nonexistent(), false, std::move(externals));
-
+    node->set_injected();
     program->add_decl(std::move(node));
   }
 
@@ -184,11 +192,15 @@ namespace {
         std::vector{ast::Attribute{ast::AttributeType::builtin_stdlib, std::vector<std::string>{}}},
         void_type());
 
-    return std::make_unique<ast::FnDeclaration>(ast::SourceLoc::nonexistent(),
+    auto fn = std::make_unique<ast::FnDeclaration>(ast::SourceLoc::nonexistent(),
         false,
         false,
         std::move(proto),
         std::move(body));
+
+    fn->set_injected();
+
+    return fn;
   }
 
   std::unique_ptr<ast::Declaration> create_print(std::vector<std::unique_ptr<ast::Type>> arg_types,
@@ -245,6 +257,8 @@ namespace {
             std::move(print_usize),
             std::move(print_char),
             std::move(print_str)));
+
+    external->set_injected();
 
     program->add_decl(std::move(external));
   }
@@ -346,6 +360,21 @@ namespace {
       program->add_decl(create_print(gal::into_list(uint_native()), expr_into_block(gal::into_list(std::move(call)))));
     }
 
+    {
+      // print(__1: bool) -> void
+      auto cond = create_id("__1");
+      auto true_ish = std::make_unique<ast::StringLiteralExpression>(ast::SourceLoc::nonexistent(), "true");
+      auto false_ish = std::make_unique<ast::StringLiteralExpression>(ast::SourceLoc::nonexistent(), "false");
+      auto which = std::make_unique<ast::IfThenExpression>(ast::SourceLoc::nonexistent(),
+          std::move(cond),
+          std::move(true_ish),
+          std::move(false_ish));
+
+      auto call = create_call("print", std::move(which));
+
+      program->add_decl(create_print(gal::into_list(bool_type()), expr_into_block(gal::into_list(std::move(call)))));
+    }
+
     // println(__1: [char]) -> void
     program->add_decl(create_println(slice_of(char_type(), false)));
 
@@ -381,6 +410,9 @@ namespace {
 
     // println(__1: usize) -> void
     program->add_decl(create_println(uint_native()));
+
+    // println(__1: bool) -> void
+    program->add_decl(create_println(bool_type()));
   }
 } // namespace
 

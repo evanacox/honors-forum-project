@@ -1,0 +1,15 @@
+// test: should-run
+// returns: 0
+// outputs: none
+
+fn main() -> i32 {
+    mut curr_even = false
+
+    for i := 1 to 100 {
+        assert curr_even == (i % 2 == 0), "should match expected even/odd"
+
+        curr_even := not curr_even
+    }
+
+    0
+}

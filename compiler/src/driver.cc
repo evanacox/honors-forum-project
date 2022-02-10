@@ -37,6 +37,11 @@ namespace {
     auto in = std::ifstream(path);
     auto file_data = ""s;
 
+    if (!in.is_open()) {
+      gal::errs() << "unable to open file `" << path << "`!";
+      std::abort();
+    }
+
     in.seekg(0, std::ios::end);
     file_data.resize(in.tellg(), ' ');
     in.seekg(0);

@@ -16,20 +16,22 @@ fn transform(arr: [mut i64]) -> void {
     }
 }
 
-fn main() -> i32 {
-    mut arr = [2359023, 32, 12, 59, 4200, 1572]
-    let slice: [mut i64] = &mut arr
-    transform(slice)
-
+fn print(arr: [i64]) -> void {
     print('[')
 
-    for i := 0 to slice.len - 1 {
-        print(slice[i])
+    for i := 0 to arr.len - 1 {
+        print(arr[i])
         print(", ")
     } 
 
-    print(slice[slice.len - 1])
+    print(arr[arr.len - 1])
     print("]")
+}
+
+fn main() -> i32 {
+    mut arr = [2359023, 32, 12, 59, 4200, 1572]
+    transform(&mut arr)
+    print(&arr)
 
     0
 }

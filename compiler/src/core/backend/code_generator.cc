@@ -488,8 +488,9 @@ namespace gal::backend {
         // apparently LLVM just made a helper for `xor %thing, -1`, im not complaining
         return Expr::return_value(builder()->CreateNot(value));
       case ast::UnaryOp::logical_not:
-        // "logical not" is just bool negation after all! why special-case it
-        return Expr::return_value(builder()->CreateNeg(value));
+        // for whatever reason llvm decides to do `sub i1 false, %value` here if
+        // I use `CreateNot`? whatever the case, `xor i1 %value, true` is equivalent to not
+        return Expr::return_value(builder()->CreateXor(value, pool_.constant_of(1, 1)));
       case ast::UnaryOp::negate: {
         if (should_generate_panics() && expr.result().is_integral()) {
           auto* result = panic_if_overflow(expr.loc(),
@@ -539,7 +540,7 @@ namespace gal::backend {
       return (info.is_signed) ? builder()->CreateSDiv(lhs, rhs) : builder()->CreateUDiv(lhs, rhs);
     }
 
-    return builder()->CreateFMul(lhs, rhs);
+    return builder()->CreateFDiv(lhs, rhs);
   }
 
   llvm::Value* CodeGenerator::generate_mod(const ast::Expression& expr, llvm::Value* lhs, llvm::Value* rhs) noexcept {
@@ -801,7 +802,7 @@ namespace gal::backend {
     // we do that by repeatedly updating `if_block` and `else_block`
     auto* if_block = create_block();
     auto* else_block = create_block();
-    auto* merge = create_block();
+    auto* merge = expr.else_block() ? create_block() : else_block; // avoid creating an empty else if we don't need to
     auto cond = codegen_promoting(expr.condition());
     builder()->CreateCondBr(cond, if_block, else_block);
 
@@ -831,8 +832,6 @@ namespace gal::backend {
 
     if (auto else_expr = expr.else_block()) {
       f(else_block, **else_expr);
-    } else {
-      else_block->eraseFromParent();
     }
 
     merge_with(merge);
@@ -1088,7 +1087,9 @@ namespace gal::backend {
     exit_block_ = nullptr;
     dead_block_ = nullptr;
     panic_block_ = nullptr;
+    assert_block_ = nullptr;
     panic_phi_ = nullptr;
+    assert_phi_ = nullptr;
     return_value_ = nullptr;
     loop_break_value_ = nullptr;
   }

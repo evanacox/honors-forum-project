@@ -157,6 +157,14 @@ namespace gal::ast {
       return (is(types) && ...);
     }
 
+    [[nodiscard]] bool injected() const noexcept {
+      return injected_;
+    }
+
+    void set_injected() noexcept {
+      injected_ = true;
+    }
+
   protected:
     /// Initializes the state of the declaration base class
     ///
@@ -164,6 +172,7 @@ namespace gal::ast {
     explicit Declaration(SourceLoc loc, bool exported, DeclType real) noexcept
         : Node(std::move(loc)),
           exported_{exported},
+          injected_{false},
           real_{real} {}
 
     /// Protected so only derived can copy
@@ -197,6 +206,7 @@ namespace gal::ast {
 
   private:
     bool exported_;
+    bool injected_;
     DeclType real_;
   };
 
