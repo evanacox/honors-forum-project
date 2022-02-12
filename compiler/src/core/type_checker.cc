@@ -930,6 +930,8 @@ namespace {
         return Expr::return_value(self_expr()->result_mut());
       }
 
+      convert_intermediate(expr->castee_owner());
+
       if (!expr->unsafe()) {
         auto& result = expr->castee().result();
 

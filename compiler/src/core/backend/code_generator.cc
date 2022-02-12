@@ -770,12 +770,17 @@ namespace gal::backend {
     auto* merge = create_block();
     builder()->CreateCondBr(cond, true_branch, false_branch);
 
+    builder()->SetInsertPoint(merge);
+    auto* phi = builder()->CreatePHI(type, 2);
+
     builder()->SetInsertPoint(true_branch);
     auto true_value = codegen_promoting(expr.true_branch());
+    true_branch = builder()->GetInsertBlock();
     builder()->CreateBr(merge);
 
     builder()->SetInsertPoint(false_branch);
     auto false_value = codegen_promoting(expr.false_branch());
+    false_branch = builder()->GetInsertBlock();
     builder()->CreateBr(merge);
 
     merge_with(merge);
@@ -784,7 +789,6 @@ namespace gal::backend {
       return Expr::return_value(nullptr);
     }
 
-    auto* phi = builder()->CreatePHI(type, 2);
     phi->addIncoming(true_value, true_branch);
     phi->addIncoming(false_value, false_branch);
 

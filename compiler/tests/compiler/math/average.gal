@@ -1,0 +1,27 @@
+// test: should-run 
+// returns: 0
+// outputs: none 
+
+fn sum(arr: [i64]) -> i64 {
+    mut accum = 0
+
+    for i := 0 to arr.len {
+        accum += arr[i]
+    }
+
+    accum
+}
+
+fn average(arr: [i64]) -> f64 {
+    sum(arr) as f64 / arr.len as f64
+}
+
+fn main() -> i32 {
+    let a = [1, 2, 3, 4, 5]
+    let b = [352, 12, 59, 16, 42]
+
+    assert average(&a) == 3 as f64
+    assert average(&b) == 96.2
+
+    0
+}

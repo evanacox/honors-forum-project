@@ -1,0 +1,17 @@
+// test: should-run
+// returns: 0 
+// outputs: none 
+
+fn fib(x: i64) -> i64 {
+    if x < 2 then x else fib(x - 1) + fib(x - 2)
+}
+
+fn main() -> i32 {
+    assert fib(5) == 5
+    assert fib(15) == 610
+    assert fib(40) == 102334155 // only ~150 million recursive calls, everything is fine!
+    assert fib(0) == 0
+    assert fib(1) == 1
+
+    0
+}

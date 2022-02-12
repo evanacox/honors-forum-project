@@ -9,7 +9,7 @@ external {
 }
 
 fn distance(a: Point2D, b: Point2D) -> f64 {
-    assert a.x != a.x, "Hello!"
+    assert a.x == a.x, "Hello!"
 
     let x2 = ::pow(b.x - a.x, 2.0)
     let y2 = ::pow(b.y - a.y, 2.0)
@@ -25,10 +25,11 @@ fn main() -> i32 {
 
     __builtin_black_box(&value)
 
-    println("I dont care")
+    println("Hello")
 
     print("The distance is: ")
-    println(dist, 15)
+    println(dist)
+    println(3.141592)
     println(' ')
 
     value

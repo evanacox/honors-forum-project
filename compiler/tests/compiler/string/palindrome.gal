@@ -1,0 +1,24 @@
+// test: should-run
+// returns: 0
+// outputs: none 
+
+fn palindrome(s: [char]) -> bool {
+    for i := 0 to s.len / 2 {
+        if s[i] != s[s.len - i - 1] {
+            return false 
+        }
+    }
+
+    true
+}
+
+fn main() -> i32 {
+    assert palindrome("racecar")
+    assert not palindrome("not racecar")
+    assert palindrome("")
+    assert palindrome("lol")
+    assert palindrome("anna")
+    assert not palindrome("hello")
+
+    0
+}
