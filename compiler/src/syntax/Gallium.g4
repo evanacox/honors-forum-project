@@ -461,9 +461,17 @@ callArgList
     : expr ws? (',' ws? expr)*
     ;
 
+exclusiveRange
+    : '..' ws? expr ws?
+    ;
+
+inclusiveRange
+    : '..=' ws? expr
+    ;
+
 restOfCall
     : paren='(' callArgList? ')'
-    | bracket='[' callArgList? ']'
+    | bracket='[' ws? expr ws? (exclusiveRange | inclusiveRange)? ws? ']'
     | '.' IDENTIFIER
     ;
 
@@ -481,6 +489,10 @@ breakExpr
 
 continueExpr
     : 'continue'
+    ;
+
+sliceOfExpr
+    : '[' ws? expr ws? 'len' ws? expr ']'
     ;
 
 ifExpr
@@ -525,6 +537,7 @@ expr
     | expr ws op=(EQEQ | BANGEQ) ws expr
     | expr ws op=(WALRUS | PLUSEQ | HYPHENEQ | STAREQ | SLASHEQ | PERCENTEQ | LTLTEQ | GTGTEQ | AMPERSTANDEQ | CARETEQ | PIPEEQ) ws expr
     | ifExpr
+    | sliceOfExpr
     | loopExpr
     | (returnExpr | breakExpr | continueExpr)
     ;
@@ -535,10 +548,15 @@ primaryExpr
     | digitLiteral
     | floatLiteral
     | structInitExpr
+    | sizeofExpr
     | STRING_LITERAL
     | CHAR_LITERAL
     | BOOL_LITERAL
     | NIL_LITERAL
+    ;
+
+sizeofExpr
+    : 'sizeof' ws type
     ;
 
 arrayExpr

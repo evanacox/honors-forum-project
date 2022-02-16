@@ -5,7 +5,7 @@
 fn sum(arr: [i64]) -> i64 {
     mut accum = 0
 
-    for i := 0 to arr.len {
+    for i := 0 to arr.size {
         accum += arr[i]
     }
 
@@ -13,7 +13,7 @@ fn sum(arr: [i64]) -> i64 {
 }
 
 fn average(arr: [i64]) -> f64 {
-    sum(arr) as f64 / arr.len as f64
+    sum(arr) as f64 / arr.size as f64
 }
 
 fn main() -> i32 {

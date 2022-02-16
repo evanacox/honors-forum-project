@@ -161,6 +161,20 @@ namespace {
       assert(false);
     }
 
+    void visit(const ast::SliceOfExpression&) final {
+      assert(false);
+    }
+
+    void visit(const ast::RangeExpression&) final {
+      assert(false);
+    }
+
+    void visit(const ast::SizeofExpression& expr) final {
+      auto* type = gen_->map_type(expr.to_check());
+
+      return_value(gen_->constant_unative(gen_->size_of(type)));
+    }
+
   private:
     llvm::Type* type_;
     gal::backend::ConstantPool* gen_;
@@ -419,5 +433,17 @@ namespace gal::backend {
     return state_->builder()->CreateGEP(array_of(integer_of_width(8), data.size() + 1),
         lit,
         {constant64(0), constant64(0)});
+  }
+
+  std::uint64_t ConstantPool::size_of(llvm::Type* type) noexcept {
+    return static_cast<std::uint64_t>(state_->layout().getTypeAllocSize(type));
+  }
+
+  llvm::Constant* ConstantPool::constant_inative(std::int64_t value) noexcept {
+    return llvm::ConstantInt::getSigned(native_type(), value);
+  }
+
+  llvm::Constant* ConstantPool::constant_unative(std::uint64_t value) noexcept {
+    return llvm::ConstantInt::get(native_type(), value);
   }
 } // namespace gal::backend

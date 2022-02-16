@@ -104,6 +104,10 @@ namespace gal::backend {
 
     void visit(const ast::CastExpression& expression) final;
 
+    void visit(const ast::SliceOfExpression& expression) final;
+
+    void visit(const ast::RangeExpression& expression) final;
+
     void visit(const ast::IfThenExpression& expression) final;
 
     void visit(const ast::IfElseExpression& expression) final;
@@ -127,6 +131,8 @@ namespace gal::backend {
     void visit(const ast::LoadExpression& expression) final;
 
     void visit(const ast::AddressOfExpression& expression) final;
+
+    void visit(const ast::SizeofExpression& expression) final;
 
     void visit(const ast::BindingStatement& statement) final;
 

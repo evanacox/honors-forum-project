@@ -3,15 +3,15 @@
 // outputs: [4718088, 106, 66, 160, 8442, 3186]
 
 fn transform(arr: [mut i64]) -> void {
-    for i := 0 to arr.len {
+    for i := 0 to arr.size {
         arr[i] *= 2
     }
 
-    for i := 0 to arr.len {
+    for i := 0 to arr.size {
         arr[i] += 42
     }
 
-    for i := 0 to arr.len {
+    for i := 0 to arr.size {
         arr[i] &= 0xFFFFFFFF
     }
 }
@@ -19,12 +19,12 @@ fn transform(arr: [mut i64]) -> void {
 fn print(arr: [i64]) -> void {
     print('[')
 
-    for i := 0 to arr.len - 1 {
+    for i := 0 to arr.size - 1 {
         print(arr[i])
         print(", ")
     } 
 
-    print(arr[arr.len - 1])
+    print(arr[arr.size - 1])
     print("]")
 }
 

@@ -5,7 +5,7 @@
 fn sum(n: [i64]) -> i64 {
     mut k = 0 
 
-    for i := 0 to n.len {
+    for i := 0 to n.size {
         k += n[i]
     }
 

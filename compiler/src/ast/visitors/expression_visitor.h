@@ -47,6 +47,9 @@ namespace gal::ast {
   class LoadExpression;
   class AddressOfExpression;
   class StaticGlobalExpression;
+  class SliceOfExpression;
+  class RangeExpression;
+  class SizeofExpression;
 
   class ExpressionVisitorBase {
   public:
@@ -119,6 +122,12 @@ namespace gal::ast {
     virtual void visit(LoadExpression*) = 0;
 
     virtual void visit(AddressOfExpression*) = 0;
+
+    virtual void visit(SliceOfExpression*) = 0;
+
+    virtual void visit(RangeExpression*) = 0;
+
+    virtual void visit(SizeofExpression*) = 0;
   };
 
   class ConstExpressionVisitorBase {
@@ -192,6 +201,12 @@ namespace gal::ast {
     virtual void visit(const LoadExpression&) = 0;
 
     virtual void visit(const AddressOfExpression&) = 0;
+
+    virtual void visit(const SliceOfExpression&) = 0;
+
+    virtual void visit(const RangeExpression&) = 0;
+
+    virtual void visit(const SizeofExpression&) = 0;
   };
 
   template <typename T> using ExpressionVisitor = ValueVisitor<T, ExpressionVisitorBase>;

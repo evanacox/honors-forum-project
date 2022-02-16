@@ -399,6 +399,13 @@ namespace {
       }
     }
 
+    antlrcpp::Any visitSliceOfExpr(GalliumParser::SliceOfExprContext* ctx) final {
+      auto first = parse_expr(ctx->expr(0));
+      auto second = parse_expr(ctx->expr(1));
+
+      RETURN(std::make_unique<ast::SliceOfExpression>(loc_from(ctx), std::move(first), std::move(second)));
+    }
+
     antlrcpp::Any visitElifBlock(GalliumParser::ElifBlockContext* ctx) final {
       auto cond = parse_expr(ctx->expr());
       auto body = parse_block(ctx->blockExpression());
@@ -464,6 +471,10 @@ namespace {
             std::move(id),
             std::vector<std::unique_ptr<ast::Type>>{},
             std::nullopt));
+      } else if (ctx->sizeofExpr() != nullptr) {
+        auto type = parse_type(ctx->sizeofExpr()->type());
+
+        RETURN(std::make_unique<ast::SizeofExpression>(loc_from(ctx), std::move(type)));
       } else {
         return visitChildren(ctx);
       }
@@ -793,23 +804,30 @@ namespace {
             std::vector<std::unique_ptr<ast::Type>>{});
       }
 
-      if (rest->bracket != nullptr && rest->callArgList() == nullptr) {
-        return std::make_unique<ast::IndexExpression>(loc_from(ctx),
-            std::move(callee),
-            std::vector<std::unique_ptr<ast::Expression>>{});
-      }
-
-      auto args = std::move(visitCallArgList(rest->callArgList()) //
-                                .as<std::vector<std::unique_ptr<ast::Expression>>>());
-
       if (rest->paren != nullptr) {
+        auto args = std::move(visitCallArgList(rest->callArgList()) //
+                                  .as<std::vector<std::unique_ptr<ast::Expression>>>());
+
         return std::make_unique<ast::CallExpression>(loc_from(ctx),
             std::move(callee),
             std::move(args),
             std::vector<std::unique_ptr<ast::Type>>{});
-      } else {
-        return std::make_unique<ast::IndexExpression>(loc_from(ctx), std::move(callee), std::move(args));
       }
+
+      auto begin = parse_expr(rest->expr());
+
+      if (rest->inclusiveRange() != nullptr || rest->exclusiveRange() != nullptr) {
+        auto type = (rest->inclusiveRange() == nullptr) ? ast::Range::exclusive : ast::Range::inclusive;
+        auto end = (type == ast::Range::exclusive) ? rest->exclusiveRange()->expr() : rest->inclusiveRange()->expr();
+
+        return std::make_unique<ast::RangeExpression>(loc_from(ctx),
+            std::move(callee),
+            std::move(begin),
+            parse_expr(end),
+            type);
+      }
+
+      return std::make_unique<ast::IndexExpression>(loc_from(ctx), std::move(callee), std::move(begin));
     }
 
     std::unique_ptr<ast::CastExpression> parse_cast(GalliumParser::ExprContext* ctx) noexcept {

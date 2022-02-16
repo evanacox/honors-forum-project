@@ -3,7 +3,7 @@
 // outputs: none
 
 fn matches(str: [char], substr: [char], start: isize) -> bool {
-    for i := 0 to substr.len {
+    for i := 0 to substr.size {
         if str[start + i] != substr[i] {
             return false 
         }
@@ -13,8 +13,8 @@ fn matches(str: [char], substr: [char], start: isize) -> bool {
 }
 
 fn find(str: [char], substr: [char]) -> isize {
-    for i := 0 to str.len {
-        if (i + substr.len - 1) >= str.len {
+    for i := 0 to str.size {
+        if (i + substr.size - 1) >= str.size {
             break
         } 
 

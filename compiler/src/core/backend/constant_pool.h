@@ -39,6 +39,10 @@ namespace gal::backend {
 
     [[nodiscard]] llvm::Constant* constant32(std::int32_t value) noexcept;
 
+    [[nodiscard]] llvm::Constant* constant_inative(std::int64_t value) noexcept;
+
+    [[nodiscard]] llvm::Constant* constant_unative(std::uint64_t value) noexcept;
+
     [[nodiscard]] llvm::Constant* constant_of(std::int64_t width, std::int64_t value) noexcept;
 
     [[nodiscard]] llvm::Constant* zero(llvm::Type* type) noexcept;
@@ -54,6 +58,8 @@ namespace gal::backend {
     [[nodiscard]] llvm::Type* array_of(llvm::Type* type, std::uint64_t length) noexcept;
 
     [[nodiscard]] llvm::Type* source_info_type() noexcept;
+
+    [[nodiscard]] std::uint64_t size_of(llvm::Type* type) noexcept;
 
   protected:
     void visit(const ast::ReferenceType& type) final;

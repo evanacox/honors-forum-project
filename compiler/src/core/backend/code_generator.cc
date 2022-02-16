@@ -418,12 +418,12 @@ namespace gal::backend {
 
   void CodeGenerator::visit(const ast::IndexExpression& expression) {
     auto& result_type = gal::as<ast::IndirectionType>(expression.result()).produced();
-    auto offset = codegen_promoting(*expression.indices()[0]); // TODO: multiple indices?
+    auto offset = codegen_promoting(expression.index());
     auto* array_ptr = static_cast<llvm::Value*>(nullptr);
     auto* array_element_type = pool_.map_type(result_type);
 
     // we either have a slice in a register or we have an array sitting in memory
-    if (expression.callee().result().is(ast::TypeType::slice)) {
+    if (expression.callee().result().accessed_type().is(ast::TypeType::slice)) {
       auto array = codegen_promoting(expression.callee());
       array_ptr = builder()->CreateExtractValue(array, {0});
       auto* size = builder()->CreateExtractValue(array, {1});
@@ -456,7 +456,7 @@ namespace gal::backend {
       auto field_idx = pool_.field_index(gal::as<ast::UserDefinedType>(expr.user_type()), expr.field_name());
       auto* gep = builder()->CreateInBoundsGEP(struct_type,
           value,
-          {pool_.constant64(0), pool_.constant32(static_cast<std::int32_t>(field_idx))});
+          {pool_.constant_inative(0), pool_.constant32(static_cast<std::int32_t>(field_idx))});
 
       Expr::return_value(gep);
     }
@@ -760,6 +760,84 @@ namespace gal::backend {
     return Expr::return_value(cast);
   }
 
+  void CodeGenerator::visit(const ast::SliceOfExpression& expr) {
+    auto& slice = gal::as<ast::SliceType>(expr.result());
+    auto ptr = codegen_promoting(expr.data());
+    auto size = codegen_promoting(expr.size());
+
+    auto* a = builder()->CreateInsertValue(llvm::Constant::getNullValue(pool_.map_type(slice)), ptr, 0);
+    auto* b = builder()->CreateInsertValue(a, size, 1);
+
+    return Expr::return_value(b);
+  }
+
+  void CodeGenerator::visit(const ast::SizeofExpression& expression) {
+    return Expr::return_value(pool_.constant(pool_.native_type(), expression));
+  }
+
+  void CodeGenerator::visit(const ast::RangeExpression& expression) {
+    auto begin = codegen_promoting(expression.begin());
+    auto end = codegen_promoting(expression.end());
+    auto* distance = builder()->CreateNSWSub(end, begin);
+    auto* range_size = (expression.range() == ast::Range::exclusive)
+                           ? distance
+                           : builder()->CreateNSWAdd(distance, pool_.constant_inative(1));
+
+    auto* type = static_cast<const ast::Type*>(nullptr);
+    auto* size = static_cast<llvm::Value*>(nullptr);
+    auto* data = static_cast<llvm::Value*>(nullptr);
+
+    if (should_generate_panics()) {
+      auto* compare = builder()->CreateICmpEQ(range_size, pool_.constant_inative(0));
+      panic_if(expression.loc(), compare, "cannot have a zero-sized slice");
+
+      auto* compare2 = builder()->CreateICmpSLT(begin, pool_.constant_inative(0));
+      panic_if(expression.loc(), compare2, "when creating a slice `a[begin..end]`, `0 <= begin` must hold true");
+
+      auto* compare3 = builder()->CreateICmpSGT(begin, end);
+      panic_if(expression.loc(), compare3, "when creating a slice `a[begin..end]`, `begin < end` must hold true");
+    }
+
+    if (expression.array().result().accessed_type().is(ast::TypeType::array)) {
+      auto& array = gal::as<ast::ArrayType>(expression.array().result().accessed_type());
+      auto ptr = codegen(expression.array());
+
+      type = &array.element_type();
+      size = pool_.constant_unative(array.size());
+      data = builder()->CreateInBoundsGEP(pool_.map_type(array),
+          ptr,
+          {pool_.constant_inative(0), pool_.constant_inative(0)});
+    } else {
+      auto& slice_type = gal::as<ast::SliceType>(expression.array().result().accessed_type());
+      auto slice = codegen_promoting(expression.array());
+
+      type = &slice_type.sliced();
+      data = builder()->CreateExtractValue(slice, {0});
+      size = builder()->CreateExtractValue(slice, {1});
+    }
+
+    if (should_generate_panics()) {
+      if (expression.range() == ast::Range::inclusive) {
+        // if (last_idx >= array.len)
+        auto out_of_bounds_end = builder()->CreateICmpSGE(end, size);
+
+        panic_if(expression.loc(), out_of_bounds_end, "tried to create out-of-bounds slice");
+      } else {
+        // if (last_idx + 1 >= array.len)
+        auto out_of_bounds_end = builder()->CreateICmpSGT(end, size);
+
+        panic_if(expression.loc(), out_of_bounds_end, "tried to create out-of-bounds slice");
+      }
+    }
+
+    auto* element_type = pool_.map_type(*type);
+    auto* new_first = builder()->CreateInBoundsGEP(element_type, data, std::initializer_list<llvm::Value*>{begin});
+    auto* a = builder()->CreateInsertValue(llvm::Constant::getNullValue(pool_.slice_of(element_type)), new_first, {0});
+    auto* b = builder()->CreateInsertValue(a, range_size, {1});
+
+    Expr::return_value(b);
+  }
+
   void CodeGenerator::visit(const ast::IfThenExpression& expr) {
     auto is_void = expr.result().is(ast::TypeType::builtin_void);
     auto cond = codegen_promoting(expr.condition());
@@ -996,8 +1074,9 @@ namespace gal::backend {
       auto& ref = gal::as<ast::ReferenceType>(expr.expr().result());
       auto& array = gal::as<ast::ArrayType>(ref.referenced());
       auto* slice_type = pool_.slice_of(pool_.map_type(array.element_type()));
-      auto* data =
-          builder()->CreateInBoundsGEP(pool_.map_type(array), value, {pool_.constant64(0), pool_.constant64(0)});
+      auto* data = builder()->CreateInBoundsGEP(pool_.map_type(array),
+          value,
+          {pool_.constant_inative(0), pool_.constant_inative(0)});
       auto* insert = builder()->CreateInsertValue(llvm::UndefValue::get(slice_type), data, {0});
 
       return Expr::return_value(builder()->CreateInsertValue(insert,

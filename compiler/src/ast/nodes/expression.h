@@ -68,6 +68,9 @@ namespace gal::ast {
     load,
     address_of,
     static_global,
+    slice_of,
+    range_into,
+    sizeof_type,
   };
 
   /// Represents the different unary expression operators
@@ -1102,6 +1105,8 @@ namespace gal::ast {
     std::vector<std::unique_ptr<Type>> generic_params_;
   };
 
+  enum class Range { inclusive, exclusive };
+
   /// Represents an index expression, ie `a[b]`
   class IndexExpression final : public Expression {
   public:
@@ -1110,12 +1115,10 @@ namespace gal::ast {
     /// \param loc The location in the source code
     /// \param callee The object being indexed into
     /// \param args The argument(s) to the index
-    explicit IndexExpression(SourceLoc loc,
-        std::unique_ptr<Expression> callee,
-        std::vector<std::unique_ptr<Expression>> args)
+    explicit IndexExpression(SourceLoc loc, std::unique_ptr<Expression> callee, std::unique_ptr<Expression> index)
         : Expression(std::move(loc), ExprType::index),
           callee_{std::move(callee)},
-          args_{std::move(args)} {}
+          index_{std::move(index)} {}
 
     /// Gets the expression being indexed into
     ///
@@ -1138,18 +1141,16 @@ namespace gal::ast {
       return &callee_;
     }
 
-    /// Gets the expressions passed as arguments to the []
-    ///
-    /// \return The expressions passed as arguments
-    [[nodiscard]] absl::Span<const std::unique_ptr<Expression>> indices() const noexcept {
-      return args_;
+    [[nodiscard]] const Expression& index() const noexcept {
+      return *index_;
     }
 
-    /// Gets the expressions passed as arguments to the []
-    ///
-    /// \return The expressions passed as arguments
-    [[nodiscard]] absl::Span<std::unique_ptr<Expression>> indices_mut() noexcept {
-      return absl::MakeSpan(args_);
+    [[nodiscard]] Expression* index_mut() noexcept {
+      return index_.get();
+    }
+
+    [[nodiscard]] std::unique_ptr<Expression>* index_owner() noexcept {
+      return &index_;
     }
 
   protected:
@@ -1163,7 +1164,7 @@ namespace gal::ast {
 
   private:
     std::unique_ptr<Expression> callee_;
-    std::vector<std::unique_ptr<Expression>> args_;
+    std::unique_ptr<Expression> index_;
   };
 
   /// Represents a field access expression, ile `a.b`
@@ -2623,5 +2624,152 @@ namespace gal::ast {
   private:
     const Declaration& decl_;
     std::vector<std::unique_ptr<Type>> generic_params_;
+  };
+
+  class SliceOfExpression final : public Expression {
+  public:
+    explicit SliceOfExpression(ast::SourceLoc loc,
+        std::unique_ptr<ast::Expression> data,
+        std::unique_ptr<ast::Expression> size)
+        : Expression(std::move(loc), ExprType::slice_of),
+          data_{std::move(data)},
+          size_{std::move(size)} {}
+
+    [[nodiscard]] const Expression& data() const noexcept {
+      return *data_;
+    }
+
+    [[nodiscard]] Expression* data_mut() noexcept {
+      return data_.get();
+    }
+
+    [[nodiscard]] std::unique_ptr<Expression>* data_owner() noexcept {
+      return &data_;
+    }
+
+    [[nodiscard]] const Expression& size() const noexcept {
+      return *size_;
+    }
+
+    [[nodiscard]] Expression* size_mut() noexcept {
+      return size_.get();
+    }
+
+    [[nodiscard]] std::unique_ptr<Expression>* size_owner() noexcept {
+      return &size_;
+    }
+
+  protected:
+    void internal_accept(ExpressionVisitorBase* visitor) final;
+
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
+
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
+
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
+
+  private:
+    std::unique_ptr<ast::Expression> data_;
+    std::unique_ptr<ast::Expression> size_;
+  };
+
+  class RangeExpression final : public Expression {
+  public:
+    explicit RangeExpression(ast::SourceLoc loc,
+        std::unique_ptr<Expression> array,
+        std::unique_ptr<Expression> begin,
+        std::unique_ptr<Expression> end,
+        Range range)
+        : Expression(std::move(loc), ExprType::range_into),
+          array_{std::move(array)},
+          begin_{std::move(begin)},
+          end_{std::move(end)},
+          range_{range} {}
+
+    [[nodiscard]] const Expression& array() const noexcept {
+      return *array_;
+    }
+
+    [[nodiscard]] Expression* array_mut() noexcept {
+      return array_.get();
+    }
+
+    [[nodiscard]] std::unique_ptr<Expression>* array_owner() noexcept {
+      return &array_;
+    }
+
+    [[nodiscard]] const Expression& begin() const noexcept {
+      return *begin_;
+    }
+
+    [[nodiscard]] Expression* begin_mut() noexcept {
+      return begin_.get();
+    }
+
+    [[nodiscard]] std::unique_ptr<Expression>* begin_owner() noexcept {
+      return &begin_;
+    }
+
+    [[nodiscard]] const Expression& end() const noexcept {
+      return *end_;
+    }
+
+    [[nodiscard]] Expression* end_mut() noexcept {
+      return end_.get();
+    }
+
+    [[nodiscard]] std::unique_ptr<Expression>* end_owner() noexcept {
+      return &end_;
+    }
+
+    [[nodiscard]] Range range() const noexcept {
+      return range_;
+    }
+
+  protected:
+    void internal_accept(ExpressionVisitorBase* visitor) final;
+
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
+
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
+
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
+
+  private:
+    std::unique_ptr<ast::Expression> array_;
+    std::unique_ptr<ast::Expression> begin_;
+    std::unique_ptr<ast::Expression> end_;
+    Range range_;
+  };
+
+  class SizeofExpression final : public Expression {
+  public:
+    explicit SizeofExpression(ast::SourceLoc loc, std::unique_ptr<ast::Type> type)
+        : Expression(std::move(loc), ExprType::sizeof_type),
+          type_{std::move(type)} {}
+
+    [[nodiscard]] const Type& to_check() const noexcept {
+      return *type_;
+    }
+
+    [[nodiscard]] Type* to_check_mut() noexcept {
+      return type_.get();
+    }
+
+    [[nodiscard]] std::unique_ptr<Type>* to_check_owner() noexcept {
+      return &type_;
+    }
+
+  protected:
+    void internal_accept(ExpressionVisitorBase* visitor) final;
+
+    void internal_accept(ConstExpressionVisitorBase* visitor) const final;
+
+    [[nodiscard]] bool internal_equals(const Expression& other) const noexcept final;
+
+    [[nodiscard]] std::unique_ptr<Expression> internal_clone() const noexcept final;
+
+  private:
+    std::unique_ptr<ast::Type> type_;
   };
 } // namespace gal::ast

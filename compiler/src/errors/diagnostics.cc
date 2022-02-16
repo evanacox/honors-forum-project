@@ -515,6 +515,14 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
           {"for loop initial value and last value must be the same type",
               "try inserting a cast",
               gal::DiagnosticType::error}},
+      {56,
+          {"slice-of expr must have pointer as first expression",
+              "you can only create a slice from a pointer",
+              gal::DiagnosticType::error}},
+      {57,
+          {"slice-of expr must have integer as second expression",
+              "you need to provide an integral size for the new slice",
+              gal::DiagnosticType::error}},
   };
 
   return lookup.at(code);

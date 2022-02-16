@@ -3,7 +3,7 @@
 // outputs: none
 
 fn find_letter(c: char, str: [char]) -> isize {
-    for i := 0 to str.len {
+    for i := 0 to str.size {
         if str[i] == c {
             return i 
         }

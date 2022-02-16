@@ -251,10 +251,7 @@ namespace {
     void visit(const ast::IndexExpression& node) final {
       print_expr("index", node);
       accept_member("callee: ", node.callee());
-      print_last_list("args: ", node.indices(), [this](const std::unique_ptr<ast::Expression>& ptr) {
-        print_initial("index argument");
-        accept_last_member("value: ", *ptr);
-      });
+      accept_last_member("index: ", node.index());
     }
 
     void visit(const ast::FieldAccessExpression& node) final {
@@ -390,6 +387,25 @@ namespace {
     void visit(const ast::AddressOfExpression& node) final {
       print_expr("addr-of", node);
       accept_last_member("taking address of: ", node.expr());
+    }
+
+    void visit(const ast::SliceOfExpression& node) final {
+      print_expr("slice-of", node);
+      accept_member("data: ", node.data());
+      accept_last_member("size: ", node.size());
+    }
+
+    void visit(const ast::RangeExpression& node) final {
+      print_expr("range-into", node);
+      accept_member("array: ", node.array());
+      accept_member("begin: ", node.begin());
+      accept_member("end: ", node.end());
+      print_last_member("range: ", node.range() == ast::Range::exclusive ? "exclusive" : "inclusive");
+    }
+
+    void visit(const ast::SizeofExpression& node) final {
+      print_expr("sizeof", node);
+      accept_last_member("type: ", node.to_check());
     }
 
     void visit(const ast::ReferenceType& node) final {

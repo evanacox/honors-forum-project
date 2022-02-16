@@ -519,18 +519,8 @@ namespace {
         return update_return(expr, error_type());
       }
 
-      auto args = expr->indices_mut();
-
-      // there is infrastructure for multi-dimensional array
-      // lookups, but it doesn't do anything right now
-      if (args.size() != 1) {
-        auto b = gal::point_out(*expr, gal::DiagnosticType::error, "must have exactly one number in `[]`s");
-
-        diagnostics_->report_emplace(47, gal::into_list(std::move(b)));
-
-        return update_return(expr, error_type());
-      } else if (!try_make_compatible(ptr_width_int, &args.front())) {
-        auto a = type_was_note(*args.front());
+      if (!try_make_compatible(ptr_width_int, expr->index_owner())) {
+        auto a = type_was_note(expr->index());
         auto b =
             gal::point_out_part(*expr, gal::DiagnosticType::error, "cannot index into array a type other than `isize`");
 
@@ -556,7 +546,7 @@ namespace {
         auto& type = expr->object().result().accessed_type();
         auto& slice = gal::as<ast::SliceType>(type);
 
-        if (expr->field_name() == "len") {
+        if (expr->field_name() == "size") {
           expr->set_slice();
 
           return update_return(expr,
@@ -1011,6 +1001,92 @@ namespace {
           default: assert(false); break;
         }
       }
+
+      update_return(expr, expr->cast_to().clone());
+    }
+
+    void visit(ast::SliceOfExpression* expr) final {
+      visit_children(expr);
+
+      convert_intermediate(expr->data_owner());
+      convert_intermediate(expr->size_owner());
+
+      if (!expr->data().result().is(TT::pointer) || !expr->size().result().is(TT::builtin_integral)) {
+        if (!expr->data().result().is(TT::pointer)) {
+          auto a = gal::point_out_list(type_was_err(expr->data()));
+
+          diagnostics_->report_emplace(56, gal::into_list(std::move(a)));
+        }
+
+        if (!expr->size().result().is(TT::builtin_integral)) {
+          auto a = gal::point_out_list(type_was_err(expr->size()));
+
+          diagnostics_->report_emplace(56, gal::into_list(std::move(a)));
+        }
+
+        return update_return(expr, error_type());
+      }
+
+      auto& ptr = gal::as<ast::PointerType>(expr->data().result());
+
+      update_return(expr, slice_of(expr->loc(), ptr.pointed().clone(), ptr.mut()));
+    }
+
+    void visit(ast::RangeExpression* expr) final {
+      visit_children(expr);
+
+      // may get "indirected" by the auto-deref code
+      // and then fail, in which case we still need access to it
+      auto* callee = expr->array_mut();
+
+      if (expr->array().result().is(TT::reference)) {
+        auto_deref(expr->array_owner());
+      }
+
+      // while we want to get it down to just ids, ptrs and refs, we don't want to allow
+      // raw indexing into pointers without a `*`
+      if (!is_indirection_to(TT::slice, expr->array()) && !is_indirection_to(TT::array, expr->array())
+          && !expr->array().result().is_one_of(TT::slice, TT::array)) {
+        auto a = type_was_err(*callee);
+        auto b = gal::point_out_part(*callee, gal::DiagnosticType::note, "tried to index here");
+        auto c = gal::point_out_list(std::move(a), std::move(b));
+
+        diagnostics_->report_emplace(46, gal::into_list(std::move(c)));
+
+        return update_return(expr, error_type());
+      }
+
+      if (!try_make_compatible(ptr_width_int, expr->begin_owner())) {
+        auto a = type_was_note(expr->begin());
+        auto b =
+            gal::point_out_part(*expr, gal::DiagnosticType::error, "cannot index into array a type other than `isize`");
+
+        diagnostics_->report_emplace(48, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
+
+        return update_return(expr, error_type());
+      }
+
+      if (!try_make_compatible(ptr_width_int, expr->end_owner())) {
+        auto a = type_was_note(expr->end());
+        auto b =
+            gal::point_out_part(*expr, gal::DiagnosticType::error, "cannot index into array a type other than `isize`");
+
+        diagnostics_->report_emplace(48, gal::into_list(gal::point_out_list(std::move(a), std::move(b))));
+
+        return update_return(expr, error_type());
+      }
+
+      auto& underlying = expr->array().result().accessed_type();
+      auto& array_type = (underlying.is(TT::array)) ? gal::as<ast::ArrayType>(underlying).element_type()
+                                                    : gal::as<ast::SliceType>(underlying).sliced();
+
+      update_return(expr, slice_of(expr->loc(), array_type.clone(), mut(expr->array())));
+    }
+
+    void visit(ast::SizeofExpression* expr) final {
+      visit_children(expr);
+
+      update_return(expr, ptr_width_int.clone());
     }
 
     void visit(ast::IfThenExpression* expr) final {

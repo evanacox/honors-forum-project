@@ -190,10 +190,7 @@ namespace gal::ast {
 
     void visit(IndexExpression* expression) override {
       accept(expression->callee_owner());
-
-      for (auto& arg : expression->indices_mut()) {
-        accept(&arg);
-      }
+      accept(expression->index_owner());
     }
 
     void visit(FieldAccessExpression* expression) override {
@@ -302,6 +299,21 @@ namespace gal::ast {
     void visit(AssertStatement* statement) override {
       accept(statement->assertion_owner());
       accept(statement->message_owner());
+    }
+
+    void visit(SliceOfExpression* expression) override {
+      accept(expression->data_owner());
+      accept(expression->size_owner());
+    }
+
+    void visit(RangeExpression* expression) override {
+      accept(expression->array_owner());
+      accept(expression->begin_owner());
+      accept(expression->end_owner());
+    }
+
+    void visit(SizeofExpression* expression) override {
+      accept(expression->to_check_owner());
     }
 
   protected:
@@ -577,10 +589,7 @@ namespace gal::ast {
 
     void visit(const IndexExpression& expression) override {
       accept(expression.callee());
-
-      for (auto& arg : expression.indices()) {
-        accept(*arg);
-      }
+      accept(expression.index());
     }
 
     void visit(const FieldAccessExpression& expression) override {
@@ -689,6 +698,21 @@ namespace gal::ast {
     void visit(const AssertStatement& statement) override {
       accept(statement.assertion());
       accept(statement.message());
+    }
+
+    void visit(const SliceOfExpression& expression) override {
+      accept(expression.data());
+      accept(expression.size());
+    }
+
+    void visit(const RangeExpression& expression) override {
+      accept(expression.array());
+      accept(expression.begin());
+      accept(expression.end());
+    }
+
+    void visit(const SizeofExpression& expression) override {
+      accept(expression.to_check());
     }
 
   protected:

@@ -315,21 +315,12 @@ namespace gal::ast {
 
   bool IndexExpression::internal_equals(const Expression& other) const noexcept {
     auto& result = gal::as<IndexExpression>(other);
-    auto self_args = indices();
-    auto other_args = result.indices();
 
-    return callee() == result.callee()
-           && std::equal(self_args.begin(),
-               self_args.end(),
-               other_args.begin(),
-               other_args.end(),
-               [](const std::unique_ptr<Expression>& lhs, const std::unique_ptr<Expression>& rhs) {
-                 return *lhs == *rhs;
-               });
+    return callee() == result.callee() && index() == result.index();
   }
 
   std::unique_ptr<Expression> IndexExpression::internal_clone() const noexcept {
-    return std::make_unique<IndexExpression>(loc(), callee().clone(), gal::clone_span(absl::MakeConstSpan(args_)));
+    return std::make_unique<IndexExpression>(loc(), callee().clone(), index().clone());
   }
 
   void FieldAccessExpression::internal_accept(ExpressionVisitorBase* visitor) {
@@ -777,5 +768,59 @@ namespace gal::ast {
     return std::make_unique<StaticGlobalExpression>(loc(),
         decl(),
         generic_params_.empty() ? std::vector<std::unique_ptr<Type>>{} : gal::clone_span(*generic_params()));
+  }
+
+  void SliceOfExpression::internal_accept(ExpressionVisitorBase* visitor) {
+    visitor->visit(this);
+  }
+
+  void SliceOfExpression::internal_accept(ConstExpressionVisitorBase* visitor) const {
+    visitor->visit(*this);
+  }
+
+  bool SliceOfExpression::internal_equals(const Expression& other) const noexcept {
+    auto& result = gal::as<SliceOfExpression>(other);
+
+    return data() == result.data() && size() == result.size();
+  }
+
+  std::unique_ptr<Expression> SliceOfExpression::internal_clone() const noexcept {
+    return std::make_unique<SliceOfExpression>(loc(), data().clone(), size().clone());
+  }
+
+  void RangeExpression::internal_accept(ExpressionVisitorBase* visitor) {
+    visitor->visit(this);
+  }
+
+  void RangeExpression::internal_accept(ConstExpressionVisitorBase* visitor) const {
+    visitor->visit(*this);
+  }
+
+  bool RangeExpression::internal_equals(const Expression& other) const noexcept {
+    auto& result = gal::as<ast::RangeExpression>(other);
+
+    return array() == result.array() && begin() == result.begin() && end() == result.end() && range() == result.range();
+  }
+
+  std::unique_ptr<Expression> RangeExpression::internal_clone() const noexcept {
+    return std::make_unique<ast::RangeExpression>(loc(), array().clone(), begin().clone(), end().clone(), range());
+  }
+
+  void SizeofExpression::internal_accept(ExpressionVisitorBase* visitor) {
+    visitor->visit(this);
+  }
+
+  void SizeofExpression::internal_accept(ConstExpressionVisitorBase* visitor) const {
+    visitor->visit(*this);
+  }
+
+  [[nodiscard]] bool SizeofExpression::internal_equals(const Expression& other) const noexcept {
+    auto& result = gal::as<SizeofExpression>(other);
+
+    return to_check() == result.to_check();
+  }
+
+  [[nodiscard]] std::unique_ptr<Expression> SizeofExpression::internal_clone() const noexcept {
+    return std::make_unique<SizeofExpression>(loc(), to_check().clone());
   }
 } // namespace gal::ast
