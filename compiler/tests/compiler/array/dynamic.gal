@@ -1,0 +1,35 @@
+// test: should-run
+// returns: 0
+// outputs: none
+
+external {
+    fn malloc(size: usize) -> *mut byte
+    fn free(ptr: *mut byte) -> void
+}
+
+fn allocate(s: isize) -> [mut i64] {
+    let length = (s * sizeof i64) as usize
+    let ptr = ::malloc(length) as! *mut i64
+
+    [ptr len s]
+}
+
+fn deallocate(s: [mut i64]) -> void {
+    ::free(s.data as! *mut byte)
+}
+
+fn main() -> i32 {
+    let array = allocate(5)
+
+    for i := 0 to 5 {
+        array[i as isize] := i + 1
+    }
+
+    for i := 0 to 5 {
+        assert array[i as isize] == i + 1
+    }
+
+    deallocate(array)
+
+    0
+}
