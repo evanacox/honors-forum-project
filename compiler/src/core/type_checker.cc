@@ -815,7 +815,7 @@ namespace {
 
           if ((expr->lhs().result().is(TT::builtin_float) && expr->rhs().result().is(TT::builtin_float))
               || (expr->lhs().result().is(TT::builtin_bool) && expr->rhs().result().is(TT::builtin_bool))
-              || (expr->lhs().result().is(TT::builtin_char)) && expr->rhs().result().is(TT::builtin_char)) {
+              || ((expr->lhs().result().is(TT::builtin_char)) && expr->rhs().result().is(TT::builtin_char))) {
             return update_return(expr, bool_type(expr->loc()));
           }
 
@@ -1499,7 +1499,7 @@ namespace {
       auto real_bits = (sign) ? bits : bits - 1;
 
       // may wrap to 0, but we go back properly with - 1 anyway
-      return gal::ipow(std::uint64_t{2}, bits - 1) - 1;
+      return gal::ipow(std::uint64_t{2}, real_bits) - 1;
     }
 
     bool implicit_convert(const ast::Type& expected,

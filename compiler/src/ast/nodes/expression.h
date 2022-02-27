@@ -1178,8 +1178,8 @@ namespace gal::ast {
     explicit FieldAccessExpression(SourceLoc loc, std::unique_ptr<Expression> object, std::string field) noexcept
         : Expression(std::move(loc), ExprType::field_access),
           object_{std::move(object)},
-          slice_{false},
-          field_{std::move(field)} {}
+          field_{std::move(field)},
+          slice_{false} {}
 
     /// Gets the object being accessed
     ///

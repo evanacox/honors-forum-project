@@ -54,7 +54,7 @@ namespace {
     }
 
     void visit(const ast::FnDeclaration& node) final {
-      auto attributes = node.proto().attributes();
+      // auto attributes = node.proto().attributes();
 
       print_initial(colors::bold_red("fn decl"));
       print_member("exported: ", lit_str(node.exported()));

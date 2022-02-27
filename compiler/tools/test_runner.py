@@ -19,15 +19,22 @@ from typing import List
 
 project_root = ""
 current_type = "debug"
+parent_env = os.environ.copy()
 
+parent_env["ASAN_OPTIONS"] = "detect_leaks=0"
 
 def compile_file(out: str, path: str, args: List[str]) -> str:
-    compiler = os.path.join(project_root, f"../build/clion/{current_type}/compiler/src/gallium.exe")
+    exe_name = "gallium.exe" if os.name == "nt" else "gallium"
+    compiler = os.path.join(project_root, f"../build/clion/{current_type}/compiler/src/{exe_name}")
+    args = [os.path.abspath(compiler), "--emit", "exe", "--out", out, path, *args]
+    shell = os.name == "nt" # on linux this completely breaks command execution
 
-    output = subprocess.run([os.path.abspath(compiler), "--emit", "exe", "--out", out, path, *args], shell=True,
-                            capture_output=True)
+    output = subprocess.run(args, capture_output=True, env=parent_env, shell=shell)
 
-    return output.stdout.decode("UTF-8")
+    if output.returncode != 0:
+        return output.stderr.decode("UTF-8")
+
+    return ""
 
 
 def read_test(path: str) -> (str, List[str]):
@@ -54,7 +61,7 @@ def read_test(path: str) -> (str, List[str]):
 
 
 def execute_should_run(exe: str, args: List[str]) -> str | None:
-    run_output = subprocess.run([exe], shell=True, capture_output=True)
+    run_output = subprocess.run([exe], shell=True, capture_output=True, env=parent_env)
     output = run_output.stdout.decode("UTF-8")
 
     if int(args[0]) != run_output.returncode:
@@ -78,7 +85,7 @@ def find_reason(output: str) -> str | None:
 
 
 def execute_should_panic(exe: str, args: List[str]) -> str | None:
-    run_output = subprocess.run([exe], shell=True, capture_output=True)
+    run_output = subprocess.run([exe], shell=True, capture_output=True, env=parent_env)
     output = run_output.stderr.decode("UTF-8")
     reason = find_reason(output)
 
@@ -92,19 +99,16 @@ def execute_should_panic(exe: str, args: List[str]) -> str | None:
 
 def execute_test(tup: (str, str, List[str])) -> str | None:
     file, test, args = tup
-    out = os.path.abspath(os.path.join(os.path.curdir, "__tmp/", file.replace("/", "_").replace("\\", "_")))
+    out = os.path.abspath(os.path.join(os.path.curdir, "__tmp/", file.replace("/", "_").replace("\\", "_").replace(".", "_")))
     compile_output = compile_file(out, file, ["--opt", "none"])
+
+    if len(compile_output.strip()) != 0:
+        return f"error from compiler! got errror: {compile_output}"
 
     match test:
         case "should-run":
-            if len(compile_output.strip()) != 0:
-                return f"error from compiler!"
-
             return execute_should_run(out, args)
         case "should-panic":
-            if len(compile_output.strip()) != 0:
-                return f"error from compiler!"
-
             return execute_should_panic(out, args)
         case _:
             assert False

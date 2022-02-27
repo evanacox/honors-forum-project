@@ -452,8 +452,8 @@ gal::DiagnosticInfo gal::diagnostic_info(std::int64_t code) noexcept {
               "both the left and right expressions in a binary expr must be of the same type",
               gal::DiagnosticType::error}},
       {41,
-          {"bitwise operator requires integral expressions",
-              "bitwise operators can only be applied to expressions that evaluate to an integral type "
+          {"operator requires integral expressions",
+              "this operator can only be applied to expressions that evaluate to an integral type "
               "(signed/unsigned integers, or bytes)",
               gal::DiagnosticType::error}},
       {42,

@@ -423,7 +423,7 @@ void gal::register_predefined(ast::Program* program) noexcept {
 }
 
 std::optional<std::unique_ptr<ast::Type>> gal::check_builtin(std::string_view name,
-    absl::Span<const std::unique_ptr<ast::Expression>> args) noexcept {
+    absl::Span<const std::unique_ptr<ast::Expression>>) noexcept {
   if (!absl::StartsWith(name, "__builtin")) {
     return std::nullopt;
   }
