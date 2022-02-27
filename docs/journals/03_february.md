@@ -1,0 +1,19 @@
+---
+layout: default
+title: February
+nav_order: 3
+parent: Journals
+---
+
+# February
+
+This month was a slower month, I was just fixing bugs in my compiler (and in the language in some cases) and documenting what I’ve been doing better. The first thing I did this month was implement a “runtime library” for my language: I needed a way to actually interact with the world. My compiler right now could generate object code and executables, but those executables had no way of actually doing anything besides returning an integer back to the operating system, or jumping through hoops to ask the operating system to go output something for it. To rectify this, I added a bit of infrastructure to the compiler that hooked into a compiler-provided library, and I wrote that library. 
+
+The library was fairly simple, it just provided functions that were easily callable and would correctly do simple output operations for the language. I then extended my compiler a bit to make that library easier to interact with, and voilà: I could actually make a proper “Hello, World!” program! After tinkering with this a bit more and getting it to a point that’s fairly nice to use, I moved on to finally writing out a bunch of tests for my program. Most of my time this month was specifically spent on implementing these “tests.” I started by creating an automatic “test runner” (a simple program that will automatically feed inputs I create into my program, check if the output of my program was correct, and whine at me if it wasn’t) and then I made a selection of test files for that test runner to use. 
+
+In doing so, I was finding bugs in my code left and right, and was able to go fix them. In writing those tests, I also found some limitations in my language, and had to go change the language and change the compiler to rectify those limitations in a semi-reasonable way. By the end of this, I had a much more stable compiler, and a much more useful language overall. I then realized that the language I was supposed to be writing a compiler for had changed so much in the time between me starting this project and now that my single “language ideas” document from back in October/November was very out of date. 
+Having a compiler for a language that only exists fully in my own brain is cool, but not particularly useful. Thus, I wrote a few pages that showed the basic usage of the language. All the rules aren’t documented perfectly (the type system in particular is a bit under-documented),  but the important details are mentioned. 
+
+For March, the only things that need to be done relate to the website. I will be spending March making sure all the writeups, documentation and tutorial-esque content on the project’s website is reasonably understandable, and having people proofread to see how well I did in that regard. I will be adding a bit more technical documentation to at least try to explain the darker corners of my codebase (since they are not exactly simple to read by themselves), and to try to document some of the unspoken assumptions that the codebase is built on. I already have a high-level architectural overview, but it can’t hurt to also document the smaller pieces of the codebase that the high-level overview simply acknowledges the existence of. While how they work could be extrapolated from the overview + the “what is a compiler?” crash course, spelling it out is never a bad thing in my opinion. I also plan on adding a few more tests, just to ensure that a few weirder cases that I can imagine don’t make my compiler fall apart, although that’s lower priority since my compiler is already well-past supporting a “reasonable subset” of the language I imagined when I started this project. 
+
+In conclusion, I’m in an excellent position with this project, and simply need to polish up the presentation part. 

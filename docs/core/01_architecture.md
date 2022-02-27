@@ -93,23 +93,23 @@ compartmentalization of the codegen process.
 
 ### `core/backend` directory
 
-- `llvm_state.cc`: `LLVMState`
+- [llvm_state.cc](https://github.com/evanacox/honors-forum-project/blob/master/compiler/src/core/backend/llvm_state.cc): `LLVMState`
   - Manages LLVM-specific state, e.g. `IRBuilder<>`, `LLVMContext`, `Module`, 
     `TargetMachine`, `DataLayout`, etc. It doesn't do much codegen on its own, besides setting up the
     module's target information. 
 
-- `variable_resolver.cc`: `VariableResolver`
+- [variable_resolver.cc](https://github.com/evanacox/honors-forum-project/blob/master/compiler/src/core/backend/variable_resolver.cc): `VariableResolver`
   - Handles managing stack-allocated variables, including name lookup, loading, etc. It handles codegen
     to correctly access variables, and it also is informed whenever the variables are destroyed (and
     can tell LLVM where necessary). It's effectively the codegen version of `NameResolver` for **local**
     variables (since it's unambiguous if a variable is local or global at this point). 
 
-- `constant_pool.cc`: `ConstantPool`
+- [constant_pool.cc](https://github.com/evanacox/honors-forum-project/blob/master/compiler/src/core/backend/constant_pool.cc): `ConstantPool`
   - Handles global constants, types, other global data outside of functions. Performs loads/codegen as
     needed to access **global** variables and other global data. It also handles creating constants, and
     generating correct code to evaluate constants at the IR level
 
-- `builtins.cc`: Builtin Generators
+- [builtins.cc](https://github.com/evanacox/honors-forum-project/blob/master/compiler/src/core/backend/builtins.cc): Builtin Generators
   - While this isn't a *class*, its a small codegen module that handles generating code for builtins, 
     and enables actually calling them (since the implementation of them is effectively magic). 
 

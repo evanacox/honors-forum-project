@@ -39,7 +39,7 @@ Given a slice `[T]` (or `[mut T]`, the layout is the same), a structure equivale
 ~~~ 
 struct __SliceT {
   __ptr: *mut T
-  __size: usize
+  __size: isize
 }
 ~~~
 
