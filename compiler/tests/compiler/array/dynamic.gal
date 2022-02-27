@@ -7,29 +7,41 @@ external {
     fn free(ptr: *mut byte) -> void
 }
 
-fn allocate(s: isize) -> [mut i64] {
-    let length = (s * sizeof i64) as usize
-    let ptr = ::malloc(length) as! *mut i64
-
-    [ptr len s]
+struct Point3D {
+    x: f64
+    y: f64
+    z: f64
 }
 
-fn deallocate(s: [mut i64]) -> void {
-    ::free(s.data as! *mut byte)
+fn allocate(size: isize) -> [mut Point3D] {
+    let size_bytes = (size * sizeof Point3D) as usize
+    let ptr = ::malloc(size_bytes) as! *mut Point3D
+
+    [ptr len size]
+}
+
+fn deallocate(slice: [mut Point3D]) -> void {
+    ::free(slice.data as! *mut byte)
 }
 
 fn main() -> i32 {
-    let array = allocate(5)
+    let data = allocate(5)
 
-    for i := 0 to 5 {
-        array[i as isize] := i + 1
+    for i := 0 to data.size {
+        data[i] := Point3D { 
+            x: (i as f64) + 1.0, 
+            y: (i as f64) + 2.0, 
+            z: (i as f64) + 3.0 
+        }
     }
 
-    for i := 0 to 5 {
-        assert array[i as isize] == i + 1
+    for i := 0 to data.size {
+        assert data[i].x == (i as f64) + 1.0
+        assert data[i].y == (i as f64) + 2.0
+        assert data[i].z == (i as f64) + 3.0
     }
 
-    deallocate(array)
+    deallocate(data)
 
     0
 }

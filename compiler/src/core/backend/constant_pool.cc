@@ -353,7 +353,7 @@ namespace gal::backend {
       vec.push_back(map_type(*arg));
     }
 
-    return_value(llvm::FunctionType::get(map_type(type.return_type()), vec, false));
+    return_value(pointer_to(llvm::FunctionType::get(map_type(type.return_type()), vec, false)));
   }
 
   void ConstantPool::visit(const ast::UnqualifiedDynInterfaceType&) {

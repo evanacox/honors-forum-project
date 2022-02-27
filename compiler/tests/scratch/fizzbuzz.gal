@@ -1,0 +1,17 @@
+fn main() -> i32 {
+    for i := 0 to 100 {
+        print(i)
+
+        if (i % 3 == 0) and (i % 5 == 0) {
+            println(": FizzBuzz!")
+        } elif i % 3 == 0 {
+            println(": Fizz!")
+        } elif i % 5 == 0 {
+            println(": Buzz!")
+        } else {
+            println("")
+        }
+    }
+
+    0
+}

@@ -1,0 +1,17 @@
+// test: should-run 
+// returns: 0
+// outputs: Hello!
+
+fn printer(s: [char]) -> void {
+    print(s)
+}
+
+fn calls_fn(f: fn([char]) -> void, arg: [char]) -> void {
+    f(arg)
+}
+
+fn main() -> i32 {
+    calls_fn(printer, "Hello!")
+
+    0
+}

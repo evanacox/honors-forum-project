@@ -327,11 +327,17 @@ namespace gal::backend {
   }
 
   void CodeGenerator::visit(const ast::StaticGlobalExpression& expression) {
-    auto& decl = gal::as<ast::ConstantDeclaration>(expression.decl());
-    auto* type = pool_.map_type(decl.hint());
-    auto* global = state_.module()->getGlobalVariable(decl.mangled_name());
+    if (expression.decl().is(ast::DeclType::fn_decl)) {
+      auto& decl = gal::as<ast::FnDeclaration>(expression.decl());
 
-    Expr::return_value(builder()->CreateLoad(type, global));
+      Expr::return_value(state_.module()->getFunction(decl.mangled_name()));
+    } else {
+      auto& decl = gal::as<ast::ConstantDeclaration>(expression.decl());
+      auto* type = pool_.map_type(decl.hint());
+      auto* global = state_.module()->getGlobalVariable(decl.mangled_name());
+
+      Expr::return_value(builder()->CreateLoad(type, global));
+    }
   }
 
   void CodeGenerator::visit(const ast::LocalIdentifierExpression& expression) {
@@ -364,6 +370,10 @@ namespace gal::backend {
 
     for (auto& arg : expression.args()) {
       args.push_back(codegen_promoting(*arg));
+    }
+
+    if (fn_type->isPointerTy()) {
+      fn_type = fn_type->getPointerElementType();
     }
 
     auto* call = builder()->CreateCall(llvm::cast<llvm::FunctionType>(fn_type), callee, args);
@@ -615,7 +625,11 @@ namespace gal::backend {
       panic_if(expr.loc(), larger_than, "cannot shift right by number larger than the bit-width of the type");
     }
 
-    return builder()->CreateAShr(lhs, rhs);
+    if (info.is_signed) {
+      return builder()->CreateAShr(lhs, rhs);
+    } else {
+      return builder()->CreateLShr(lhs, rhs);
+    }
   }
 
   llvm::Value* CodeGenerator::generate_bit_and(const ast::Expression&, llvm::Value* lhs, llvm::Value* rhs) noexcept {
