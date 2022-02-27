@@ -26,3 +26,14 @@ them by reference or by pointer.
 
 - `[T]` / `[mut T]`: Slices, also known as "array views." They are a reference to part of an array
 - `[T; N]`: Statically-sized arrays
+
+## User-Defined Types
+
+Users can create `struct` types like so:
+
+```rs
+struct Point2D {
+    x: f64,
+    y: f64
+}
+```
