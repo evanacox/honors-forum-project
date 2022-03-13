@@ -22,6 +22,15 @@ to learn what I did in mine, why, and how it works.
 
 On the sidebar, the components of the project can be found. 
 
-The "Crash Course" section has a series of articles that answer the three numbered questions above. 
+The "Crash Course" section has a series of articles that answer the three numbered questions above. It's about how *a* compiler works internally, 
+without specifically focusing on any one compiler. It's meant to detail how
+a simplified (imaginary but mostly accurate) compiler works internally and 
+how it goes from source code to machine code in a way that's relatively
+understandable.
 
-The "Compiler Design" 
+The "Compiler Design" section is written specifically to detail how *this*
+compiler works, what decisions it made, and what could be done better. 
+
+The "Gallium Language" section is a collection of short pages that document
+the actual Gallium programming language (this is the language that my 
+compiler implemented).
