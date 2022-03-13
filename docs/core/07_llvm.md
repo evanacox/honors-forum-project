@@ -90,7 +90,7 @@ Technically, there are two options:
 
 - Since LLVM is an SSA representation, you could model this using pure SSA with `phi`s and just figuring out
   where exactly in your code `x` stops meaning `5` and starts meaning `5 + 6`. You could write some extremely
-  complicated algorithms to accomplish this.
+  complicated algorithms to accomplish this when more complex semantics come into play, i.e. `if` and references/pointers.
 
 - You could use LLVM's memory abstraction to model this almost exactly as it works at the language level,
   and rely on LLVM's optimization passes to properly turn this into the pure SSA form. 
