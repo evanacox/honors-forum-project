@@ -1,6 +1,6 @@
 ---
 layout: default
-title: Linking
+title: Parsing
 nav_order: 8
 parent: Compiler Design
 ---
