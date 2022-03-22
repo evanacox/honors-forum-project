@@ -53,7 +53,7 @@ Point is, there are many different ways of interpreting these bits. The list abo
 
 And that is where types come in. Types give us a way to categorize these bits, and say that "this section of bits represent text," or "this section of bits represents a 3D coordinate" or "these bits represent a fraction" or "these bits represent a single musical note." 
 
-When we pair types with a programming language, they give us a way to *automate* all of this bit-hackery. Instead of thinking about programs as "these bits contain \<something\>", we can think of it as "we have a value of \<some type\>" that contains \<some value\>.  
+When we pair types with a programming language, they give us a way to *automate* all of this bit-hackery. Instead of thinking about programs as "these bits contain \<something\>", we can think of it as "we have a value of \<some type\> that contains \<some value\>." Better yet, we can teach the *computer* how to understand these types, and let the computer do some of the work for us.  
 
 ## Type Checking
 
