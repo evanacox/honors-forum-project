@@ -307,7 +307,8 @@ namespace gal::ast {
     builtin_cold,          // __cold
     builtin_arch,          // __arch("cpu_arch")
     builtin_noreturn,      // __noreturn
-    builtin_stdlib         // __stdlib
+    builtin_stdlib,        // __stdlib
+    builtin_varargs,       // __varargs
   };
 
   /// An attribute can have other arguments given to it

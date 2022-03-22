@@ -219,6 +219,7 @@ namespace {
           {"__cold", Type::builtin_cold},
           {"__noreturn", Type::builtin_noreturn},
           {"__stdlib", Type::builtin_stdlib},
+          {"__varargs", Type::builtin_varargs},
       };
 
       // will throw and end up crashing if one is ever not in the map

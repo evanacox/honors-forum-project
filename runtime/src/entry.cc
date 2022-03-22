@@ -10,6 +10,9 @@
 
 #include "./runtime.h"
 
-int main(int, char**) {
+int main(int argc, char** argv) {
+  gal::runtime::argc = argc;
+  gal::runtime::argv = argv;
+
   return gal::runtime::__gallium_user_main();
 }

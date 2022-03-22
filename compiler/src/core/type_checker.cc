@@ -451,7 +451,7 @@ namespace {
         auto& callee = expr->callee();
         auto& fn_ptr_type = gal::as<ast::FnPointerType>(callee.result());
 
-        if (callable(fn_ptr_type.args(), expr->args_mut())) {
+        if (callable(false, fn_ptr_type.args(), expr->args_mut())) {
           if (expr->callee().is(ET::static_global)) {
             auto& global = gal::as<ast::StaticGlobalExpression>(expr->callee());
             auto& id = (global.decl().is(DT::external_fn_decl))
@@ -1753,7 +1753,12 @@ namespace {
           auto& overload_set = **overloads;
           auto fns = overload_set.fns();
 
-          if (fns.size() == 1) {
+          auto attributes = fns.front().proto().attributes();
+          auto is_varargs = std::find_if(attributes.begin(), attributes.end(), [](const ast::Attribute& attribute) {
+            return attribute.type == ast::AttributeType::builtin_varargs;
+          });
+
+          if (fns.size() == 1 && (is_varargs == attributes.end())) {
             auto held = std::move(*expr);
             *expr = std::make_unique<ast::StaticGlobalExpression>(held->loc(), fns.front().decl_base());
             update_return(expr->get(), fn_pointer_for(fns.front().loc(), fns.front().proto()));
@@ -1835,7 +1840,8 @@ namespace {
     }
 
     template <typename Arg, typename Fn = gal::Deref>
-    [[nodiscard]] bool callable(absl::Span<const Arg> fn_args,
+    [[nodiscard]] bool callable(bool varargs,
+        absl::Span<const Arg> fn_args,
         absl::Span<std::unique_ptr<ast::Expression>> given_args,
         Fn mapper = {}) noexcept {
       auto fn_it = fn_args.begin();
@@ -1848,7 +1854,7 @@ namespace {
         }
       }
 
-      if (fn_it != fn_args.end() || given_it != given_args.end()) {
+      if ((fn_it != fn_args.end() || given_it != given_args.end()) && !varargs) {
         had_failure = true;
       }
 
@@ -1864,7 +1870,12 @@ namespace {
       };
 
       for (auto& overload : set.fns()) {
-        if (callable(overload.proto().args(), args, mapper)) {
+        auto attributes = overload.proto().attributes();
+        auto is_varargs = std::find_if(attributes.begin(), attributes.end(), [](const ast::Attribute& attribute) {
+          return attribute.type == ast::AttributeType::builtin_varargs;
+        });
+
+        if (callable(is_varargs != attributes.end(), overload.proto().args(), args, mapper)) {
           vec.push_back(gal::point_out_part(overload.decl_base(), gal::DiagnosticType::note, "candidate is here"));
         }
       }
@@ -1902,7 +1913,12 @@ namespace {
       };
 
       for (auto& overload : set.fns()) {
-        if (callable(overload.proto().args(), args, mapper)) {
+        auto attributes = overload.proto().attributes();
+        auto is_varargs = std::find_if(attributes.begin(), attributes.end(), [](const ast::Attribute& attribute) {
+          return attribute.type == ast::AttributeType::builtin_varargs;
+        });
+
+        if (callable(is_varargs != attributes.end(), overload.proto().args(), args, mapper)) {
           if (ptr != nullptr) {
             report_ambiguous(expr, set, args);
 

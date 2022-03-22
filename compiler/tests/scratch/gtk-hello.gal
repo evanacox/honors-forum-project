@@ -1,0 +1,52 @@
+type GtkApplication = *mut byte
+type GtkWidget = *mut byte
+type GtkWindow = *mut byte 
+type CString = *const char
+type GPointer = *mut byte
+type GCallback = fn(*mut byte, *mut byte) -> void
+
+external {
+    fn gtk_application_new(id: CString, flags: i32) -> GtkApplication
+    fn gtk_application_window_new(app: GtkApplication) -> GtkWidget
+    fn gtk_window_set_title(window: GtkWindow, title: CString) -> void
+    fn gtk_window_set_default_size(window: GtkWindow, width: i32, height: i32) -> void
+    fn gtk_button_new_with_label(label: CString) -> GtkWidget
+    fn g_signal_connect_data(inst: GPointer, signal: CString, callback: GCallback, data: GPointer, destroy: GPointer, flags: i32) -> i64
+    fn gtk_window_set_child(window: GtkWindow, widget: GtkWidget) -> void
+    fn gtk_window_present(window: GtkWindow) -> void
+    fn g_application_run(app: GtkApplication, argc: i32, argv: *const *const char) -> i32
+    fn g_object_unref(object: GPointer) -> void
+    fn __gallium_argc() -> i32 
+    fn __gallium_argv() -> *const *const char
+}
+
+fn handle_click(widget: GtkWidget, data: GPointer) -> void {
+    print("button was clicked! ")
+    println(rand(-500, 500))
+}
+
+fn connect_signal(widget: GtkWidget, signal: [char], handler: GCallback) -> void {
+    g_signal_connect_data(widget, signal.data, handler, nil, nil, 0)
+}
+
+fn app_activate(app: GtkApplication, data: GPointer) -> void {
+    let window = gtk_application_window_new(app)
+    gtk_window_set_title(window, ("Window").data)
+    gtk_window_set_default_size(window, 300, 200)
+
+    let button = gtk_button_new_with_label(("Hello, Honors Forum!").data)
+    connect_signal(button, "clicked", handle_click)
+    gtk_window_set_child(window, button)
+
+    gtk_window_present(window)
+}
+
+fn main() -> i32 {
+    let app = gtk_application_new(("io.evanacox.example").data, 0)
+    connect_signal(app, "activate", app_activate)
+    
+    let status = g_application_run(app, __gallium_argc(), __gallium_argv())
+    g_object_unref(app)
+
+    status
+}

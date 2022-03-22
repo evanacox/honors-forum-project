@@ -127,7 +127,12 @@ namespace gal::backend {
       arg_types.push_back(pool_.map_type(arg.type()));
     }
 
-    auto* function_type = llvm::FunctionType::get(pool_.map_type(proto.return_type()), arg_types, false);
+    auto attributes = proto.attributes();
+    auto is_varargs = std::find_if(attributes.begin(), attributes.end(), [](const ast::Attribute& attribute) {
+      return attribute.type == ast::AttributeType::builtin_varargs;
+    });
+
+    auto* function_type = llvm::FunctionType::get(pool_.map_type(proto.return_type()), arg_types, is_varargs);
     auto* fn =
         llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, llvm::Twine(name), state_.module());
 
@@ -170,6 +175,7 @@ namespace gal::backend {
         case ast::AttributeType::builtin_arch: assert(false); break;
         case ast::AttributeType::builtin_noreturn: fn->setDoesNotReturn(); break;
         case ast::AttributeType::builtin_stdlib: fn->setLinkage(llvm::Function::LinkOnceODRLinkage); break;
+        case ast::AttributeType::builtin_varargs: break;
       }
     }
 

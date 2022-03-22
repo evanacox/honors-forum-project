@@ -647,6 +647,7 @@ namespace {
         case Type::builtin_pure: return "pure";
         case Type::builtin_throws: return "throws";
         case Type::builtin_stdlib: return "__stdlib";
+        case Type::builtin_varargs: return "var-args";
         default: assert(false); return "";
       }
     }

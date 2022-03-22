@@ -91,7 +91,16 @@ namespace {
     // clang-format on
 
     auto current = path_to_runtime();
-    auto command = absl::StrCat(std::string{cc}, " ", path, " -o ", output, " -L", current, " -lgallium_runtime");
+    auto command = absl::StrCat(std::string{cc},
+        " ",
+        path,
+        " -o ",
+        output,
+        " -L",
+        current,
+        " -lgallium_runtime",
+        " ",
+        gal::flags().args());
 
     // TODO: find better way of doing this
     std::cout.flush();

@@ -367,6 +367,7 @@ fnAttribute
     | '__arch(' STRING_LITERAL ')'
     | '__noreturn'
     | '__stdlib'
+    | '__varargs'
     ;
 
 fnArgumentList

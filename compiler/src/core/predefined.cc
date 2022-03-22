@@ -178,7 +178,8 @@ namespace {
 
   std::unique_ptr<ast::Declaration> create_stdlib_builtin(std::string_view name,
       std::vector<std::unique_ptr<ast::Type>> arg_types,
-      std::unique_ptr<ast::BlockExpression> body) noexcept {
+      std::unique_ptr<ast::BlockExpression> body,
+      std::unique_ptr<ast::Type> return_type = void_type()) noexcept {
     std::vector<ast::Argument> args;
     args.reserve(arg_types.size());
 
@@ -190,7 +191,7 @@ namespace {
         std::nullopt,
         std::move(args),
         std::vector{ast::Attribute{ast::AttributeType::builtin_stdlib, std::vector<std::string>{}}},
-        void_type());
+        std::move(return_type));
 
     auto fn = std::make_unique<ast::FnDeclaration>(ast::SourceLoc::nonexistent(),
         false,
@@ -220,7 +221,8 @@ namespace {
   }
 
   std::unique_ptr<ast::Declaration> create_runtime_fn(std::string_view name,
-      std::vector<std::unique_ptr<ast::Type>> args) {
+      std::vector<std::unique_ptr<ast::Type>> args,
+      std::unique_ptr<ast::Type> return_type = void_type()) {
     std::vector<ast::Argument> arguments;
     args.reserve(args.size());
 
@@ -228,7 +230,7 @@ namespace {
       arguments.emplace_back(ast::SourceLoc::nonexistent(), absl::StrCat("__", i + 1), std::move(args[i]));
     }
 
-    return create_builtin(name, std::move(arguments));
+    return create_builtin(name, std::move(arguments), std::nullopt, std::move(return_type));
   }
 
   void register_io_ffi(ast::Program* program) noexcept {
@@ -238,6 +240,7 @@ namespace {
     //    fn __gallium_print_uint(x: usize) -> void
     //    fn __gallium_print_char(s: char) -> void
     //    fn __gallium_print_string(s: *const char, n: usize) -> void
+    //    fn __gallium_rand(lower: i64, upper: i64) -> i64
 
     auto print_f32 = create_runtime_fn("__gallium_print_f32",
         gal::into_list(float_type(ast::FloatWidth::ieee_single), int_type(32)));
@@ -248,6 +251,7 @@ namespace {
     auto print_char = create_runtime_fn("__gallium_print_char", gal::into_list(char_type()));
     auto print_str =
         create_runtime_fn("__gallium_print_string", gal::into_list(ptr_to(char_type(), false), uint_native()));
+    auto rand_fn = create_runtime_fn("__gallium_rand", gal::into_list(int_type(64), int_type(64)), int_type(64));
 
     auto external = std::make_unique<ast::ExternalDeclaration>(ast::SourceLoc::nonexistent(),
         false,
@@ -256,7 +260,8 @@ namespace {
             std::move(print_isize),
             std::move(print_usize),
             std::move(print_char),
-            std::move(print_str)));
+            std::move(print_str),
+            std::move(rand_fn)));
 
     external->set_injected();
 
@@ -414,12 +419,28 @@ namespace {
     // println(__1: bool) -> void
     program->add_decl(create_println(bool_type()));
   }
+
+  void register_misc(ast::Program* program) noexcept {
+    {
+      {
+        // rand(__1: i64, __2: i64) -> i64
+        auto lower_bound = create_id("__1");
+        auto upper_bound = create_id("__2");
+        auto call = create_call("__gallium_rand", std::move(lower_bound), std::move(upper_bound));
+        auto body = expr_into_block(gal::into_list(std::move(call)));
+
+        program->add_decl(
+            create_stdlib_builtin("rand", gal::into_list(int_type(64), int_type(64)), std::move(body), int_type(64)));
+      }
+    }
+  }
 } // namespace
 
 void gal::register_predefined(ast::Program* program) noexcept {
   register_builtins(program);
   register_io_ffi(program);
   register_io(program);
+  register_misc(program);
 }
 
 std::optional<std::unique_ptr<ast::Type>> gal::check_builtin(std::string_view name,

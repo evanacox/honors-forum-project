@@ -1,0 +1,15 @@
+// test: should-run
+// returns: 0
+// outputs: Hello, World! 5
+
+external {
+    fn printf(format: *const char) __varargs -> i32
+}
+
+const MESSAGE: [char] = "Hello, World! %d"
+
+fn main() -> i32 {
+    printf(MESSAGE.data, 5)
+
+    0
+}

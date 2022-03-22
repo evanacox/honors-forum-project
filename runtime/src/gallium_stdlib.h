@@ -24,4 +24,10 @@ namespace gal::runtime {
   extern "C" void __gallium_print_char(std::uint8_t x) noexcept;
 
   extern "C" void __gallium_print_string(const char* data, std::size_t length) noexcept;
+
+  extern "C" int __gallium_argc() noexcept;
+
+  extern "C" char** __gallium_argv() noexcept;
+
+  extern "C" std::int64_t __gallium_rand(std::int64_t lower, std::int64_t upper) noexcept;
 } // namespace gal::runtime

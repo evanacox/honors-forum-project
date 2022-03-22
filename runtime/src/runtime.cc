@@ -13,6 +13,9 @@
 #include <cstdlib>
 #include <iostream>
 
+int gal::runtime::argc = 0;
+char** gal::runtime::argv = nullptr;
+
 extern "C" void gal::runtime::__gallium_assert_fail(const char* file, std::uint64_t line, const char* msg) noexcept {
   std::cerr << "gallium: assertion failure!\n";
   std::cerr << "  location: " << file << ", line: " << line << '\n';

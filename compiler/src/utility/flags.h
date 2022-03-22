@@ -59,7 +59,12 @@ namespace gal {
         bool colored,
         bool demangle,
         bool no_checking,
-        bool debug_stdlib) noexcept;
+        bool debug_stdlib,
+        std::string compiler_args) noexcept;
+
+    [[nodiscard]] std::string_view args() const noexcept {
+      return args_;
+    }
 
     [[nodiscard]] std::string_view out() const noexcept {
       return out_;
@@ -131,6 +136,7 @@ namespace gal {
 
   private:
     std::string out_;
+    std::string args_;
     std::uint64_t jobs_;
     OptLevel opt_level_;
     OutputFormat format_;

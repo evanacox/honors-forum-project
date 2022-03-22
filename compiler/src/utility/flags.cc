@@ -37,6 +37,8 @@ ABSL_FLAG(bool, debug_stdlib, false, "whether or not to include 'stdlib' in verb
 
 ABSL_FLAG(std::string, masm, "intel", "the assembly dialect to use for x86-64 assembly");
 
+ABSL_FLAG(std::string, args, "", "arguments to pass to $CC during compilation");
+
 namespace {
   std::optional<gal::OptLevel> parse_opt() noexcept {
     static absl::flat_hash_map<std::string_view, gal::OptLevel> lookup{
@@ -108,7 +110,8 @@ namespace {
         colored,
         demangle,
         no_checking,
-        debug_stdlib);
+        debug_stdlib,
+        absl::GetFlag(FLAGS_args));
   }
 } // namespace
 
@@ -122,8 +125,10 @@ namespace gal {
       bool colored,
       bool demangle,
       bool no_checking,
-      bool debug_stdlib) noexcept
+      bool debug_stdlib,
+      std::string args) noexcept
       : out_{std::move(out)},
+        args_{std::move(args)},
         jobs_{jobs},
         opt_level_{opt},
         format_{emit},
