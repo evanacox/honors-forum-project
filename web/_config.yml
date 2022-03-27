@@ -23,6 +23,8 @@ github_username: evanacox
 repository: "evanacox/honors-forum-project"
 minimal_mistakes_skin: default
 search: true
+url: "pages.evanacox.io/honors-forum-project"
+baseurl: "/honors-forum-project"
 
 # Build settings
 markdown: kramdown
