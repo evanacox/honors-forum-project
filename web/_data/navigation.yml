@@ -1,0 +1,69 @@
+main:
+  - title: "Articles"
+    url: /articles/
+  - title: "Journals"
+    url: /journals/
+  - title: "Reflection"
+    url: /reflection/
+  - title: "Time Log"
+    url: /timelog/
+  - title: "Walk-Through Video"
+    url: /video/
+
+articles:
+  - title: "Crash Course"
+    children:
+      - title: "1. Programming Languages Aren't Magic"
+        url: /articles/crashcourse/basics/
+      - title: "2. High Level Overview"
+        url: /articles/crashcourse/high_level/
+      - title: "3. Parsing"
+        url: /articles/crashcourse/parsing/
+      - title: "4. Type Analysis"
+        url: /articles/crashcourse/types/
+      - title: "5. Intermediary Representation"
+        url: /articles/crashcourse/ir/ 
+      - title: "6. Machine Code"
+        url: /articles/crashcourse/machinecode/
+  - title: "Compiler Design"
+    children:
+      - title: "1. Compiler Architecture"
+        url: /articles/design/architecture/
+      - title: "2. Gallium's AST"
+        url: /articles/design/ast/
+      - title: "3. Diagnostics"
+        url: /articles/design/diagnostics/
+      - title: "4. Name Mangling"
+        url: /articles/design/mangling/
+      - title: "5. Memory Layout"
+        url: /articles/design/layout/
+      - title: "6. Language Builtins"
+        url: /articles/design/intrinsics/
+      - title: "7. LLVM"
+        url: /articles/design/llvm/
+      - title: "8. Linking"
+        url: /articles/design/linking/
+      - title: "9. Parsing"
+        url: /articles/design/parsing/
+  - title: "Gallium Language"
+    children:
+      - title: "Types"
+        url: /articles/language/types
+      - title: "Expressions & Statements"
+        url: /articles/language/exprsstmts
+      - title: "Operators & Operations"
+        url: /articles/language/operators
+      - title: "Functions"
+        url: /articles/language/functions
+      - title: "FFI"
+        url: /articles/language/ffi
+
+journals:
+  - title: "December"
+    url: /journals/december/
+  - title: "January"
+    url: /journals/january/
+  - title: "February"
+    url: /journals/february/
+  - title: "March"
+    url: /journals/march/
