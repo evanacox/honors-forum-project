@@ -48,7 +48,7 @@ specific place in this filing cabinet, and your computer can go
 and look at that specific place to go see where it needs to start
 executing instructions. 
 
-![filing cabinet](/assets/images/crash-course/machine-code/cabinet.png)
+![filing cabinet]({{ site.url}}{{ site.baseurl }}//images/crash-course/machine-code/cabinet.png)
 
 ## Populating Folders
 

@@ -21,7 +21,7 @@ Just like we have different ways of representing human ideas (words, math notati
 
 Note that any acronyms used will be explained below. 
 
-![Human v. Machine Readable](/assets/images/crash-course/phases/human-v-machine-readable.png)
+![Human v. Machine Readable]({{ site.url}}{{ site.baseurl }}//images/crash-course/phases/human-v-machine-readable.png)
 
 Each phase transforms and manipulates the representation of the previous, moving it's internal representation of the program the human wrote closer and closer to machine code. 
 

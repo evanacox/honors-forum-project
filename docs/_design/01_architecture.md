@@ -24,7 +24,7 @@ The lexer and parser is handled with [ANTLR4](https://www.antlr.org/). The actua
 source code of the parser is split between several files in the `compiler/src/syntax`
 subdirectory.
 
-![Parsing Diagram](/assets/images/compiler-design/architecture/parsing.png)
+![Parsing Diagram]({{ site.url}}{{ site.baseurl }}//images/compiler-design/architecture/parsing.png)
 
 - [Gallium.g4](https://github.com/evanacox/honors-forum-project/blob/master/compiler/src/syntax/Gallium.g4)
   - This contains the actual grammar of the parser that ANTLR4 compiles into C++ files during the build phase.
@@ -62,7 +62,7 @@ type-checking but are actually done *during* type-checking in order to resolve p
 
 Basically, the `TypeChecker` class ends up being more of an `AnalysisController` class masquerading as a type checker pass. 
 
-![Analysis Diagram](/assets/images/compiler-design/architecture/analysis-passes.png)
+![Analysis Diagram]({{ site.url}}{{ site.baseurl }}//images/compiler-design/architecture/analysis-passes.png)
 
 A simplified model looks something like that. Unfortunately all of these pieces are much more complex and entangled internally, and all of them are using internal datastructures to further break down the data.
 
@@ -80,7 +80,7 @@ code generator.
 
 Code generation is a relatively streamlined pipeline, focused around one main class: `CodeGenerator`. 
 
-![Codegen Passes](/assets/images/compiler-design/architecture/codegen.png)
+![Codegen Passes]({{ site.url}}{{ site.baseurl }}//images/compiler-design/architecture/codegen.png)
 
 The entire process is guided by the `CodeGenerator` class. The class walks the annotated AST, and generates 
 code/orchestrates the other modules as needed. It acts both as the main code generator (since it does the heavy lifting of 

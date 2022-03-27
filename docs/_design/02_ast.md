@@ -8,7 +8,7 @@ classes: wide
 
 Gallium's AST is a fairly simple class hierarchy. 
 
-![AST Hierarchy](/assets/images/compiler-design/ast/ast-hierarchy.png)
+![AST Hierarchy]({{ site.url}}{{ site.baseurl }}//images/compiler-design/ast/ast-hierarchy.png)
 
 The base `Node` interface provides access to source location info for each
 node, and not much else. 
@@ -43,7 +43,7 @@ method that takes a mutable pointer to a "base" visitor.
 
 ### `Any` visitors
 
-![Any Visitor](/assets/images/compiler-design/ast/visitor-hierarchy.png)
+![Any Visitor]({{ site.url}}{{ site.baseurl }}//images/compiler-design/ast/visitor-hierarchy.png)
 
 There is also a pair of visitors that can visit *any* node, namely 
 `ConstAnyVisitor` and `AnyVisitor` (note the lack of `Base`). These inherit 

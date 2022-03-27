@@ -10,7 +10,7 @@ LLVM (no, it doesn't stand for anything) is the backbone of this entire compiler
 writing compilers that provides a unified code generation target for many compilers, that 
 handles doing complex optimization and generating actual machine code for different CPU configurations.
 
-![LLVM Architecture](/assets/images/compiler-design/llvm/llvm-architecture.png)
+![LLVM Architecture]({{ site.url}}{{ site.baseurl }}//images/compiler-design/llvm/llvm-architecture.png)
 
 Instead of directly generating machine instructions (those differ between CPU architectures, and sometimes
 between CPU *models*), a compiler using LLVM instead will generate "LLVM IR" (LLVM Intermediary Representation).
