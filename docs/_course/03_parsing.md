@@ -41,7 +41,7 @@ Let's say we're making a "compiler" for math equations for some reason, and have
 
 When the compiler first looks at a file, it sees something very similar to this:
 
-![42 * 0.3 - pi]({{ site.url}}{{ site.baseurl }}//images/crash-course/parsing/parsing-1.png)
+![42 * 0.3 - pi]({{ site.url }}{{ site.baseurl }}/assets/images/crash-course/parsing/parsing-1.png)
 
 It doesn't have any immediate structure that it recognizes from the text file we gave it, all it sees is a really long list of characters, spaces, symbols and whatnot. 
 
@@ -51,7 +51,7 @@ This isn't unique to the above example either! Consider this example:
 (pi / 3) - 67
 ~~~
 
-![(pi / 3) - 67]({{ site.url}}{{ site.baseurl }}//images/crash-course/parsing/parsing-2.png)
+![(pi / 3) - 67]({{ site.url }}{{ site.baseurl }}/assets/images/crash-course/parsing/parsing-2.png)
 
 No matter what we do, all the computer sees is a giant list of symbols! 
 
@@ -71,7 +71,7 @@ Consider again our first example:
 
 The end result of lexing would look something like this:
 
-![42 * 0.3 + pi]({{ site.url}}{{ site.baseurl }}//images/crash-course/parsing/parsing-3.png)
+![42 * 0.3 + pi]({{ site.url }}{{ site.baseurl }}/assets/images/crash-course/parsing/parsing-3.png)
 
 Even though we didn't change the content of the list very much, I'd wager this is a lot easier for you
 to make sense of. The "chunks" of the math equation are now put together into single pieces, rather than
@@ -88,7 +88,7 @@ An AST is a highly abstract and highly structured representation of the code, an
 
 Here's an example, an AST for the above list of chunks:
 
-![AST for 42 * 0.3 + pi]({{ site.url}}{{ site.baseurl }}//images/crash-course/parsing/ast-1.png)
+![AST for 42 * 0.3 + pi]({{ site.url }}{{ site.baseurl }}/assets/images/crash-course/parsing/ast-1.png)
 
 In this case, the AST is describing what operations the language is saying to do, and *in what order*. Things like order of operations need to be accounted for, the parser is supposed to be able to figure out that `1 + 2 * 3 / 4` is `1 + ((2 * 3) / 4)` and not `(1 + 2) * (3 / 4)` or whatever. The parser also has to be able to figure out what things like `pi` mean, and map them to the correct *idea*.
 
@@ -107,7 +107,7 @@ Consider a much more complicated expression:
 
 While this expression may be quite a bit more muddled than the previous, it still maps perfectly to a (relatively) clean AST:
 
-![AST for (pi + 6) / 0.352 * (12.01 - 0.776)]({{ site.url}}{{ site.baseurl }}//images/crash-course/parsing/ast-2.png)
+![AST for (pi + 6) / 0.352 * (12.01 - 0.776)]({{ site.url }}{{ site.baseurl }}/assets/images/crash-course/parsing/ast-2.png)
 
 ## End Goal
 
@@ -154,7 +154,7 @@ class Employee {
 
 This can be mapped into an AST just like the math expression examples can. 
 
-![Java code AST]({{ site.url}}{{ site.baseurl }}//images/crash-course/parsing/ast-3.png)
+![Java code AST]({{ site.url }}{{ site.baseurl }}/assets/images/crash-course/parsing/ast-3.png)
 
 While it's a *much* more complex AST than the ones for the simple math expressions
 we were considering earlier, it still models the same idea: it's a rigid hierarchical

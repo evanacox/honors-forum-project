@@ -53,8 +53,8 @@ In this particular case, the order is pointer first and size later, in order to 
 
 The actual layout at runtime would look something like this:
 
-![layout #1]({{ site.url}}{{ site.baseurl }}//images/compiler-design/layout/slice-layout-1.png)
+![layout #1]({{ site.url }}{{ site.baseurl }}/assets/images/compiler-design/layout/slice-layout-1.png)
 
 Note that slices don't have to point to the beginning of an array, they could also look like this at runtime:
 
-![layout #2]({{ site.url}}{{ site.baseurl }}//images/compiler-design/layout/slice-layout-2.png)
+![layout #2]({{ site.url }}{{ site.baseurl }}/assets/images/compiler-design/layout/slice-layout-2.png)

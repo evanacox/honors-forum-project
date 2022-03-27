@@ -63,7 +63,7 @@ with one slight modification: we will have values that model text, they will be 
 
 Consider the following AST that models `("Hello!" + (42 / 0.3)) * 5`: 
 
-![AST with textual and numeric values]({{ site.url}}{{ site.baseurl }}//images/crash-course/types/type-ast-1.png)
+![AST with textual and numeric values]({{ site.url }}{{ site.baseurl }}/assets/images/crash-course/types/type-ast-1.png)
 
 Let's pretend for a moment that we just created this AST from parsing some imaginary language, and we aren't sure if it makes sense. In order to check if it does, we need to perform *type checking* it. 
 
@@ -81,7 +81,7 @@ As a first step, let's deal with all of the simple nodes and figure out what tho
 `42` and `0.3` and tell that they are numbers, so we mark them as such. We can also look at `"Hello!"` and see that it is
 quite obviously not a number, so we mark it as text.
 
-![AST with leaf nodes marked]({{ site.url}}{{ site.baseurl }}//images/crash-course/types/type-ast-2.png)
+![AST with leaf nodes marked]({{ site.url }}{{ site.baseurl }}/assets/images/crash-course/types/type-ast-2.png)
 
 Now, we need to look at the more complicated nodes `*`, `+` and `/`. For each of these, both of the nodes
 that are being operated on have to be numbers. After all, you can't multiply `5` by `Muffin`, can you?
@@ -93,7 +93,7 @@ For `+` however, we have a problem! While the `/` node is (equivalent to) a numb
 make sense to add `"Hello!"` to a number. We've discovered a place in this program where our expectations were wrong, 
 so we know that this program is *invalid*. It has failed type checking. 
 
-![AST with error]({{ site.url}}{{ site.baseurl }}//images/crash-course/types/type-ast-3.png)
+![AST with error]({{ site.url }}{{ site.baseurl }}/assets/images/crash-course/types/type-ast-3.png)
 
 ### A Valid Program
 
@@ -104,7 +104,7 @@ Well, we'd be able to verify `+`. After all, the result of `42 / 0.3` is a numbe
 
 We can then do the same for `*`: the result of `+` is a number, and so is `5`. We can mark the `*` as a number, since it also results in a number.
 
-![AST without an error]({{ site.url}}{{ site.baseurl }}//images/crash-course/types/type-ast-4.png)
+![AST without an error]({{ site.url }}{{ site.baseurl }}/assets/images/crash-course/types/type-ast-4.png)
 
 This time, we didn't find anything weird! It successfully passed type checking without anything weird being found, so we know that the program makes sense. We can say that it is *valid*.
 

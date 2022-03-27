@@ -85,6 +85,6 @@ Text formats are not the only way of doing this, nor is there anything particula
 
 The same translation process described above happens in "visual" environments like Scratch or Unreal Engine's Blueprints, just in slightly different ways. 
 
-![Forms of Code]({{ site.url}}{{ site.baseurl }}//images/crash-course/whats-a-compiler/forms-of-code.png)
+![Forms of Code]({{ site.url }}{{ site.baseurl }}/assets/images/crash-course/whats-a-compiler/forms-of-code.png)
 
 They're all just methods of making the computer do what we want it to do, after all! 
