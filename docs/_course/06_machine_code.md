@@ -26,7 +26,7 @@ than that.
 > *[Linking](https://en.wikipedia.org/wiki/Linker_(computing))*
 > *and [Loading](https://en.wikipedia.org/wiki/Loader_(computing))*
 > *for a more accurate understanding of what actually goes on*
-> *if you want to know how the linking actually works on different*
+> *if you want to know how the linking process actually works on different*
 > *operating systems.*
 
 ## Understanding `.exe`s
