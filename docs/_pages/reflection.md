@@ -1,6 +1,6 @@
 ---
 title: "Reflection"
-permalink: /reflection/writeup/
+permalink: /reflection/
 usemathjax: true
 sidebar:
   nav: "journals"

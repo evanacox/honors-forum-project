@@ -61,13 +61,15 @@ articles:
         url: /articles/language/ffi
 
 journals:
-  - title: "November (Research Report)"
-    url: /journals/november/
-  - title: "December"
-    url: /journals/december/
-  - title: "January"
-    url: /journals/january/
-  - title: "February"
-    url: /journals/february/
-  - title: "March (Reflection)"
-    url: /reflection/
+  - title: "Journals"
+    children:
+      - title: "November (Research Report)"
+        url: /journals/november/
+      - title: "December"
+        url: /journals/december/
+      - title: "January"
+        url: /journals/january/
+      - title: "February"
+        url: /journals/february/
+      - title: "March (Reflection)"
+        url: /reflection/
