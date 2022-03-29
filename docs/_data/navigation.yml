@@ -5,10 +5,12 @@ main:
     url: /journals/
   - title: "Planning"
     url: /planning/
+  - title: "Reflection"
+    url: /reflection/
   - title: "Time Log"
     url: /timelog/
-  - title: "Reflection & Video"
-    url: /reflection/
+  - title: "Video"
+    url: /video/
 
 articles:
   - title: "Crash Course"
@@ -59,11 +61,13 @@ articles:
         url: /articles/language/ffi
 
 journals:
+  - title: "November (Research Report)"
+    url: /journals/november/
   - title: "December"
     url: /journals/december/
   - title: "January"
     url: /journals/january/
   - title: "February"
     url: /journals/february/
-  - title: "March"
-    url: /journals/march/
+  - title: "March (Reflection)"
+    url: /reflection/
