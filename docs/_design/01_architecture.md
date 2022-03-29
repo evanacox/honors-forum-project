@@ -106,14 +106,21 @@ compartmentalization of the codegen process.
 - [constant_pool.cc](https://github.com/evanacox/honors-forum-project/blob/master/compiler/src/core/backend/constant_pool.cc): `ConstantPool`
   - Handles global constants, types, other global data outside of functions. Performs loads/codegen as
     needed to access **global** variables and other global data. It also handles creating constants, and
-    generating correct code to evaluate constants at the IR level
+    generating correct code to evaluate constants (the compiler term is "constant folding") at the IR level, 
+    since constant expressions in LLVM's world are handled in a very different way than standard IR is handled. 
+    Note that this module does not do much constant folding on its own: a lot is handled directly by the `llvm::IRBuilder<>`
+    as instructions are emitted. This class only handles creating constant values for initializing globals and
+    other module-scoped data (e.g it handles string literals, `const` values, things like that).
 
 - [builtins.cc](https://github.com/evanacox/honors-forum-project/blob/master/compiler/src/core/backend/builtins.cc): Builtin Generators
   - While this isn't a *class*, its a small codegen module that handles generating code for builtins, 
-    and enables actually calling them (since the implementation of them is effectively magic). 
+    and enables actually calling them (since the implementation of them is effectively magic). Whenever
+    the `CodeGenerator` encounters a call to an intrinsic, it will tell this module and let this module
+    handle generating the "call."
 
-    Some builtins are implemented as weak symbols in the IR itself, some are runtime library features, etc.
-    It's the job of this module to keep up with that.
+    Some builtins are implemented as weak symbols in the IR itself, some are runtime library features, 
+    some are implemented through special in-line IR generation, etc. It's the job of this module to keep up 
+    with that. 
 
 After the `CodeGenerator` class has finished operating on a module, that module is guaranteed
 to be **correct**, but not optimized. Optimization (or lack thereof) is handled later. 
