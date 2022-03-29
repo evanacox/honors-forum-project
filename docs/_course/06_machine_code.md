@@ -3,7 +3,7 @@ title: "Machine Code: The Final Step"
 permalink: /articles/crashcourse/machinecode/
 excerpt: "The final step between our code and a functional `.exe` file"
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 If you go back all the way page #2 in this series, you'll

@@ -3,7 +3,7 @@ title: "Programming Languages Aren't Magic"
 permalink: /articles/crashcourse/basics/
 excerpt: "What a compiler is, why we need them, why they matter."
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 When humans program, we are almost always are writing in what's called

@@ -3,7 +3,7 @@ title: "High Level Overview of a Compiler's Job"
 permalink: /articles/crashcourse/high_level/
 excerpt: "The different jobs of a compiler at a glance."
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 In the previous article, we explored the fundamental problem of programming

@@ -3,7 +3,7 @@ title: "Parsing: The Art of Understanding Text"
 permalink: /articles/crashcourse/parsing/
 excerpt: "How computers somehow make sense of text."
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 If you just Google the definition of "parsing," you'll get this:
