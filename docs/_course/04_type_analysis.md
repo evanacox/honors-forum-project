@@ -4,6 +4,7 @@ permalink: /articles/crashcourse/types/
 excerpt: "How we tell whether a program actually makes sense."
 usemathjax: true
 toc: true
+classes: wide
 ---
 
 As was mentioned in the [High Level Overview](/articles/crashcourse/high_level/) section, after we've successfully parsed a program, we need to *analyze* it. We need to ensure that the program actually makes sense in context. 

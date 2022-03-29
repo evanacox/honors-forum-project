@@ -3,7 +3,7 @@ title: "Linking"
 permalink: /articles/design/linking/
 excerpt: "How compilers can deal with the linking process."
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 Of course, all the work we've put in to generate object code won't

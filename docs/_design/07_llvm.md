@@ -3,7 +3,7 @@ title: "LLVM"
 permalink: /articles/design/llvm/
 excerpt: "An introduction to LLVM, how it works, how to use it, and what mistakes to not make."
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 LLVM (no, it doesn't stand for anything) is the backbone of this entire compiler. It's a framework for 

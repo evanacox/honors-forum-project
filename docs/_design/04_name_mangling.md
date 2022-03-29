@@ -3,7 +3,7 @@ title: "Name Mangling"
 permalink: /articles/design/mangling/
 excerpt: "How the Gallium compiler handles name mangling."
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 Name mangling is the process of "mangling" the generated symbol names in the resulting assembly/object code that the

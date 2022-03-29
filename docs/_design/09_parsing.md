@@ -3,7 +3,7 @@ title: "Parsing Methods"
 permalink: /articles/design/parsing/
 excerpt: "How compilers can deal with the parsing process."
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 For any programming language, the first step is making sense of the actual

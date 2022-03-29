@@ -3,7 +3,7 @@ title: "Compiler Intrinsics & Builtins"
 permalink: /articles/design/intrinsics/
 excerpt: "The intrinsics and runtime functions provided by the compiler and runtime library."
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 Gallium defines a set of runtime functions and builtins that come from various places in the code, these symbols are all

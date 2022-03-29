@@ -3,7 +3,7 @@ title: "Memory Layout"
 permalink: /articles/design/layout/
 excerpt: "The memory layout of Gallium types, and its interaction with LLVM."
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 ## Arrays

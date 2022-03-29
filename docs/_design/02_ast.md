@@ -3,7 +3,7 @@ title: "Gallium AST"
 permalink: /articles/design/ast/
 excerpt: "The AST of the Gallium compiler."
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 Gallium's AST is a fairly simple class hierarchy. 

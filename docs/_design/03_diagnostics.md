@@ -3,7 +3,7 @@ title: "Diagnostic Reporting"
 permalink: /articles/design/diagnostics/
 excerpt: "How the Gallium compiler handles diagnostics and errors."
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 Good error messages is one of the most important things a compiler can have in them. After

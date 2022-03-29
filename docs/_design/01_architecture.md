@@ -3,7 +3,7 @@ title: "Compiler Architecture"
 permalink: /articles/design/architecture/
 excerpt: "The overall architecture of the Gallium compiler."
 usemathjax: true
-classes: wide
+toc: true
 ---
 
 The Gallium compiler works in a very similar way to the pipeline described in
