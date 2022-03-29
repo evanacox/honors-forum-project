@@ -3,12 +3,12 @@ main:
     url: /articles/
   - title: "Journals"
     url: /journals/
-  - title: "Reflection"
-    url: /reflection/
+  - title: "Planning"
+    url: /planning/
   - title: "Time Log"
     url: /timelog/
-  - title: "Walk-Through Video"
-    url: /video/
+  - title: "Reflection & Video"
+    url: /reflection/
 
 articles:
   - title: "Crash Course"
