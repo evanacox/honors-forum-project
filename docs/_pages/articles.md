@@ -10,8 +10,8 @@ classes: wide
 This is a collection of writing aimed at three topics:
 
 1. What is a compiler, and why should I care? (Non-technical)
-2. How does the compiler you wrote work? (Technical)
-3. What is the Gallium language? (Technical)
+2. How does the compiler I wrote work? How do real compilers tackle these problems? (Technical)
+3. What even is the 'Gallium' language? (Technical)
 
 These are covered by the three collections of articles.
 
