@@ -2,7 +2,6 @@
 title: "Journal Entry: February"
 permalink: /journals/february/
 usemathjax: true
-classes: wide
 ---
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;This month was a slower month, I was just fixing bugs in my compiler (and in the language in some cases) and documenting what I’ve been doing better. The first thing I did this month was implement a “runtime library” for my language: I needed a way to actually interact with the world. My compiler right now could generate object code and executables, but those executables had no way of actually doing anything besides returning an integer back to the operating system, or jumping through hoops to ask the operating system to go output something for it. To rectify this, I added a bit of infrastructure to the compiler that hooked into a compiler-provided library, and I wrote that library. 

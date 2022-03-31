@@ -2,7 +2,6 @@
 title: "Journal Entry: January"
 permalink: /journals/january/
 usemathjax: true
-classes: wide
 ---
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;This month I spent most of my time working on the writing portion of my project. My main tasks were simple: explain the intricacies of compiler design and implementation in a way that someone with no programming experience could follow along with, and also explain how my specific compiler worked to someone who does have some programming experience. I also improved my compiler a bit more, adding some quality-of-life improvements and implementing a few of the features that I wasn’t quite sure how to implement in a reasonable way in December. 

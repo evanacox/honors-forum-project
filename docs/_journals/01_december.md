@@ -2,7 +2,6 @@
 title: "Journal Entry: December"
 permalink: /journals/december/
 usemathjax: true
-classes: wide
 ---
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Over the last month and a bit, I have made massive progress on implementing my compiler. I went from having a semi-working parser/type checker for my language to having a compiler that can successfully produce assembly/machine code based on a given source file written in my language. While it cannot produce actual .exe files yet, the complex part is done. All that it needs now is some “plumbing” code to connect a few separate systems together, plus a few calls into LLVM and the system linker, and I’ll have a usable .exe file. 
