@@ -23,7 +23,7 @@ github_username: evanacox
 repository: "evanacox/honors-forum-project"
 minimal_mistakes_skin: default
 search: true
-url: "https://pages.evanacox.io/"
+url: "https://cox.fyi/"
 baseurl: "/honors-forum-project"
 
 # Build settings
